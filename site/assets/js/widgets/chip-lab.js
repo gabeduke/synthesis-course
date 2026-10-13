@@ -267,22 +267,33 @@ class ChipLab extends HTMLElement {
     this._ensure();
     const prog = [[60, 'Major'], [57, 'Minor'], [53, 'Major'], [55, 'Major']];
     const beat = 60 / this.p.tempo;
-    const prevArp = this.p.arp;
-    const useArp = prevArp === 'Off' ? 'Major' : prevArp;
+    // Clicking again stops a demo that's already running.
+    if (this.demoRunning) { this._endDemo(); return; }
+    this.demoRunning = true;
+    this.demoPrevArp = this.p.arp;
+    const useArp = this.demoPrevArp === 'Off' ? 'Major' : this.demoPrevArp;
     let i = 0;
-    clearTimeout(this.demoTimer);
+    this._demoNote = null;
     const next = () => {
-      if (i > 0) this.noteOff(prog[(i - 1) % 4][0]);
-      if (i >= 8) { this.p.arp = prevArp; return; }
+      if (this._demoNote != null) this.noteOff(this._demoNote);
+      if (i >= 8) { this._endDemo(); return; }
       const [n, q] = prog[i % 4];
       // Keep the learner's arpeggio shape, but follow major/minor chords.
       this.p.arp = useArp.startsWith('Minor') && q === 'Major' ? useArp.replace('Minor', 'Major')
         : useArp.startsWith('Major') && q === 'Minor' ? useArp.replace('Major', 'Minor') : useArp;
       this.noteOn(n);
+      this._demoNote = n;
       i++;
       this.demoTimer = setTimeout(next, beat * 2 * 1000);
     };
     next();
+  }
+
+  _endDemo() {
+    clearTimeout(this.demoTimer);
+    if (this._demoNote != null) { this.noteOff(this._demoNote); this._demoNote = null; }
+    if (this.demoRunning) this.p.arp = this.demoPrevArp;
+    this.demoRunning = false;
   }
 
   drawWave() {

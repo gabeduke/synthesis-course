@@ -63,15 +63,18 @@ class SpaceLab extends HTMLElement {
     resume();
     const { ctx, master } = audio();
     if (!this.analyser) { this.analyser = makeAnalyser(ctx, 2048, 0); this.analyser.connect(master); }
-    this.synth?.dispose();
-    this.synth = new VASynth({ ...BASE, ...mode.p, fx: { ...mode.p.fx } });
-    this.synth.output.connect(this.analyser);
+    clearTimeout(this.pending);
+    this.synth?.dispose(0.08);
+    const synth = new VASynth({ ...BASE, ...mode.p, fx: { ...mode.p.fx } });
+    synth.output.connect(this.analyser);
+    this.synth = synth;
+    this.current = null;
     // Give the reverb's room a moment to build before the note.
-    setTimeout(() => {
-      this.synth.playNote(52, this.noteLen, 0.85);
+    this.pending = setTimeout(() => {
+      synth.playNote(52, this.noteLen, 0.85);
       this.current = { mode, start: performance.now(), data: [], len: this.noteLen };
       this.traces.set(mode.id, this.current);
-    }, 160);
+    }, 200);
   }
 
   drawPlot() {

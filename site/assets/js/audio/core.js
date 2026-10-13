@@ -8,6 +8,8 @@ let noiseBuffer = null;
 
 export function audio() {
   if (!ctx) {
+    // iPhones mute web audio with the ring/silent switch unless told otherwise.
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) { /* not supported */ }
     ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
 
     // Gentle protection so stacked voices and resonance never blast anyone's ears.

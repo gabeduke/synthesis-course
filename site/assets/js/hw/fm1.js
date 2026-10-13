@@ -81,6 +81,10 @@ class FM1Link extends EventTarget {
     this.supported = { midi: 'requestMIDIAccess' in navigator, audio: !!navigator.mediaDevices?.getUserMedia };
     this._pending = new Map();
     this._timers = new Map();
+    this.sounding = new Set(); // "channel:note" pairs we've sent note-ons for
+    this.monitoring = false;
+    // Leaving the page mid-chord shouldn't leave the FM-1 droning.
+    window.addEventListener('pagehide', () => this.releaseAll());
   }
 
   get status() {
@@ -102,7 +106,8 @@ class FM1Link extends EventTarget {
       }
     } catch (_) { /* some browsers can't query MIDI permission */ }
     try {
-      if (this.supported.audio && navigator.permissions && storage('fm1.audioId')) {
+      // Only reopen audio by itself if it was the FM-1 last time, never a laptop mic.
+      if (this.supported.audio && navigator.permissions && storage('fm1.audioId') && storage('fm1.audioIsFm1') === '1') {
         const s = await navigator.permissions.query({ name: 'microphone' });
         if (s.state === 'granted') await this.connectAudio(storage('fm1.audioId'));
       }
@@ -133,7 +138,9 @@ class FM1Link extends EventTarget {
     const pick = (list, saved) => list.find((p) => p.id === saved && p.state === 'connected')
       || list.find((p) => PORT_MATCH.test(p.name) && p.state === 'connected') || null;
     this.selectInput(pick(inputs, savedIn)?.id ?? null, false);
-    this.output = pick(outputs, savedOut);
+    const out = pick(outputs, savedOut);
+    if (out !== this.output) this.releaseAll();
+    this.output = out;
   }
 
   selectInput(id, remember = true) {
@@ -145,12 +152,14 @@ class FM1Link extends EventTarget {
   }
 
   selectOutput(id) {
+    this.releaseAll();
     this.output = id ? this.ports().outputs.find((p) => p.id === id) || null : null;
     if (id) storage('fm1.outId', id);
     this._emit('change');
   }
 
   setChannels(midi, fx) {
+    this.releaseAll();
     this.midiChannel = clamp(Number(midi) || 1, 1, 16);
     this.fxChannel = clamp(Number(fx) || 2, 1, 16);
     storage('fm1.midiCh', String(this.midiChannel));
@@ -172,17 +181,38 @@ class FM1Link extends EventTarget {
     else if (type === 0xb0) this._emit('cc', { cc: d1, value: d2 });
   }
 
-  _send(bytes) { if (this.output) this.output.send(bytes); }
-
-  noteOn(note, velocity = 0.8) {
-    this._send([0x90 | (this.midiChannel - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)]);
+  _send(bytes) {
+    if (!this.output) return;
+    // A port can vanish mid-send (cable pulled); don't let that break the page.
+    try { this.output.send(bytes); } catch (_) { /* port went away */ }
   }
 
-  noteOff(note) { this._send([0x80 | (this.midiChannel - 1), note & 127, 0]); }
+  noteOn(note, velocity = 0.8) {
+    const ch = this.midiChannel;
+    this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)]);
+    this.sounding.add(`${ch}:${note & 127}`);
+  }
 
-  allNotesOff() { this._send([0xb0 | (this.midiChannel - 1), 123, 0]); }
+  noteOff(note) {
+    const ch = this.midiChannel;
+    this._send([0x80 | (ch - 1), note & 127, 0]);
+    this.sounding.delete(`${ch}:${note & 127}`);
+  }
+
+  // Note-offs for everything we started, then All Notes Off for good measure.
+  releaseAll() {
+    if (!this.output) { this.sounding.clear(); return; }
+    for (const key of this.sounding) {
+      const [ch, note] = key.split(':').map(Number);
+      this._send([0x80 | (ch - 1), note, 0]);
+    }
+    this.sounding.clear();
+    this._send([0xb0 | (this.midiChannel - 1), 123, 0]);
+  }
 
   cc(num, value, channel = this.midiChannel) {
+    // A direct send supersedes any throttled value still waiting for this CC.
+    this._pending.delete(`${channel}:${num}`);
     this._send([0xb0 | (channel - 1), num & 127, clamp(Math.round(value), 0, 127)]);
   }
 
@@ -192,12 +222,12 @@ class FM1Link extends EventTarget {
     const key = `${channel}:${num}`;
     this._pending.set(key, [num, value, channel]);
     if (this._timers.has(key)) return;
-    this.cc(num, value, channel);
     this._pending.delete(key);
+    this._send([0xb0 | (channel - 1), num & 127, clamp(Math.round(value), 0, 127)]);
     this._timers.set(key, setTimeout(() => {
       this._timers.delete(key);
       const p = this._pending.get(key);
-      if (p) { this._pending.delete(key); this.cc(...p); }
+      if (p) { this._pending.delete(key); this.ccThrottled(...p); }
     }, 33));
   }
 
@@ -254,24 +284,26 @@ class FM1Link extends EventTarget {
 
   async connectAudio(deviceId) {
     if (!this.supported.audio) throw new Error('This browser can’t record audio input.');
-    const constraints = {
-      audio: {
-        echoCancellation: false, noiseSuppression: false, autoGainControl: false,
-        ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
-      },
-    };
-    this.disconnectAudio(false);
-    let stream = await navigator.mediaDevices.getUserMedia(constraints);
-    // First time through, labels appear only after permission. If the FM-1
-    // is plugged in but we opened the default mic, switch to the FM-1.
-    if (!deviceId) {
-      const fm = (await this.audioInputs()).find((d) => AUDIO_MATCH.test(d.label));
-      const current = stream.getAudioTracks()[0]?.getSettings().deviceId;
-      if (fm && fm.deviceId !== current) {
-        stream.getTracks().forEach((t) => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { ...constraints.audio, deviceId: { exact: fm.deviceId } } });
+    const base = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { ...base, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) } });
+      // First time through, device names appear only after permission. If the
+      // FM-1 is plugged in but we opened the default mic, switch to the FM-1.
+      if (!deviceId) {
+        const fm = (await this.audioInputs()).find((d) => AUDIO_MATCH.test(d.label));
+        const current = stream.getAudioTracks()[0]?.getSettings().deviceId;
+        if (fm && fm.deviceId !== current) {
+          stream.getTracks().forEach((t) => t.stop());
+          stream = await navigator.mediaDevices.getUserMedia({ audio: { ...base, deviceId: { exact: fm.deviceId } } });
+        }
       }
+    } catch (err) {
+      this._emit('change');
+      throw err;
     }
+    // The new stream is open; only now let go of the old one.
+    this.disconnectAudio(false);
     const { ctx, master } = audio();
     this.stream = stream;
     this.source = ctx.createMediaStreamSource(stream);
@@ -280,14 +312,18 @@ class FM1Link extends EventTarget {
     this.analyser.smoothingTimeConstant = 0.6;
     this.source.connect(this.analyser);
     this.monitorGain = ctx.createGain();
-    this.monitorGain.gain.value = 0;
+    this.monitorGain.gain.value = this.monitoring ? 1 : 0;
     this.source.connect(this.monitorGain).connect(master);
-    const id = stream.getAudioTracks()[0]?.getSettings().deviceId;
+    const track = stream.getAudioTracks()[0];
+    const id = track?.getSettings().deviceId;
     if (id) storage('fm1.audioId', id);
-    stream.getAudioTracks()[0].onended = () => this.disconnectAudio();
+    storage('fm1.audioIsFm1', AUDIO_MATCH.test(track?.label || '') ? '1' : '0');
+    if (track) track.onended = () => this.disconnectAudio();
     this._emit('change');
     return this.status;
   }
+
+  get isFm1Audio() { return AUDIO_MATCH.test(this.stream?.getAudioTracks()[0]?.label || ''); }
 
   disconnectAudio(emit = true) {
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
@@ -302,34 +338,8 @@ class FM1Link extends EventTarget {
   // Play the FM-1's input through the page's speakers. Off by default: if the
   // FM-1 is already in your headphones you'd hear it twice.
   monitor(on) {
+    this.monitoring = !!on;
     if (this.monitorGain) this.monitorGain.gain.setTargetAtTime(on ? 1 : 0, audio().ctx.currentTime, 0.02);
-  }
-
-  // Record a few seconds of FM-1 audio into a buffer (used by the granular lab).
-  async capture(seconds = 3) {
-    if (!this.source) throw new Error('Connect the FM-1’s audio first.');
-    const { ctx } = audio();
-    const frames = Math.floor(ctx.sampleRate * seconds);
-    const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
-    const out = buffer.getChannelData(0);
-    const proc = ctx.createScriptProcessor(4096, 1, 1);
-    const sink = ctx.createGain();
-    sink.gain.value = 0;
-    let pos = 0;
-    return new Promise((resolve) => {
-      proc.onaudioprocess = (e) => {
-        const inp = e.inputBuffer.getChannelData(0);
-        const n = Math.min(inp.length, frames - pos);
-        out.set(inp.subarray(0, n), pos);
-        pos += n;
-        if (pos >= frames) {
-          proc.disconnect(); this.source.disconnect(proc); sink.disconnect();
-          resolve(buffer);
-        }
-      };
-      this.source.connect(proc);
-      proc.connect(sink).connect(ctx.destination);
-    });
   }
 }
 

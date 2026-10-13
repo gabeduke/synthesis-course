@@ -151,7 +151,9 @@ class VoiceStack extends HTMLElement {
       const on = play.getAttribute('aria-pressed') !== 'true';
       play.setAttribute('aria-pressed', String(on));
       play.textContent = on ? 'Stop' : 'Hear it';
-      on ? this.noteOn(this.note, 0.8) : this.noteOff(this.note);
+      // The button always plays A2 and stops everything when turned off, so
+      // notes played on the keys in between can't leave it droning.
+      if (on) this.noteOn(45, 0.8); else { this.synth?.allOff(); this.playing = 0; }
     });
     this.playBtn = play;
     const restart = el('button', { class: 'btn', type: 'button', text: 'Start in step' });
@@ -193,10 +195,6 @@ class VoiceStack extends HTMLElement {
   noteOff(note) {
     this.synth?.noteOff(note);
     this.playing = Math.max(0, (this.playing || 0) - 1);
-    if (note === this.note && this.playBtn.getAttribute('aria-pressed') === 'true') {
-      this.playBtn.setAttribute('aria-pressed', 'false');
-      this.playBtn.textContent = 'Hear it';
-    }
   }
 
   _draw() {
@@ -251,7 +249,7 @@ class HeroStack extends HTMLElement {
     this.target = 1;
     this.canvas = el('canvas', { role: 'img', 'aria-label': 'Seven sawtooth waves stacking into a supersaw' });
     const hint = el('p', { class: 'hint' });
-    hint.innerHTML = 'Click to hear a chord built this way, or press <kbd>A</kbd> to <kbd>K</kbd> to play it.';
+    hint.innerHTML = 'Click to hear a chord built this way. After that, <kbd>A</kbd> to <kbd>K</kbd> play it too.';
     this.className = 'hero-scope';
     this.append(this.canvas, hint);
     this.tabIndex = 0;

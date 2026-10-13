@@ -27,7 +27,7 @@ function body(panel) {
   const audioState = el('span', { class: 'light' }, el('span', { text: 'Not listening' }));
   const devSel = el('select', { 'aria-label': 'Audio input' });
   const monitor = el('input', { type: 'checkbox', id: `mon-${++popoverCount}` });
-  const monitorLab = el('label', { class: 'switch', for: monitor.id, style: '--c: var(--hw)' }, [monitor, el('span', { text: 'Play it through this page too' })]);
+  const monitorLab = el('label', { class: 'switch', for: monitor.id, style: '--c: var(--hw)' }, [monitor, el('span', { text: 'Also play it through this page (use headphones)' })]);
 
   // Settings
   const midiCh = el('input', { type: 'number', min: 1, max: 16, value: fm1.midiChannel });

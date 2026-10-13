@@ -64,7 +64,7 @@ class SynthLab extends HTMLElement {
 
   noteOn(note, vel = 0.8, source) {
     resume();
-    const toPage = this.target !== 'fm1' && !(source === 'fm1' && this.target === 'both');
+    const toPage = this.target !== 'fm1';
     const toHw = this.target !== 'page' && source !== 'fm1';
     if (toPage) this.ensure().noteOn(note, vel);
     if (toHw) fm1.noteOn(note, vel);
@@ -75,7 +75,7 @@ class SynthLab extends HTMLElement {
   }
 
   noteOff(note, source) {
-    const toPage = this.target !== 'fm1' && !(source === 'fm1' && this.target === 'both');
+    const toPage = this.target !== 'fm1';
     const toHw = this.target !== 'page' && source !== 'fm1';
     if (toPage && this.synth) this.synth.noteOff(note);
     if (toHw) fm1.noteOff(note);
@@ -164,7 +164,7 @@ class SynthLab extends HTMLElement {
       if (target !== ctlWrap) ctlWrap.append(target);
     }
     if (this.ctls.size) box.append(ctlWrap);
-    this.where = el('div', { class: 'where', 'aria-live': 'polite' });
+    this.where = el('div', { class: 'where' });
     if (this.ctls.size) box.append(this.where);
 
     // Keyboard
@@ -177,7 +177,7 @@ class SynthLab extends HTMLElement {
     });
     this.holdBtn = holdBtn;
     const keysBar = el('div', { class: 'keys-bar' }, [
-      el('span', { text: 'Play with the mouse, or keys A–K (Z and X shift octaves).' }),
+      el('span', { text: 'Play with the mouse, or click this panel and use keys A–K (Z and X shift octaves).' }),
       el('span', { class: 'grow' }),
       holdBtn,
     ]);
@@ -225,7 +225,11 @@ class SynthLab extends HTMLElement {
       mirror.disabled = !out;
       segBtns[1].disabled = !out;
       segBtns[2].disabled = !out;
-      if (!out && this.target !== 'page') { this.target = 'page'; segBtns.forEach((x, i) => x.setAttribute('aria-pressed', String(i === 0))); }
+      if (!out && this.target !== 'page') {
+        this._releaseAll();
+        this.target = 'page';
+        segBtns.forEach((x, i) => x.setAttribute('aria-pressed', String(i === 0)));
+      }
       sendBtn.title = out ? '' : 'Connect the FM-1 (top right) to use this';
     };
     fm1.addEventListener('change', syncHw);
@@ -235,7 +239,7 @@ class SynthLab extends HTMLElement {
     this.addEventListener('focusin', () => this.ensure(), { once: true });
 
     for (const [v, { c, legend }] of Object.entries(this.canvases)) {
-      onFrame(c, () => this._draw(v, c, legend));
+      onFrame(c, (now) => this._draw(v, c, legend, now));
     }
   }
 
@@ -268,9 +272,8 @@ class SynthLab extends HTMLElement {
   }
 
   // ---------- Drawing ----------
-  _record() {
-    // Once per frame, sample level and LFO for the rolling plots.
-    const now = performance.now();
+  _record(now) {
+    // Once per frame (however many views draw), sample level and LFO.
     if (this._recAt === now) return;
     this._recAt = now;
     this.histPos = (this.histPos + 1) % HISTORY;
@@ -290,11 +293,11 @@ class SynthLab extends HTMLElement {
     legend.replaceChildren(...items.map(([label, color]) => el('span', {}, [Object.assign(el('i'), { style: `background:${color}` }), label])));
   }
 
-  _draw(view, canvas, legend) {
+  _draw(view, canvas, legend, now) {
     const { g, w, h } = fit(canvas);
     const c = colors();
     g.clearRect(0, 0, w, h);
-    this._record();
+    this._record(now);
     const hw = fm1.analyser;
     const items = [['This page', c.sound]];
     if (hw) items.push(['FM-1', c.hw]);

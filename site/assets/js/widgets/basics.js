@@ -146,7 +146,7 @@ class HarmonicsLab extends HTMLElement {
     const presets = el('div', { class: 'seg', role: 'group', 'aria-label': 'Start from' });
     const btns = Object.keys(SHAPES).map((k) => {
       const b = el('button', { type: 'button', text: k[0].toUpperCase() + k.slice(1), 'aria-pressed': String(k === this.shape) });
-      b.addEventListener('click', () => { this.shape = k; this.amps = SHAPES[k](); this._update(); btns.forEach((x) => x.setAttribute('aria-pressed', String(x === b))); });
+      b.addEventListener('click', () => { clearInterval(this._buildTimer); this.shape = k; this.amps = SHAPES[k](); this._update(); btns.forEach((x) => x.setAttribute('aria-pressed', String(x === b))); });
       presets.append(b);
       return b;
     });
@@ -165,6 +165,7 @@ class HarmonicsLab extends HTMLElement {
     // Dragging the bars
     let dragging = false;
     const setFrom = (e) => {
+      clearInterval(this._buildTimer);
       const r = this.bars.getBoundingClientRect();
       const i = Math.floor(((e.clientX - r.left) / r.width) * N_HARM);
       if (i < 0 || i >= N_HARM) return;

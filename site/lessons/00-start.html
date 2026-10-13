@@ -41,7 +41,7 @@
       <h2>Four moves that reach every setting</h2>
       <p>Almost everything on the FM-1+VA happens with four controls. Learn these once and every lesson’s “On the FM-1” steps will make sense.</p>
       <ul>
-        <li><strong>SELECT</strong> (knob) moves the highlight up and down a list. It never changes a value.</li>
+        <li><strong>SELECT</strong> (knob) moves the highlight up and down a list.</li>
         <li><strong>ALGORITHM</strong> (knob) changes the value on the highlighted row.</li>
         <li><span class="btn-name">SEL</span> goes into whatever is highlighted.</li>
         <li><span class="btn-name">HOME</span> comes back out, one level at a time.</li>
@@ -74,13 +74,13 @@
         <li><strong>Mirror to FM-1</strong> makes each slider you move set the same control on the hardware, live.</li>
         <li><span class="btn-name">Send settings to FM-1</span> copies the whole panel to the FM-1 in one go.</li>
       </ul>
-      <p>Those last two change the preset that’s selected on the FM-1, so pick a Virtual Analog preset first (113 to 128 from the pack). They never save: the firmware deliberately has no way to save over MIDI, so nothing changes for good until you press <span class="btn-name">SAVE</span> yourself.</p>
+      <p>Those last two change the preset that’s selected on the FM-1, so pick a Virtual Analog preset first (113 to 128 from the pack). They never save: the firmware has no MIDI control for SAVE, and this page never sends the kind of patch data that would overwrite a preset, so nothing changes for good until you press <span class="btn-name">SAVE</span> yourself.</p>
 
       <synth-lab heading="Check that it works" intro="Press Hold a chord. With MIDI connected, try Play on: Both." controls="waveform" preset='{"waveform":"saw","cutoff":5000,"release":30}'></synth-lab>
 
-      <p>If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; it usually shows up as “FM-1 Audio”.</p>
+      <p>If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; its name should include “FM-1”.</p>
 
-      <p class="note">The CC numbers the page uses to set the FM-1’s controls come from the MIDI chapter of Baud Girl’s manual. They were documented for the Virtual Analog engine and the effects. FM and 8-Bit settings can’t be sent this way, so on those lessons the FM-1 connection is for playing and listening.</p>
+      <p class="note">The control numbers the page uses to set the FM-1 come from the MIDI chapter of Baud Girl’s manual. The panels send Virtual Analog settings and four effects. FM presets accept some MIDI controls too (Brightness, Feedback, Algorithm, envelope and LFO), but the FM lesson’s demo is a simplified two-operator model rather than the FM-1’s six-operator engine, and the manual lists no MIDI controls for the 8-Bit engine. So on those two lessons the FM-1 connection is for playing and listening.</p>
     </main>
   </div>
 </body>

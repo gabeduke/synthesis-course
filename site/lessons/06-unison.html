@@ -42,9 +42,9 @@
         <li>Watch the sum at the bottom. It never repeats exactly: as the copies drift in and out of line, the shape keeps changing and its peak level rises and falls. That changing shape is what you hear as shimmer.</li>
         <li>Press <span class="btn-name">Start in step</span>. All seven begin at the same point in their cycle, so for a moment they add up to one clean wave, then fan out. Every new note does this, which is why a detuned note can open with a short swoosh as the copies spread.</li>
       </ol>
-      <p>Starting in step is also why Super alone is silent: seven identical waves that begin together stay together, and sound exactly like one. The FM-1 behaves this way, and so does this course’s model.</p>
+      <p>Baud Girl’s manual says Super without Detune does nothing you can hear. Starting in step is the simplest way that can be true: seven identical waves that begin together stay together and sound exactly like one. This course’s model works that way so it matches the documented behavior.</p>
       <p>Not every synth works like that. The Roland JP-8000, the 1996 synth that made this sound famous, let its seven oscillators run freely, so each note caught them at random points in their cycles. <span class="btn-name">Scatter them</span> shows that kind of start: no sweep, just a steady wash from the first instant. Press the two buttons back to back and watch the difference in the sum.</p>
-      <p>One more thing to notice as you move Detune: it isn’t even. For most of its travel it changes things gently, then near the top the spread jumps. That curve was measured from the original hardware, and the FM-1+VA’s Super is modeled on the same synth, so expect the last stretch of the knob to do the most.</p>
+      <p>One more thing to notice as you move Detune here: it isn’t even. For most of its travel it changes things gently, then near the top the spread jumps. That curve comes from measurements of the JP-8000. Baud Girl says the FM-1+VA’s Super models its detune and mix on a legendary ’90s virtual analog synth, and seven detuned copies is the JP-8000’s recipe, so expect a similar shape on the hardware. Trust your ears there.</p>
 
       <h2>Why a saw shimmers and a sine just wobbles</h2>
       <p>A saw wave is a stack of harmonics: the note itself plus partials at twice, three times, four times its frequency, and so on. When two saws are detuned by 1 Hz, their fundamentals beat once a second, but their second harmonics are 2 Hz apart, their tenth harmonics 10 Hz apart. The higher you go, the faster the beating.</p>
@@ -54,7 +54,7 @@
 
       <h2>Drift</h2>
       <p>Early analog oscillators never quite held their pitch. Their circuits were sensitive to temperature, so a synth would wander slightly out of tune as it warmed up and keep wandering a little all night. Players of the original Minimoog learned to switch it on fifteen minutes or more before tuning. Some early Prophet-5s drifted noticeably; later revisions were steadier, and some players heard them as a little colder for it.</p>
-      <p><span class="sig-sound">Drift</span> brings that wander back on purpose. Each note gets its own slow, slightly unsteady tuning. In the first half of its range it’s a few cents, enough to make a patch feel warmer and less mechanical. Above that, the FM-1’s Drift is deliberately wild: oscillators wander farther and faster until the top of the range is barely usable. That’s a design choice by the firmware’s author, so you can use it as an effect.</p>
+      <p><span class="sig-sound">Drift</span> brings that wander back on purpose. Each note gets its own slow, slightly unsteady tuning. In the first half of its range it’s a few cents, enough to make a patch feel warmer and less mechanical. Above that, the FM-1’s Drift is deliberately wild: oscillators wander farther and faster until, at the very top, the preset is unusable. Baud Girl put that there on purpose, so you can use it as an effect.</p>
 
       <synth-lab heading="Drift" intro="Start at 0, try 20, then try 85." controls="drift super detune waveform" preset='{"waveform":"saw","super":0,"detune":0,"drift":20,"cutoff":4000,"release":40}' chord="52 59 64"></synth-lab>
 
@@ -67,18 +67,18 @@
           <li><strong>Big leads.</strong> A saw with Super high and Detune in its upper third is the classic trance sound. Lower the cutoff a little so it isn’t harsh.</li>
           <li><strong>Thickening one line.</strong> A touch of Super and Detune makes a single-note melody sound wider without changing its character much.</li>
           <li><strong>Keep it off the bass.</strong> Low notes beat slowly, so a detuned bass swells and dips in volume on its own and can lose its punch. Use Sub instead for weight.</li>
-          <li><strong>Mind the attack.</strong> Seven copies starting at random points soften the front of a note. For plucks and stabs, use less Super or none.</li>
+          <li><strong>Mind the attack.</strong> Seven copies spreading apart blur the front of a note. For plucks and stabs, use less Super or none.</li>
         </ul>
       </section>
 
       <aside class="on-fm1">
         <h3>On the FM-1</h3>
         <ol>
-          <li>Choose a Virtual Analog preset. The free VA preset pack puts sixteen of them at 113 to 128, or make your own: <span class="btn-name">EDIT</span>, scroll to Erase Preset, <span class="btn-name">SEL</span>, choose Erase, then VA.</li>
-          <li>Press <span class="btn-name">EDIT</span> to open the Oscillator rows. Turn SELECT to Waveform and ALGORITHM to choose Saw.</li>
+          <li>Choose a Virtual Analog preset. The free VA preset pack puts sixteen of them at 113 to 128, or make your own: press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset and press <span class="btn-name">SEL</span>, turn SELECT to Erase and press <span class="btn-name">SEL</span>, then turn SELECT to VA and press <span class="btn-name">SEL</span>.</li>
+          <li>Press <span class="btn-name">EDIT</span>, turn SELECT to Oscillator and press <span class="btn-name">SEL</span>. Turn SELECT to Waveform and ALGORITHM to choose Saw.</li>
           <li>Turn Super up to about 70. Play a note: no change yet.</li>
           <li>Now turn Detune up slowly while holding a chord, and listen for the moment it starts to shimmer.</li>
-          <li>Put both on knobs so you can play them live. Press <span class="btn-name">HOME</span> to get back to the HOME screen and make sure the knob bank reads Knobs: Preset. Hold <span class="btn-name">HOME</span> and turn KNOB3 until it says Super, then KNOB4 until it says Detune.</li>
+          <li>Put both on knobs so you can play them live. Press <span class="btn-name">HOME</span> until you’re back on the HOME screen, and check that the line under the knob values reads Knobs: Preset. Hold <span class="btn-name">HOME</span> and turn KNOB3 until it says Super, then KNOB4 until it says Detune.</li>
           <li>Press <span class="btn-name">SAVE</span>, or the preset goes back to its stored version as soon as you turn PRESETS.</li>
         </ol>
         <p>With the FM-1 connected, turn on <strong>Mirror to FM-1</strong> on either panel above and every slider you move sets the same control on the hardware. Connect its audio too and the purple trace on the scope is the FM-1 itself.</p>
@@ -96,7 +96,7 @@
           <dt>2010</dt>
           <dd>Adam Szabo’s thesis at KTH Stockholm measures the JP-8000’s detune and mix curves in detail. The curves in this lesson’s widgets follow his measurements.</dd>
           <dt>2026</dt>
-          <dd>Baud Girl’s FM-1+VA firmware adds Super, Detune and Drift to the FM-1, modeling Super’s detune and mix on the same ’90s synth.</dd>
+          <dd>Baud Girl’s FM-1+VA firmware adds Super, Detune and Drift to the FM-1, with Super’s detune and mix modeled on a legendary ’90s virtual analog synth.</dd>
         </dl>
       </section>
 

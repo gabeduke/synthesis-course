@@ -68,6 +68,7 @@ export function makeControl(key, value, onChange, { label, def: override } = {})
     input.style.setProperty('--fill', `${((pos - lo) / (hi - lo)) * 100}%`);
     out.textContent = formatValue(key, v) ?? '';
     if (def.format && !PARAMS[key]) out.textContent = def.format(v);
+    input.setAttribute('aria-valuetext', out.textContent);
   };
   input.value = toPos(def, value);
   paint(value);

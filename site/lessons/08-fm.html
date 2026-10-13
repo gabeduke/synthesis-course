@@ -35,25 +35,26 @@
         <li><span class="sig-sound">Index</span> is how hard the modulator pushes. At 0 you hear a plain sine. As it rises, more and stronger sidebands appear and the tone gets brighter and harsher.</li>
       </ul>
 
-      <fm-lab heading="Ratio and index" intro="Hold a note, then move Index. Then try ratios 1, 2, 3 and 3.5." ratio="1" index="1.5"></fm-lab>
+      <fm-lab heading="Ratio and index" intro="Hold a note, then move Index. Try ratios 1, 2 and 3, then switch off snapping for 1.41." ratio="1" index="1.5"></fm-lab>
 
       <p>Try these and look at where the sidebands fall:</p>
       <ol>
         <li><strong>Ratio 1, index rising:</strong> sidebands land exactly on the harmonic ladder from lesson 1. The tone goes from sine to something like a saw. FM can make classic waveforms.</li>
         <li><strong>Ratio 2:</strong> only odd harmonics. Hollow, square-like, even clarinet-like at low index.</li>
-        <li><strong>Ratio 3.5, or switch off snapping and try 1.41:</strong> sidebands land <em>between</em> the rungs of the ladder. That’s inharmonic: bells, gongs, metal, glass.</li>
+        <li><strong>Switch off snapping and try 1.41:</strong> sidebands land <em>between</em> the rungs of the ladder. That’s inharmonic: bells, gongs, metal, glass.</li>
+        <li><strong>Back to snapping, ratio 3.5:</strong> a clangy tone that seems to have a pitch an octave below the note. Ratios that are simple fractions still line up on a ladder, just one whose bottom rung is lower.</li>
       </ol>
-      <p>Whole-number ratios give pitched, musical tones. Odd ones give clangs and bells. That’s the most useful rule in FM.</p>
+      <p>Whole-number ratios give clear, pitched tones. Simple fractions like 3.5 give hollow, clangy ones. Irrational-looking ratios like 1.41 give bells and metal. That’s the most useful rule in FM.</p>
 
       <h2>Brightness that changes over time</h2>
-      <p>On a real instrument, the tone changes as a note goes on: a struck bell or a piano is bright at the moment of impact and mellows as it rings. In FM, that’s just the index falling over time. Raise <span class="sig-time">Index decay</span> above, set Index around 4 and play short notes: each one starts bright and settles to a softer tone. A ratio of 1 with a decaying index starts to sound like an electric piano; a ratio of 3.5 sounds like a bell.</p>
+      <p>On a real instrument, the tone changes as a note goes on: a struck bell or a piano is bright at the moment of impact and mellows as it rings. In FM, that’s just the index falling over time. Raise <span class="sig-time">Index decay</span> above, set Index around 4 and play short notes: each one starts bright and settles to a softer tone. A ratio of 1 with a decaying index starts to sound like an electric piano; an unsnapped ratio like 1.41 sounds like a bell.</p>
 
       <h2>Six operators, 32 algorithms</h2>
-      <p>The FM-1’s FM engine, like the Yamaha DX7 it’s modeled on, has six of these sine-wave building blocks, called <strong>operators</strong>. Each has its own frequency ratio, its own output level and its own envelope. An <strong>algorithm</strong> decides how they’re wired: which operators you hear (carriers) and which ones modulate others (modulators). There are 32 algorithms, from one long chain of six to six carriers side by side with no modulation at all.</p>
+      <p>The FM-1’s FM engine, like the Yamaha DX7 it’s modeled on, has six of these sine-wave building blocks, called <strong>operators</strong>. Each has its own frequency ratio, its own output level and its own envelope. An <strong>algorithm</strong> decides how they’re wired: which operators you hear (carriers) and which ones modulate others (modulators). There are 32 algorithms, from stacks of up to four operators feeding each other to six carriers side by side with no modulation at all.</p>
       <p>Two consequences explain most FM programming:</p>
       <ul>
         <li><strong>A modulator’s level is its index.</strong> Turning a modulator up makes the carrier below it brighter, not louder.</li>
-        <li><strong>A modulator’s envelope is the brightness envelope.</strong> That’s why the preset-wide Release can only shorten an FM sound: the operators’ own envelopes decide how long it rings.</li>
+        <li><strong>Envelopes do two jobs.</strong> A modulator’s envelope shapes brightness over time; a carrier’s envelope shapes loudness. That’s why the preset-wide Release can only shorten an FM sound: the carriers’ own envelopes decide how long it rings.</li>
       </ul>
 
       <section class="use-it">
@@ -71,12 +72,12 @@
         <ol>
           <li>All 128 factory presets are FM presets. Turn PRESETS to an electric piano or bell and play.</li>
           <li>Turn ALGORITHM on the HOME screen. The first click draws the algorithm diagram; each click after changes it. The boxes at the bottom of each stack are carriers.</li>
-          <li>Press <span class="btn-name">EDIT</span>. Now the top-row keys are buttons: press OP1 to OP6 to open an operator’s settings. <strong>Hold</strong> an OP key to mute that operator while you play, a great way to hear what each one adds.</li>
+          <li>Press <span class="btn-name">EDIT</span>. On this screen the top-row keys stop playing notes and become buttons: press OP1 to OP6 to open an operator’s settings. <strong>Holding</strong> an OP key switches that operator off (its light goes dark). Press <span class="btn-name">HOME</span> and play to hear what’s missing. It stays off until you switch it back on with its On row or change preset.</li>
           <li>In an operator, Coarse and Fine set its ratio, Output Level its level (its index, if it’s a modulator), and Rate and Level 1 to 4 its envelope.</li>
           <li>For quick changes, the Preset knob bank on an FM preset starts with Brightness, Feedback, Attack and Release. Brightness moves all the modulators’ levels at once. Feedback (0 to 7) feeds one operator back into itself and roughens the tone.</li>
           <li>FM presets can borrow the Virtual Analog filter: the Filter group sits after the operators. It costs a few notes of polyphony.</li>
         </ol>
-        <p>Knob changes on FM presets take effect from the next note you play, not on notes already sounding. On Virtual Analog and 8-Bit presets you hear them immediately. The FM-1 also loads classic DX7 patch banks sent over MIDI, so decades of DX7 sounds will play on it.</p>
+        <p>Knob changes on FM presets take effect from the next note you play, not on notes already sounding. On Virtual Analog and 8-Bit presets you hear them immediately. The FM-1 also loads classic DX7 patch banks sent over MIDI. They play, though they won’t sound exactly like a DX7. A single DX7 patch sent this way is stored straight over the selected preset, so pick one you can lose.</p>
       </aside>
 
       <section class="history">
@@ -85,7 +86,7 @@
           <dt>1967</dt>
           <dd>At Stanford, composer John Chowning experiments with extreme vibrato on a computer and finds that very fast vibrato produces new, complex tones.</dd>
           <dt>1973</dt>
-          <dd>Chowning publishes “The Synthesis of Complex Audio Spectra by Means of Frequency Modulation” in the <em>Journal of the Audio Engineering Society</em>. Stanford licenses the technique to Yamaha; the license becomes one of the university’s most lucrative.</dd>
+          <dd>Chowning publishes “The Synthesis of Complex Audio Spectra by Means of Frequency Modulation” in the <em>Journal of the Audio Engineering Society</em>. The next year Stanford licenses the technique to Yamaha, and the license becomes one of the university’s most lucrative.</dd>
           <dt>1983</dt>
           <dd>Yamaha releases the DX7: six operators, 32 algorithms, and the electric piano and bell sounds that define the decade’s pop music. It becomes one of the best-selling synthesizers ever made.</dd>
           <dt>2026</dt>

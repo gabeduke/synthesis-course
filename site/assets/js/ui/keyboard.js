@@ -1,7 +1,7 @@
 // On-screen keyboard, computer-keyboard playing, and routing of the FM-1's
 // keys to whichever instrument on the page you used last.
 
-import { noteName } from '../audio/core.js';
+import { noteName, audio } from '../audio/core.js';
 import { fm1 } from '../hw/fm1.js';
 import { el } from './controls.js';
 
@@ -11,9 +11,10 @@ const BLACK = new Set([1, 3, 6, 8, 10]);
 const instruments = new Set();
 let active = null;
 
+// Nothing is active until you click or tab into an instrument, so typing
+// elsewhere on the page (find-in-page, screen readers) is left alone.
 export function registerInstrument(inst) {
   instruments.add(inst);
-  if (!active) active = inst;
   const claim = () => setActive(inst);
   inst.root.addEventListener('pointerdown', claim, { capture: true });
   inst.root.addEventListener('focusin', claim);
@@ -21,6 +22,7 @@ export function registerInstrument(inst) {
 
 export function setActive(inst) {
   if (active === inst) return;
+  if (active) for (const [k, h] of held) if (h.inst === active) { h.inst.noteOff(h.note, 'qwerty'); held.delete(k); }
   active = inst;
   for (const i of instruments) i.root.toggleAttribute('data-active', i === inst);
 }
@@ -28,8 +30,9 @@ export function setActive(inst) {
 export function activeInstrument() { return active; }
 
 // ---------- Computer keyboard ----------
-// Bottom two letter rows play like piano keys: A = C, W = C♯, S = D ...
-const KEYMAP = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16 };
+// Two letter rows play like piano keys: A = C, W = C♯, S = D ... Physical key
+// positions, so it works the same on AZERTY and other layouts.
+const KEYMAP = { KeyA: 0, KeyW: 1, KeyS: 2, KeyE: 3, KeyD: 4, KeyF: 5, KeyT: 6, KeyG: 7, KeyY: 8, KeyH: 9, KeyU: 10, KeyJ: 11, KeyK: 12, KeyO: 13, KeyL: 14, KeyP: 15, Semicolon: 16 };
 const held = new Map();
 
 function typingTarget(e) {
@@ -43,9 +46,9 @@ function typingTarget(e) {
 
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || typingTarget(e) || !active) return;
-  const k = e.key.toLowerCase();
-  if (k === 'z' || k === 'x') {
-    active.shiftOctave?.(k === 'z' ? -1 : 1);
+  const k = e.code;
+  if (k === 'KeyZ' || k === 'KeyX') {
+    active.shiftOctave?.(k === 'KeyZ' ? -1 : 1);
     e.preventDefault();
     return;
   }
@@ -57,7 +60,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keyup', (e) => {
-  const k = e.key.toLowerCase();
+  const k = e.code;
   const h = held.get(k);
   if (!h) return;
   held.delete(k);
@@ -70,15 +73,26 @@ window.addEventListener('blur', () => {
 });
 
 // ---------- FM-1 keys ----------
+// Each FM-1 note goes back to the instrument it started on, even if you click
+// another panel while holding it.
+const hwHeld = new Map();
 fm1.addEventListener('noteon', (e) => {
-  if (!active) return;
-  active.showHardwareNote?.(e.detail.note, true);
-  if (fm1.keysPlayPage) active.noteOn(e.detail.note, e.detail.velocity, 'fm1');
+  const inst = active || [...instruments][0];
+  if (!inst) return;
+  const { note, velocity } = e.detail;
+  inst.showHardwareNote?.(note, true);
+  // Before the first click the browser won't start audio; don't queue notes.
+  const canPlay = audio().ctx.state === 'running';
+  const plays = fm1.keysPlayPage && canPlay;
+  hwHeld.set(note, { inst, plays });
+  if (plays) inst.noteOn(note, velocity, 'fm1');
 });
 fm1.addEventListener('noteoff', (e) => {
-  if (!active) return;
-  active.showHardwareNote?.(e.detail.note, false);
-  if (fm1.keysPlayPage) active.noteOff(e.detail.note, 'fm1');
+  const h = hwHeld.get(e.detail.note);
+  if (!h) return;
+  hwHeld.delete(e.detail.note);
+  h.inst.showHardwareNote?.(e.detail.note, false);
+  if (h.plays) h.inst.noteOff(e.detail.note, 'fm1');
 });
 
 // ---------- Drawn keyboard ----------
@@ -89,9 +103,15 @@ export class Keyboard {
     this.onDown = onDown;
     this.onUp = onUp;
     this.keys = new Map();
-    this.root = el('div', { class: 'keys', role: 'group', 'aria-label': 'Keyboard' });
+    // The drawn keys are for mouse and touch. Keyboard users play with A–K,
+    // so the keys themselves are hidden from screen readers.
+    this.root = el('div', { class: 'keys', 'aria-hidden': 'true' });
     this.pointerNotes = new Map();
     this._build();
+    window.addEventListener('blur', () => {
+      for (const n of this.pointerNotes.values()) this.onUp(n);
+      this.pointerNotes.clear();
+    });
   }
 
   _build() {
@@ -104,7 +124,7 @@ export class Keyboard {
     for (let i = 0; i < n; i++) {
       const note = this.low + i;
       const isBlack = BLACK.has(note % 12);
-      const k = el('div', { class: `key${isBlack ? ' black' : ''}`, 'data-note': note, 'aria-label': noteName(note) });
+      const k = el('div', { class: `key${isBlack ? ' black' : ''}`, 'data-note': note });
       if (isBlack) {
         const leftWhites = whites.filter((w) => w < note).length;
         k.style.left = `calc(${leftWhites * ww}% - ${ww * 0.3}%)`;
@@ -147,6 +167,7 @@ export class Keyboard {
     };
     this.root.onpointerup = end;
     this.root.onpointercancel = end;
+    this.root.onlostpointercapture = end;
   }
 
   setLow(low) { this.low = low; this._build(); }

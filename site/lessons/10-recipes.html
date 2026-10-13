@@ -24,12 +24,12 @@
       <h2>Building from a blank preset</h2>
       <p>Making each patch by hand is where the learning happens. Start each one the same way:</p>
       <ol>
-        <li>Pick a preset slot you don’t mind overwriting. Press <span class="btn-name">EDIT</span>, scroll to Erase Preset, <span class="btn-name">SEL</span>, choose Erase, then VA.</li>
+        <li>Pick a preset slot you don’t mind overwriting, then press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset and press <span class="btn-name">SEL</span>, turn SELECT to Erase and press <span class="btn-name">SEL</span>, then turn SELECT to VA and press <span class="btn-name">SEL</span>.</li>
         <li>Hold <span class="btn-name">ENV</span> for a second to switch the Envelope on, then press <span class="btn-name">ENV</span> and raise Sustain, or every note will be silent after its attack.</li>
         <li>Work through the recipe’s settings top to bottom: Oscillator and Filter under <span class="btn-name">EDIT</span>, the envelope under <span class="btn-name">ENV</span>, the LFO under <span class="btn-name">LFO</span>, effects under <span class="btn-name">FX</span>.</li>
         <li>Name it (Name, near the end of the EDIT list) and press <span class="btn-name">SAVE</span>.</li>
       </ol>
-      <p>Or, with MIDI connected, select the blank VA preset and press <span class="btn-name">Send settings to FM-1</span> on a recipe, then compare. The page sends the oscillator, filter, envelope, LFO and the four effects shown; values are approximate where the hardware’s scale isn’t documented, especially Cutoff, so trust your ears and adjust.</p>
+      <p>Or, with MIDI connected, select the blank VA preset and press <span class="btn-name">Send settings to FM-1</span> on a recipe, then compare. The page sends the oscillator and filter settings, the envelope, the LFO’s Speed, Pitch Mod Depth and Delay, and the four effects’ main settings. A few things have no MIDI control and must be set by hand: the LFO’s Wave, Mono, Glide Time and the distortion type. Cutoff is approximate, since how the FM-1 maps MIDI values onto 20 Hz to 20 kHz isn’t documented, so trust your ears.</p>
 
       <h2>1. Warm pad</h2>
       <p>Slow to arrive, slow to leave, gently moving. The detuned saws give width; the closed filter and a slow LFO on the cutoff keep it soft and alive; chorus and a hall reverb put it in a room.</p>
@@ -46,7 +46,7 @@
       <h2>3. Acid bass</h2>
       <p>One saw, a resonant low-pass held mostly shut, and a short filter envelope that snaps it open on every note. Mono with glide makes notes slide into each other when you play legato; a little distortion adds grit.</p>
       <synth-lab heading="Acid bass" intro="Play low, overlapping notes. Ride Cutoff and Resonance." controls="cutoff resonance filterEnv filterDecay glide" preset='{"waveform":"saw","super":0,"filterType":"lp24","cutoff":320,"resonance":72,"filterEnv":68,"filterDecay":32,"filterVelocity":40,"keyTrack":33,"attack":0,"decay":40,"sustain":70,"release":10,"mono":true,"glide":30,"fx":{"distortion":{"on":true,"type":"soft","gain":45,"tone":50,"level":60}}}' views="spectrum wave" filter-curve low="36" chord="36"></synth-lab>
-      <p><strong>By hand:</strong> Saw · Super 0 · Filter LP24, Cutoff about 320 Hz, Resonance 72, Envelope 68, Decay 32, Velocity 40, Key Tracking 33 · Envelope on: Attack 0, Decay 40, Sustain 70, Release 10 · Mono on, then Glide Time about 30 under <span class="btn-name">GLO</span> › Glide · Distortion Soft Clip (Gain 45, Tone 50, Level 60).</p>
+      <p><strong>By hand:</strong> Saw · Super 0 · Filter LP24, Cutoff about 320 Hz, Resonance 72, Envelope 68, Decay 32, Velocity 40, Key Tracking 33 · Envelope on: Attack 0, Decay 40, Sustain 70, Release 10 · Mono on, then Glide Time about 30 under <span class="btn-name">GLO</span> › Glide (Glide Time belongs to the whole FM-1, so it isn’t saved with this preset) · Distortion Soft Clip (Gain 45, Tone 50, Level 60).</p>
       <p><strong>Make it yours:</strong> play it from the FM-1’s sequencer and keep one hand on KNOB1 (Cutoff) and the other on KNOB2 (Resonance).</p>
 
       <h2>4. Pluck</h2>
@@ -61,7 +61,7 @@
       <p><strong>By hand:</strong> Tri · Super 60 · Detune 30 · Drift 45 · Noise 12 · Filter LP12, Cutoff about 1.4 kHz, Resonance 38 · LFO to Cutoff 30 · Envelope on: Attack 80, Decay 60, Sustain 100, Release 100 · LFO Sine, Speed 12 · Chorus on (Rate 15, Depth 60, Mix 50) · Delay on (Rate 15, Feedback 55, Mix 30) · Reverb Hall (Decay 85, Mix 55).</p>
       <p><strong>Make it yours:</strong> switch on the FM-1’s arpeggiator with Latch on, hold a chord, and let the drone play itself while both hands work the knobs.</p>
 
-      <p class="note">These settings are written in the FM-1’s own 0 to 100 scales, so they transfer row for row. The page’s synth is a model, not a copy, so a patch will sound related on both, not identical. That’s normal: tune it by ear on the hardware.</p>
+      <p class="note">These settings are written in the FM-1’s own units (mostly 0 to 100, with Cutoff in hertz), so they transfer row for row. The page’s synth is a model, not a copy, so a patch will sound related on both, not identical. That’s normal: tune it by ear on the hardware.</p>
     </main>
   </div>
 </body>

@@ -100,7 +100,7 @@ export class VASynth {
 
   // ---------- Parameters ----------
   set(partial = {}) {
-    const prevWave = this.p.waveform;
+    if (partial.mono !== undefined && partial.mono !== this.p.mono) this.allOff();
     if (partial.fx) {
       for (const k of Object.keys(partial.fx)) this.p.fx[k] = { ...this.p.fx[k], ...partial.fx[k] };
     }
@@ -119,7 +119,7 @@ export class VASynth {
     this.trem.gain.setTargetAtTime(1 - amp * 0.5, t, 0.02);
     this.tremDepth.gain.setTargetAtTime(amp * 0.5, t, 0.02);
 
-    for (const v of this.voices) this._updateVoice(v, prevWave);
+    for (const v of this.voices) if (!v.released) this._updateVoice(v);
   }
 
   get params() { return structuredClone(this.p); }
@@ -135,33 +135,40 @@ export class VASynth {
     return kt + velCents;
   }
 
-  _applyFilterShape(v) {
-    const p = this.p;
+  // Set a param now (a new voice, before it sounds) or glide it (a live edit).
+  _setter(immediate) {
     const t = this.ctx.currentTime;
+    return immediate
+      ? (param, value) => { param.cancelScheduledValues(t); param.setValueAtTime(value, t); }
+      : (param, value, tau = 0.02) => param.setTargetAtTime(value, t, tau);
+  }
+
+  _applyFilterShape(v, immediate = false) {
+    const p = this.p;
+    const set = this._setter(immediate);
     const [f1, f2] = v.filters;
     const cutoff = clamp(p.cutoff, 20, 20000);
-    f1.frequency.setTargetAtTime(cutoff, t, 0.015);
-    f2.frequency.setTargetAtTime(cutoff, t, 0.015);
+    set(f1.frequency, cutoff, 0.015);
+    set(f2.frequency, cutoff, 0.015);
     if (p.filterType === 'lp12') {
-      f1.type = 'lowpass'; f1.Q.setTargetAtTime(resDb(p.resonance), t, 0.015);
+      f1.type = 'lowpass'; set(f1.Q, resDb(p.resonance), 0.015);
       f2.type = 'allpass'; f2.Q.value = 0.0001;
     } else if (p.filterType === 'lp24') {
-      f1.type = 'lowpass'; f1.Q.setTargetAtTime(-3, t, 0.015);
-      f2.type = 'lowpass'; f2.Q.setTargetAtTime(resDb(p.resonance), t, 0.015);
+      f1.type = 'lowpass'; set(f1.Q, -3, 0.015);
+      f2.type = 'lowpass'; set(f2.Q, resDb(p.resonance), 0.015);
     } else if (p.filterType === 'hp') {
-      f1.type = 'highpass'; f1.Q.setTargetAtTime(resDb(p.resonance), t, 0.015);
+      f1.type = 'highpass'; set(f1.Q, resDb(p.resonance), 0.015);
       f2.type = 'allpass'; f2.Q.value = 0.0001;
     } else {
-      f1.type = 'bandpass'; f1.Q.setTargetAtTime(resQ(p.resonance), t, 0.015);
+      f1.type = 'bandpass'; set(f1.Q, resQ(p.resonance), 0.015);
       f2.type = 'allpass'; f2.Q.value = 0.0001;
     }
   }
 
   _makeVoice(note, vel, t) {
     const ctx = this.ctx;
-    const p = this.p;
     const f = midiToHz(note);
-    const v = { note, vel, freq: f, oscs: [], oscGains: [], drift: new Array(7).fill(0), stopAt: Infinity };
+    const v = { note, vel, freq: f, oscs: [], oscGains: [], dirs: [], invs: [], delays: [], drift: new Array(7).fill(0), stopAt: Infinity };
 
     v.mix = ctx.createGain();
     v.superGain = ctx.createGain();
@@ -174,45 +181,38 @@ export class VASynth {
     this.lfoOut.connect(v.lfoPitch);
     this.lfoOut.connect(v.lfoCut);
 
-    const cents = this._superCents();
-    const usePwm = p.waveform === 'square' && p.pwm > 0;
-    v.pwm = usePwm;
+    // One slow sweep per voice for PWM, shared by its seven oscillators.
+    v.pwmLfo = ctx.createOscillator();
+    v.pwmLfo.frequency.value = 0.55 + Math.random() * 0.2;
+    v.pwmDepth = ctx.createGain();
+    v.pwmDepth.gain.value = 0;
+    v.pwmLfo.connect(v.pwmDepth);
+    v.pwmLfo.start(t);
 
+    const cents = this._superCents();
     for (let i = 0; i < 7; i++) {
+      // Each oscillator feeds the mix directly, and through a short delay with
+      // its sign flipped. For a square, a saw minus a delayed copy of itself is
+      // a pulse wave; moving the delay moves the pulse width, which is PWM.
+      // For the other waves the delayed path is simply muted.
       const g = ctx.createGain();
+      g.gain.value = 0;
       g.connect(v.superGain);
-      let osc;
-      if (usePwm) {
-        // Pulse wave = a saw minus a delayed copy of itself. Moving the delay
-        // moves the pulse width, which is how PWM sweeps the tone.
-        osc = ctx.createOscillator();
-        osc.type = 'sawtooth';
-        const inv = ctx.createGain(); inv.gain.value = -1;
-        const dl = ctx.createDelay(0.1);
-        dl.delayTime.value = 0.5 / f;
-        const pwmLfo = ctx.createOscillator();
-        pwmLfo.frequency.value = 0.6 + i * 0.07;
-        const pwmDepth = ctx.createGain();
-        pwmDepth.gain.value = (p.pwm / 100) * 0.42 / f;
-        pwmLfo.connect(pwmDepth).connect(dl.delayTime);
-        osc.connect(g);
-        osc.connect(dl).connect(inv).connect(g);
-        pwmLfo.start(t);
-        v.extraStops = v.extraStops || [];
-        v.extraStops.push(pwmLfo);
-      } else {
-        osc = ctx.createOscillator();
-        osc.type = OSC_TYPE[p.waveform];
-        osc.connect(g);
-      }
+      const osc = ctx.createOscillator();
+      const dir = ctx.createGain();
+      const inv = ctx.createGain();
+      const dl = ctx.createDelay(0.2);
+      dl.delayTime.value = 0.5 / f;
+      v.pwmDepth.connect(dl.delayTime);
+      osc.connect(dir).connect(g);
+      osc.connect(dl).connect(inv).connect(g);
       osc.frequency.value = f;
       osc.detune.value = cents[i];
       v.lfoPitch.connect(osc.detune);
-      // All seven copies start in step, as on the FM-1+VA: with Detune at 0
-      // they stay in step and sound like one oscillator.
+      // All seven copies start in step, so with Detune at 0 they stay in step
+      // and sound like one oscillator, as the FM-1+VA's manual describes.
       osc.start(t);
-      v.oscs.push(osc);
-      v.oscGains.push(g);
+      v.oscs.push(osc); v.oscGains.push(g); v.dirs.push(dir); v.invs.push(inv); v.delays.push(dl);
     }
 
     v.sub = ctx.createOscillator();
@@ -220,14 +220,15 @@ export class VASynth {
     v.sub.frequency.value = f / 2;
     v.lfoPitch.connect(v.sub.detune);
     v.subGain = ctx.createGain();
+    v.subGain.gain.value = 0;
     v.sub.connect(v.subGain).connect(v.mix);
     v.sub.start(t);
 
     v.noise = ctx.createBufferSource();
     v.noise.buffer = noise();
     v.noise.loop = true;
-    v.noise.loopStart = Math.random();
     v.noiseGain = ctx.createGain();
+    v.noiseGain.gain.value = 0;
     v.noise.connect(v.noiseGain).connect(v.mix);
     v.noise.start(t, Math.random() * 1.5);
 
@@ -237,31 +238,37 @@ export class VASynth {
     v.mix.connect(v.filters[0]).connect(v.filters[1]).connect(v.vca).connect(this.bus);
     for (const fl of v.filters) v.lfoCut.connect(fl.detune);
 
-    this._updateVoice(v);
+    // Everything starts at its target value: no burst of extra oscillators,
+    // sub or noise, and no filter sweep, before the settings take hold.
+    this._updateVoice(v, true);
     return v;
   }
 
-  _updateVoice(v, prevWave) {
+  _updateVoice(v, immediate = false) {
     const p = this.p;
-    const t = this.ctx.currentTime;
+    const set = this._setter(immediate);
     const { center, side } = mixLevels(p.super / 100);
     const norm = normalize(center, side, p.detune);
     const cents = this._superCents();
-    v.oscGains.forEach((g, i) => g.gain.setTargetAtTime((i === CENTER ? center : side) * norm, t, 0.02));
+    const square = p.waveform === 'square';
+    v.oscGains.forEach((g, i) => set(g.gain, (i === CENTER ? center : side) * norm));
     v.oscs.forEach((o, i) => {
-      o.detune.setTargetAtTime(cents[i] + v.drift[i], t, 0.03);
-      if (!v.pwm && prevWave !== undefined) o.type = OSC_TYPE[p.waveform];
+      set(o.detune, cents[i] + v.drift[i], 0.03);
+      o.type = square ? 'sawtooth' : OSC_TYPE[p.waveform];
+      set(v.dirs[i].gain, square ? 0.5 : 1);
+      set(v.invs[i].gain, square ? -0.5 : 0);
     });
-    v.superGain.gain.setTargetAtTime(0.9, t, 0.02);
-    v.subGain.gain.setTargetAtTime((p.sub / 100) * 0.55, t, 0.02);
-    v.noiseGain.gain.setTargetAtTime((p.noise / 100) * 0.35, t, 0.02);
-    this._applyFilterShape(v);
+    set(v.pwmDepth.gain, square ? (clamp(p.pwm, 0, 100) / 100) * 0.42 / v.freq : 0);
+    set(v.superGain.gain, 0.9);
+    set(v.subGain.gain, (p.sub / 100) * 0.55);
+    set(v.noiseGain.gain, (p.noise / 100) * 0.35);
+    this._applyFilterShape(v, immediate);
     const lfoCutCents = (p.lfoToCutoff / 100) * 4800; // ±4 octaves at full
     const lfoPitchCents = Math.pow(clamp(p.lfoPitch, 0, 99) / 99, 2) * 600;
     v.lfoTargets = { pitch: lfoPitchCents, cut: lfoCutCents };
-    if (v.lfoFadedIn) {
-      v.lfoPitch.gain.setTargetAtTime(lfoPitchCents, t, 0.02);
-      v.lfoCut.gain.setTargetAtTime(lfoCutCents, t, 0.02);
+    if (v.lfoFadedIn && !immediate) {
+      set(v.lfoPitch.gain, lfoPitchCents);
+      set(v.lfoCut.gain, lfoCutCents);
     }
   }
 
@@ -271,6 +278,7 @@ export class VASynth {
     const a = attackTime(p.attack);
     const d = decayTime(p.decay);
     const s = peak * clamp(p.sustain, 0, 100) / 100;
+    v.env = { on: t, a, d, peak, s };
     const g = v.vca.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(0, t);
@@ -296,22 +304,51 @@ export class VASynth {
     v.lfoFadedIn = true;
   }
 
+  // The amp envelope's level at time t, worked out from its settings. Used
+  // where the browser can't hold an automation curve (Firefox).
+  _envAt(v, t) {
+    const e = v.env;
+    if (!e || t <= e.on) return 0;
+    const dt = t - e.on;
+    if (dt < e.a) return e.peak * (dt / Math.max(e.a, 1e-4));
+    return e.s + (e.peak - e.s) * Math.exp(-(dt - e.a) / Math.max(e.d / 4, 1e-4));
+  }
+
   _release(v, t) {
     const r = releaseTime(this.p.release);
     const g = v.vca.gain;
     if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
-    else { g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); }
+    else { g.cancelScheduledValues(t); g.setValueAtTime(this._envAt(v, t), t); }
     g.setTargetAtTime(0, t, r / 5);
     v.stopAt = t + r * 1.2 + 0.05;
     v.released = true;
-    const all = [...v.oscs, v.sub, v.noise, ...(v.extraStops || [])];
-    for (const n of all) { try { n.stop(v.stopAt); } catch (_) {} }
+    this._stopAt(v, v.stopAt);
+    this._capReleased();
+  }
+
+  _stopAt(v, when) {
+    for (const n of [...v.oscs, v.sub, v.noise, v.pwmLfo]) { try { n.stop(when); } catch (_) {} }
     v.oscs[0].onended = () => {
-      this.lfoOut.disconnect(v.lfoPitch);
-      this.lfoOut.disconnect(v.lfoCut);
+      try { this.lfoOut.disconnect(v.lfoPitch); this.lfoOut.disconnect(v.lfoCut); } catch (_) {}
       v.vca.disconnect();
       this.voices = this.voices.filter((x) => x !== v);
     };
+  }
+
+  // Fast playing with a long release can pile up fading voices. Keep at most a
+  // few dozen alive by quickly fading the oldest ones.
+  _capReleased() {
+    const fading = this.voices.filter((x) => x.released && !x.cut);
+    const extra = fading.length - this.maxVoices * 2;
+    if (extra <= 0) return;
+    const now = this.ctx.currentTime;
+    for (const v of fading.slice(0, extra)) {
+      v.cut = true;
+      v.vca.gain.cancelScheduledValues(now);
+      v.vca.gain.setValueAtTime(this._envAt(v, now) || v.vca.gain.value, now);
+      v.vca.gain.setTargetAtTime(0, now, 0.006);
+      this._stopAt(v, now + 0.05);
+    }
   }
 
   noteOn(note, vel = 0.8, when) {
@@ -339,9 +376,11 @@ export class VASynth {
     const f = midiToHz(note);
     const tau = Math.max(0.001, (this.p.glide / 100) * 0.25);
     for (const o of v.oscs) o.frequency.setTargetAtTime(f, t, tau);
+    for (const dl of v.delays) dl.delayTime.setTargetAtTime(0.5 / f, t, tau);
     v.sub.frequency.setTargetAtTime(f / 2, t, tau);
     v.note = note;
     v.freq = f;
+    this._updateVoice(v);
   }
 
   _monoOn(note, vel, t) {
@@ -383,7 +422,18 @@ export class VASynth {
   // ---------- Drift ----------
   _drift() {
     const d = this.p.drift;
-    if (!d || !this.voices.length) return;
+    if (!this.voices.length) return;
+    if (!d) {
+      // Drift switched off: bring any wandering oscillators back in tune.
+      const t = this.ctx.currentTime;
+      const cents = this._superCents();
+      for (const v of this.voices) {
+        if (v.released || !v.drift.some((x) => x !== 0)) continue;
+        v.drift.fill(0);
+        v.oscs.forEach((o, i) => o.detune.setTargetAtTime(cents[i], t, 0.15));
+      }
+      return;
+    }
     // A few cents of wander in the first half; deliberately wild above it.
     const range = d <= 50 ? (d / 50) * 6 : 6 + Math.pow((d - 50) / 50, 2) * 90;
     const tau = d <= 50 ? 0.6 : 0.6 - ((d - 50) / 50) * 0.5;
@@ -404,14 +454,15 @@ export class VASynth {
   on(type, fn) { (this._listeners ||= {})[type] = [...(this._listeners?.[type] || []), fn]; }
   dispatch(type, detail) { for (const fn of this._listeners?.[type] || []) fn(detail); }
 
-  dispose() {
+  dispose(fadeTime = 0.08) {
     this.allOff();
     clearInterval(this._driftTimer);
     clearInterval(this._shTimer);
+    this.output.gain.setTargetAtTime(0, this.ctx.currentTime, fadeTime / 3);
     setTimeout(() => {
       try { this.lfoSrc.stop(); } catch (_) {}
       this.fx?.disconnect();
       this.output.disconnect();
-    }, 2500);
+    }, fadeTime * 1000 + 150);
   }
 }

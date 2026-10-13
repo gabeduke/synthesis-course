@@ -19,10 +19,10 @@ function makeShaperCurve(type, drive) {
     const y = x * drive;
     if (type === 'hard') curve[i] = clamp(y, -1, 1);
     else if (type === 'fold') {
-      // Wave folding: the signal bounces back off ±1 instead of flattening.
-      let v = y;
-      for (let k = 0; k < 8 && Math.abs(v) > 1; k++) v = Math.sign(v) * 2 - v;
-      curve[i] = v;
+      // Wave folding: the signal bounces back off ±1 instead of flattening,
+      // however hard it's driven.
+      const ph = ((((y + 1) / 4) % 1) + 1) % 1;
+      curve[i] = 1 - 4 * Math.abs(ph - 0.5);
     } else curve[i] = Math.tanh(y);
   }
   return curve;
@@ -111,9 +111,14 @@ export class FxChain {
     this.eDamp = ctx.createBiquadFilter();
     this.eDamp.type = 'lowpass';
     this.eDamp.frequency.value = 4500;
+    this.eDamp.Q.value = -3; // no resonant peak, so the loop never gains level
+    // A soft limiter inside the loop: even at full feedback the repeats can't
+    // run away, they just saturate.
+    this.eSat = ctx.createWaveShaper();
+    this.eSat.curve = makeShaperCurve('soft', 1);
     this.cOut.connect(this.eDry).connect(this.eOut);
     this.cOut.connect(this.eDelay);
-    this.eDelay.connect(this.eDamp).connect(this.eFb).connect(this.eDelay);
+    this.eDelay.connect(this.eDamp).connect(this.eFb).connect(this.eSat).connect(this.eDelay);
     this.eDamp.connect(this.eWet).connect(this.eOut);
 
     // Reverb
@@ -121,8 +126,10 @@ export class FxChain {
     this.rWet = ctx.createGain();
     this.rConv = ctx.createConvolver();
     this.eOut.connect(this.rDry).connect(this.output);
-    this.eOut.connect(this.rConv).connect(this.rWet).connect(this.output);
+    this.rConv.connect(this.rWet).connect(this.output);
+    this._rConnected = false;
     this._irKey = '';
+    this._shaperKey = '';
 
     this.set(settings);
   }
@@ -135,7 +142,8 @@ export class FxChain {
 
     // Distortion: Gain drives the shaper, Tone opens a low-pass, Level sets output.
     const drive = 1 + (d.gain / 100) * 30;
-    this.dShaper.curve = makeShaperCurve(d.type, drive);
+    const shaperKey = `${d.type}:${d.gain}`;
+    if (shaperKey !== this._shaperKey) { this._shaperKey = shaperKey; this.dShaper.curve = makeShaperCurve(d.type, drive); }
     ramp(this.dTone.frequency, 600 * Math.pow(30, d.tone / 100));
     ramp(this.dLevel.gain, d.on ? (d.level / 100) * 0.9 : 0);
     ramp(this.dDry.gain, d.on ? 0 : 1);
@@ -150,7 +158,7 @@ export class FxChain {
 
     // Delay: Rate up means a shorter gap, 0.8 s down to 0.1 s (as on the FM-1).
     ramp(this.eDelay.delayTime, 0.8 - (e.rate / 100) * 0.7);
-    ramp(this.eFb.gain, (e.feedback / 100) * 0.88);
+    ramp(this.eFb.gain, (e.feedback / 100) * 0.92); // with the soft limiter in the loop, this rings long but never runs away
     ramp(this.eWet.gain, e.on ? (e.mix / 100) : 0);
     ramp(this.eDry.gain, 1);
 
@@ -160,6 +168,15 @@ export class FxChain {
       this._irKey = key;
       clearTimeout(this._irTimer);
       this._irTimer = setTimeout(() => { this.rConv.buffer = makeImpulse(this.ctx, r.type, r.decay); }, this.rConv.buffer ? 120 : 0);
+    }
+    // The convolver is the most expensive node on the page, so it only runs
+    // while reverb is on.
+    if (r.on && !this._rConnected) { this.eOut.connect(this.rConv); this._rConnected = true; }
+    if (!r.on && this._rConnected) {
+      clearTimeout(this._rOffTimer);
+      this._rOffTimer = setTimeout(() => {
+        if (!this.s.reverb.on && this._rConnected) { this.eOut.disconnect(this.rConv); this._rConnected = false; }
+      }, 4000);
     }
     ramp(this.rWet.gain, r.on ? (r.mix / 100) * 1.4 : 0);
     ramp(this.rDry.gain, r.on ? 1 - (r.mix / 100) * 0.4 : 1);
