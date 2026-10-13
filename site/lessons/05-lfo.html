@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LFOs and modulation | Signal Path</title>
+  <meta name="description" content="Low-frequency oscillators: vibrato, tremolo, filter wobble and random modulation, and where the LFO lives on the FM-1.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 5</p>
+      <h1>LFOs and modulation</h1>
+      <p class="lede">A held synth note with nothing moving sounds like a test tone. Real instruments never hold still: singers add vibrato, organ speakers spin, players lean on notes. An LFO is a third hand that keeps turning a knob for you, steadily, as long as you like.</p>
+
+      <h2>An oscillator too slow to hear</h2>
+      <p>LFO stands for low-frequency oscillator. It’s an oscillator just like the ones in lesson 2, but it runs far below hearing, from a cycle every several seconds up to a few dozen per second. You don’t listen to it. You point it at another control, and that control moves up and down in its shape.</p>
+      <p>Where you point it decides what you hear:</p>
+      <ul>
+        <li><strong>Pitch</strong>: vibrato. The note bends slightly sharp and flat.</li>
+        <li><strong>Loudness</strong>: tremolo. The note pulses louder and softer.</li>
+        <li><strong>Filter cutoff</strong>: wah, wobble, or a slow sweep. The tone opens and closes.</li>
+      </ul>
+
+      <synth-lab heading="One LFO, three destinations" intro="Hold the chord. Raise one depth at a time, then change Speed and Wave." controls="LFO lfoToCutoff cutoff resonance" preset='{"waveform":"saw","filterType":"lp24","cutoff":1200,"resonance":30,"lfoWave":"triangle","lfoSpeed":35,"lfoPitch":0,"lfoAmp":0,"lfoToCutoff":0,"release":40}' views="lfo spectrum wave" filter-curve chord="45 52 57"></synth-lab>
+
+      <p>The pink trace on the left is the LFO itself, scrolling by. Raise <span class="sig-move">LFO to cutoff</span> and the dashed filter line on the spectrum starts sliding in time with it. Raise <span class="sig-move">Pitch depth</span> and the harmonic peaks wobble side to side. Raise <span class="sig-move">Amp depth</span> and the whole spectrum breathes up and down.</p>
+
+      <h2>Shape and speed</h2>
+      <p>The LFO’s wave shape is the shape of the movement:</p>
+      <ul>
+        <li><strong>Triangle and sine:</strong> smooth back and forth. Natural vibrato, gentle sweeps.</li>
+        <li><strong>Square:</strong> jumps between two values. On pitch, that’s a trill.</li>
+        <li><strong>Saw up and saw down:</strong> ramps, then snaps back. Rising or falling zaps and rhythmic sweeps.</li>
+        <li><strong>S&amp;H</strong> (sample and hold): a new random value at every step. On the filter, that’s the classic bubbling “computer” sound.</li>
+      </ul>
+      <p>Speed matters as much as shape. Around 5 Hz on pitch sounds like a singer. Under 1 Hz on the filter is a slow, evolving sweep. Fast tremolo starts to sound like a helicopter.</p>
+
+      <h2>LFO delay</h2>
+      <p>Singers rarely start a note with vibrato. They hit the pitch, hold it, then let the vibrato in. <span class="sig-move">LFO delay</span> does the same: each new note starts steady, and the LFO’s effect fades in afterwards. Set Pitch depth to about 20, Speed around 50, then raise LFO delay and play single notes.</p>
+
+      <h2>What happens if it speeds up?</h2>
+      <p>Keep raising an LFO’s speed and something strange happens. Past roughly 20 cycles a second, you stop hearing the movement as movement. Vibrato that fast turns into a change of <em>tone</em>, with new, often metallic frequencies. That accident is the basis of FM synthesis, and it’s where lesson 8 begins.</p>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Leads:</strong> a little pitch vibrato with some delay.</li>
+          <li><strong>Pads:</strong> a very slow LFO on the filter, so a long chord keeps changing.</li>
+          <li><strong>Basses:</strong> usually none, or a tempo-feeling filter wobble for a deliberate effect.</li>
+          <li><strong>Sound effects:</strong> S&amp;H on the filter, or a fast saw on pitch.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Press <span class="btn-name">LFO</span> on any preset. The rows are Wave, Speed, Delay, Pitch Mod Depth, Amp Mod Depth, Pitch Sensitivity and LFO Sync. They’re the same on all three engines.</li>
+          <li>Everything starts at zero depth, so the LFO moves nothing until you raise a depth.</li>
+          <li>On a Virtual Analog preset, the LFO also reaches the filter through <strong>LFO to Cutoff</strong>, in the Filter group under <span class="btn-name">EDIT</span>. It’s one of the eight choices you can put on a knob, too.</li>
+          <li>LFO Sync restarts the wave each time you press a key, so every note’s wobble starts the same way.</li>
+          <li>If you play the FM-1 from a MIDI keyboard, its mod wheel and aftertouch can push the same LFO harder.</li>
+        </ol>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1936</dt>
+          <dd>Hammond adds a chorus generator to its organs, and in the 1940s a scanner vibrato that sweeps the sound through a delay line. Both are mechanical modulation, decades before the word LFO.</dd>
+          <dt>1941</dt>
+          <dd>Don Leslie starts selling his rotating speaker. The spinning horn makes pitch and loudness swirl, and its two speeds are still copied by synth LFOs today.</dd>
+          <dt>1960s</dt>
+          <dd>Modular synthesizers make modulation explicit: any oscillator, run slowly, can be patched into any other module’s control input.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

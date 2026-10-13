@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>8-Bit: the chiptune engine | Signal Path</title>
+  <meta name="description" content="Pulse widths, stepped triangles, console noise and the arpeggio trick: how the FM-1+VA’s 8-Bit engine works and how old game consoles made music with so little.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 9</p>
+      <h1>8-Bit: the chiptune engine</h1>
+      <p class="lede">Early game consoles had sound chips with a handful of voices, a few fixed waveforms and almost no memory. Composers made unforgettable music with them anyway, using tricks that are now a style of their own. The FM-1+VA’s third engine is built around those tricks.</p>
+
+      <h2>A whole band on one preset</h2>
+      <p>An 8-Bit preset isn’t one sound. It’s a kit: twelve drums, twelve sound effects, a bass and a lead, each living on its own range of notes. On the FM-1’s keys at the normal octave, almost everything plays the bass, and the top three keys play the lead. Press <span class="btn-name">OCT−</span> three times to reach the drums on the lowest twelve keys; the sound effects (Coin, Jump, Laser, Explosion and eight more) sit one octave above them.</p>
+      <p>This lesson’s panel models the lead, the part with the most to learn.</p>
+
+      <h2>Pulse widths</h2>
+      <p>Console sound chips could make pulse waves at only a few fixed widths. The FM-1 offers the same four: 12.5%, 25%, 50% and 75%. You met pulse width in lesson 2; here it’s the main way to change the tone.</p>
+
+      <chip-lab heading="An 8-Bit lead" intro="Play single notes on each Pulse wave, then try Triangle and Noise." wave="Pulse 25"></chip-lab>
+
+      <ul>
+        <li><strong>Pulse 12.5</strong> is thin and nasal, almost buzzy.</li>
+        <li><strong>Pulse 25</strong> is the classic console lead: bright, with a bit of bite.</li>
+        <li><strong>Pulse 50</strong> is the square wave: hollow and round.</li>
+        <li><strong>Pulse 75</strong> sounds exactly like Pulse 25. Look at the waveform: it’s the same shape upside down. Flipping a wave doesn’t change its harmonics, so your ear can’t tell them apart. Look at the spectrum to confirm it.</li>
+      </ul>
+
+      <h2>The stepped triangle and the noise channel</h2>
+      <p>Console triangles weren’t smooth. They climbed and fell in a staircase of just sixteen levels, because that’s all the chip could produce. The steps add a faint buzzy edge that’s part of the sound. Zoom in on the <strong>Triangle</strong> waveform above and you can see them. Because it’s soft and round underneath, the triangle usually played the bass line.</p>
+      <p>Drums came from a <strong>noise</strong> channel: a little circuit that shuffles bits to make a stream of random values. Switch it into a short-loop mode and the pattern repeats quickly enough to ring with a pitch, a metallic hiss that suits cymbals and hats. The panel’s Noise and Metal waves are modeled that way.</p>
+      <p>The FM-1 adds eight more waves modeled on the Game Boy’s wave channel, which could play any shape drawn with 32 steps of 4-bit values: GB Saw, GB Sine, GB Half, GB Organ, GB Twin, GB Bass, GB Bell and GB Buzz.</p>
+
+      <h2>The arpeggio trick</h2>
+      <p>With only one voice for the melody, how do you play a chord? You don’t. You play the chord’s notes one after another, so fast they blur together. At the speed the FM-1 can run them, your ear hears a shimmering chord rather than a sequence of notes.</p>
+      <p>Set <span class="sig-move">Arpeggio</span> to Major above and hold a single key. Then press <span class="btn-name">Play a chord progression</span>: four chords, each played by one held key. Try Arp speed at 1/16 (you can follow the notes), then 1/32 and 1/64T (you hear a chord).</p>
+      <p>The FM-1 has 31 built-in arpeggios, from simple Major and Minor to sevenths, octaves, trills and wide spreads, plus a user arpeggio you draw yourself in eight steps. Arp Speed follows the tempo, from 1/8 notes down to 1/64 triplets.</p>
+
+      <h2>Playing in a key</h2>
+      <p>The FM-1+VA goes a step further than old consoles did. Set a <strong>Key</strong> and a <strong>Scale</strong>, and every key you press plays the chord that belongs on that note in that scale, with a chord type (triad, seventh, sus and so on) and an arpeggio pattern you choose. Play a melody of single keys and you get a chord progression. Set Lead Follows to Bass and the lead takes its chord from the last bass key you played, so one hand can drive both parts.</p>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Game-music leads:</strong> Pulse 25 or 12.5, a little vibrato, a fast arpeggio for chords.</li>
+          <li><strong>Plucky, clean basses:</strong> the triangle, which is where a new 8-Bit preset’s bass starts.</li>
+          <li><strong>Quick drum ideas:</strong> the drums are always there on the bottom octave, with Drum Decay on KNOB1.</li>
+          <li><strong>Harmony from one finger:</strong> Key, Scale and Lead Follows, for sketching chord progressions fast.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Install the free 8-Bit preset pack (presets 97 to 112), or make one: <span class="btn-name">EDIT</span>, Erase Preset, Erase, then 8-Bit. A new 8-Bit preset starts with a triangle bass, a lead on a 25% pulse, Tone set to Smooth and Tuning set to Exact.</li>
+          <li>Press <span class="btn-name">EDIT</span>. On an 8-Bit preset, pressing a key opens the part it plays, so press a bass key to open the bass’s rows, a lead key for the lead’s.</li>
+          <li>Each part has Wave, Duty Sequence, Arpeggio, User Arpeggio, Arp Speed, an envelope, Vibrato, Glide, Sweep, Octave, Level and Mono. Duty Sequence changes the pulse width during each note, for example Pluck 50&gt;25 starts round and gets brighter.</li>
+          <li>Turn ALGORITHM on the HOME screen to step the lead’s wave without opening anything.</li>
+          <li>Tone switches between Raw (the plain chip sound, with volume in sixteen steps) and Smooth (cleaned up and filtered). Tuning set to Chip snaps notes to the pitches a console could actually make.</li>
+          <li>A new 8-Bit preset puts Drum Decay, Bass Arpeggio, Lead Arpeggio and Lead Decay on KNOB1 to KNOB4.</li>
+        </ol>
+        <p>The FM-1’s MIDI controls don’t reach the 8-Bit engine’s settings, so the page can’t mirror this panel to the hardware. Connect the FM-1’s audio instead and its purple trace will draw over the page’s: try matching the pulse widths by ear and by eye.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1983–85</dt>
+          <dd>Nintendo’s Famicom (Japan, 1983) and NES (North America, 1985) sound chip offers two pulse channels with four widths, a stepped triangle and a noise channel. Its composers make arpeggios, echoes and drum kits out of almost nothing.</dd>
+          <dt>1989</dt>
+          <dd>The Game Boy adds a wave channel that can play any 32-step, 4-bit waveform, the model for the FM-1’s eight GB waves.</dd>
+          <dt>2000s</dt>
+          <dd>Musicians outside games start writing “chiptune” on old consoles and handhelds, and the sound becomes a genre of its own.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

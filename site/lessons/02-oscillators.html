@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oscillators | Signal Path</title>
+  <meta name="description" content="Sine, saw, triangle and square waves, plus sub, noise and pulse-width modulation: the raw material of the FM-1’s Virtual Analog engine.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 2</p>
+      <h1>Oscillators</h1>
+      <p class="lede">An oscillator is the part of a synth that makes the raw sound: one shape, repeated at the pitch you play. Everything else in a patch shapes what the oscillator gives it, so choosing the right starting wave is half of sound design.</p>
+
+      <h2>The four classic waves</h2>
+      <p>The FM-1’s Virtual Analog oscillator offers the same four shapes analog synths have used since the 1960s. You met their harmonic recipes in the last lesson. Here’s what each is good for.</p>
+
+      <synth-lab heading="The Virtual Analog oscillator" intro="Play a few notes on each wave, high and low." controls="waveform" preset='{"waveform":"saw","release":25}' views="wave spectrum" chord="48 60"></synth-lab>
+
+      <ul>
+        <li><strong>Sine:</strong> just the fundamental, no harmonics. Pure, soft and a little dull on its own. It’s the best sub bass there is, and a good base for whistles and soft keys.</li>
+        <li><strong>Saw:</strong> every harmonic, each a little quieter than the one below. Bright, buzzy and full. It’s the raw material for strings, brass, leads and most bass, because a filter has plenty to work with.</li>
+        <li><strong>Square:</strong> odd harmonics only. Hollow and woody, a bit like a clarinet. It’s also the classic video-game tone.</li>
+        <li><strong>Triangle (Tri):</strong> odd harmonics that fall away quickly. Soft and rounded, flute-like. It sits between sine and square.</li>
+      </ul>
+      <p>On the FM-1, Sine and Saw presets can play twelve notes at once; Tri and Square presets play eight, because they take more processing. Keep that in mind for big pad chords.</p>
+
+      <h2>Sub and noise</h2>
+      <p>Two more ingredients are mixed in alongside the main wave:</p>
+      <ul>
+        <li><span class="sig-sound">Sub</span> adds a square wave one octave below the note. It adds weight without changing the character of the main wave much, which makes it the go-to for basses and big leads.</li>
+        <li><span class="sig-sound">Noise</span> adds hiss: every frequency at once, at random. A little noise gives a breathy edge to pads and flutes. A lot of it, with a short envelope, makes snares, hats and wind.</li>
+      </ul>
+
+      <synth-lab heading="Sub and noise" intro="Hold the low note, then raise Sub. Try Noise on a high chord." controls="waveform sub noise" preset='{"waveform":"saw","sub":0,"noise":0,"cutoff":3500,"release":30}' chord="36 48"></synth-lab>
+
+      <p>Watch the spectrum as you raise Sub: a new peak appears to the left of everything else, an octave below the note. Noise fills the whole spectrum with a fuzzy floor instead of adding peaks.</p>
+
+      <h2>Pulse width and PWM</h2>
+      <p>A square wave spends exactly half its time up and half down. Change that split and you get a <strong>pulse wave</strong>: at 25% up and 75% down it sounds thinner and more nasal, and narrower still it gets reedy. The split is called the pulse width (or duty cycle).</p>
+      <p><span class="sig-move">PWM</span>, pulse-width modulation, sweeps that width back and forth on its own. The harmonics shift as it moves, so the tone gently swirls. It’s the signature sound of 1980s analog string pads. On the FM-1, PWM only does anything when the waveform is Square.</p>
+
+      <synth-lab heading="Pulse-width modulation" intro="Hold the chord and raise PWM." controls="pwm waveform" preset='{"waveform":"square","pwm":0,"cutoff":4500,"attack":20,"release":55}' chord="48 55 60 64"></synth-lab>
+
+      <h2>Why digital oscillators need care</h2>
+      <p>A saw or square has a perfectly sharp edge, and a perfectly sharp edge contains harmonics that go up forever. A digital system can only represent frequencies up to half its sample rate. Harmonics above that limit don’t vanish; they fold back down as false, out-of-tune tones. This is called <strong>aliasing</strong>, and it’s why cheap digital synths can sound harsh and whistly on high notes.</p>
+      <p>The fix is to draw the edges so they contain no frequencies above the limit. Baud Girl’s FM-1+VA uses a technique called BLEP (band-limited step) for exactly this, so the Virtual Analog engine stays clean even at the top of the keyboard. The page’s synth gets the same result from the browser’s built-in band-limited oscillators.</p>
+
+      <section class="use-it">
+        <h3>Picking a starting wave</h3>
+        <ul>
+          <li><strong>Want to filter it a lot?</strong> Start with Saw. Most patches do.</li>
+          <li><strong>Want it soft without a filter?</strong> Tri, or Sine for the softest.</li>
+          <li><strong>Want it hollow, retro or reedy?</strong> Square, with or without PWM.</li>
+          <li><strong>Need weight underneath?</strong> Add Sub before adding more of anything else.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Choose a Virtual Analog preset, or make a blank one: <span class="btn-name">EDIT</span>, scroll to Erase Preset, <span class="btn-name">SEL</span>, choose Erase, then VA. It starts named INIT.</li>
+          <li>Press <span class="btn-name">EDIT</span>. The Oscillator rows are Waveform, Super, Detune, Drift, Sub, Noise and PWM. The FM-1 draws the waveform on its row instead of naming it.</li>
+          <li>Turn SELECT to Sub and ALGORITHM to raise it while holding a low key. Then try Noise.</li>
+          <li>Set Waveform to Square and raise PWM. Set Waveform back to Saw and notice PWM stops doing anything.</li>
+          <li>Press <span class="btn-name">SAVE</span> if you want to keep it.</li>
+        </ol>
+        <p>With MIDI connected, switch on <strong>Mirror to FM-1</strong> on a panel above and its sliders move the same rows on the hardware.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1935</dt>
+          <dd>The Hammond organ builds tones from spinning tonewheels; each drawbar sets the level of one harmonic. Players mix timbres by hand, the same idea as the harmonics builder in lesson 1.</dd>
+          <dt>1964</dt>
+          <dd>Robert Moog presents voltage-controlled modules at the Audio Engineering Society convention. Voltage-controlled oscillators producing saw, triangle and pulse waves become the heart of the synthesizer.</dd>
+          <dt>1995</dt>
+          <dd>Clavia’s Nord Lead imitates analog oscillators and filters in software and popularizes the name “virtual analog”.</dd>
+          <dt>1996–2001</dt>
+          <dd>Researchers publish ways to make digital saws and squares without aliasing: Stilson and Smith’s band-limited impulse trains (1996), then Eli Brandt’s band-limited steps, BLEP (2001), the approach the FM-1+VA uses.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

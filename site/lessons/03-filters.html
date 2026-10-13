@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Filters | Signal Path</title>
+  <meta name="description" content="Cutoff, resonance, low-pass and high-pass, 12 and 24 dB slopes, and key tracking, shown on a live spectrum with the FM-1’s Virtual Analog filter.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 3</p>
+      <h1>Filters</h1>
+      <p class="lede">Start with a bright, buzzy wave and take some of it away. That’s subtractive synthesis, the approach behind most classic analog sounds, and the filter is the tool that does the taking. If you only ever learn one control, learn cutoff.</p>
+
+      <h2>Cutoff: where the filter starts working</h2>
+      <p>A <strong>low-pass filter</strong> lets low frequencies through and turns high ones down. <span class="sig-sound">Cutoff</span> is the frequency where it starts turning things down. Lower the cutoff and the upper harmonics of a saw disappear one by one: the sound goes from bright, to warm, to muffled, to a dull thud.</p>
+
+      <synth-lab heading="A low-pass filter on a saw" intro="Hold the chord and sweep Cutoff slowly. The dashed line is the filter." controls="cutoff resonance filterType" preset='{"waveform":"saw","filterType":"lp24","cutoff":1500,"resonance":0,"release":40}' views="spectrum wave" filter-curve chord="45 52 57"></synth-lab>
+
+      <p>Look at the spectrum. The dashed line is the filter’s shape: flat where it lets sound through, sloping down past the cutoff. The harmonics in blue sit under it and get pushed down as the slope passes over them. That picture is the whole idea of subtractive synthesis.</p>
+
+      <h2>Resonance: a peak at the cutoff</h2>
+      <p><span class="sig-sound">Resonance</span> boosts a narrow band of frequencies right at the cutoff. A little adds a vocal, focused quality. More gives the familiar squelchy, “wow” sound when cutoff moves. At high settings the filter starts to whistle or ring at the cutoff frequency even on its own.</p>
+      <p>Set Resonance to about 70 above and sweep Cutoff again. You’ll see a hump ride along the spectrum, picking out each harmonic as it passes and making it sing. The FM-1’s filter saturates softly at high resonance instead of clipping, so it gets thick rather than harsh.</p>
+
+      <h2>Filter types and slopes</h2>
+      <p>The FM-1’s Virtual Analog filter has four types:</p>
+      <ul>
+        <li><strong>LP24:</strong> low-pass with a steep slope, 24 dB per octave. Above the cutoff, sound drops fast. Dark, smooth and classic.</li>
+        <li><strong>LP12:</strong> low-pass with a gentler 12 dB per octave slope. More of the upper harmonics leak through, so it stays brighter and buzzier as you close it.</li>
+        <li><strong>BP:</strong> band-pass. Keeps a band around the cutoff and turns down both sides. Thin, nasal, telephone-like.</li>
+        <li><strong>HP:</strong> high-pass. The opposite of low-pass: removes lows and keeps highs. Great for thinning a pad so it doesn’t crowd a bass line.</li>
+      </ul>
+      <p>Switch types on the panel above and watch the dashed line change shape.</p>
+
+      <h2>Key tracking</h2>
+      <p>Play a low note and a high note through the same closed filter and the high one sounds darker. Its harmonics start higher, so more of them land above the cutoff. <span class="sig-sound">Key tracking</span> moves the cutoff with the notes you play. At 100 the cutoff rises an octave for every octave you go up, so the whole keyboard sounds equally bright. At 0 the cutoff stays put. The FM-1 offers 0, 33, 67 and 100.</p>
+
+      <synth-lab heading="Key tracking" intro="Play low notes, then high notes, at Key tracking 0 and then 100." controls="keyTrack cutoff resonance" preset='{"waveform":"saw","filterType":"lp24","cutoff":900,"resonance":20,"keyTrack":0,"release":30}' views="spectrum" filter-curve low="36"></synth-lab>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Taming a harsh sound:</strong> bring cutoff down until the fizz goes, and stop there.</li>
+          <li><strong>Making movement:</strong> anything that moves the cutoff over time, an envelope (lesson 4) or an LFO (lesson 5), brings a static patch to life.</li>
+          <li><strong>Acid bass:</strong> LP24, high resonance, a short filter envelope, and a hand on the cutoff knob.</li>
+          <li><strong>Making room in a mix:</strong> a high-pass on pads and leads clears space for the bass.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>On a Virtual Analog preset, press <span class="btn-name">EDIT</span>, then turn SELECT down to the Filter group and press <span class="btn-name">SEL</span>.</li>
+          <li>The first three rows do most of the work: Type, Cutoff and Resonance. Cutoff runs from 20 Hz to 20 kHz.</li>
+          <li>A blank Virtual Analog preset already has Cutoff, Resonance, Filter Env and Filter Decay on KNOB1 to KNOB4. Make sure the HOME screen reads Knobs: Preset, then just play and turn KNOB1.</li>
+          <li>Key Tracking is further down the Filter group, alongside Velocity, which raises the cutoff when you play harder.</li>
+        </ol>
+        <p>Don’t confuse this filter with the <strong>Filter effect</strong> in <span class="btn-name">FX</span>. The Virtual Analog filter works on each note separately, so every note can have its own sweep. The effect filters the whole finished sound at once, after the notes are mixed together.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1966–69</dt>
+          <dd>Robert Moog files a patent for his transistor ladder filter in 1966; it’s granted in 1969. Its four-stage, 24 dB-per-octave low-pass becomes the most imitated filter in synthesis.</dd>
+          <dt>1960s–70s</dt>
+          <dd>Don Buchla’s instruments in California take another route, later nicknamed West Coast synthesis: shape the tone at the oscillator, with wavefolders and complex oscillators, rather than carve it with a filter. Moog’s filter-centred approach gets called East Coast.</dd>
+          <dt>1970–71</dt>
+          <dd>The Minimoog puts the ladder filter in a portable, prewired instrument. Its filter sweep becomes a sound in its own right.</dd>
+          <dt>1981–87</dt>
+          <dd>Roland’s TB-303 Bass Line flops as a practice accompanist and is discontinued in 1984. Chicago producers find its resonant filter can squelch and scream; Phuture’s “Acid Tracks”, recorded in 1985 and released in 1987, launches acid house.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

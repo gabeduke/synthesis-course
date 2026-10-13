@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" data-root=".">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Signal Path: learn synthesis on the M-VAVE FM-1</title>
+  <meta name="description" content="A free, hands-on synthesis course for the M-VAVE FM-1 running Baud Girl’s FM-1+VA firmware. Hear and see every idea in the browser, and connect your FM-1 over USB to follow along.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/css/course.css">
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="./assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main" class="home">
+      <section class="hero">
+        <h1>Learn synthesis by ear and by eye.</h1>
+        <hero-stack></hero-stack>
+        <p class="lede">A free course built around the M-VAVE FM-1 and Baud Girl’s FM-1+VA firmware. Every idea comes with something to play: the page synthesizes it, draws it, and, if your FM-1 is plugged in, sets the same controls on the hardware so you can hear the real thing side by side.</p>
+        <div class="hero-actions">
+          <a class="btn primary" href="./lessons/00-start.html">Start the course</a>
+          <a class="btn" href="./lessons/06-unison.html">Jump to Super and Detune</a>
+        </div>
+      </section>
+
+      <h2>How the pictures work</h2>
+      <p>Color means the same thing in every widget, so you can read a panel at a glance.</p>
+      <div class="legend-strip" role="list">
+        <span role="listitem"><i style="background:var(--sound)"></i>Sound: oscillators and filters</span>
+        <span role="listitem"><i style="background:var(--time)"></i>Time: envelopes</span>
+        <span role="listitem"><i style="background:var(--move)"></i>Movement: LFOs and modulation</span>
+        <span role="listitem"><i style="background:var(--space)"></i>Space: effects</span>
+        <span role="listitem"><i style="background:var(--hw)"></i>Your FM-1’s real output</span>
+      </div>
+
+      <h2>The lessons</h2>
+      <p>They build on each other, but each one stands alone if you just need a refresher. Plan on fifteen to thirty minutes apiece, mostly spent playing.</p>
+      <ol class="path-list" id="path-list"></ol>
+
+      <p class="note">Signal Path is an independent course. It isn’t affiliated with M-VAVE or Baud Girl. The FM-1+VA firmware is Baud Girl’s work; see <a href="https://baudgirl.com/work/FM-1+VA">baudgirl.com</a> for installation and the full manual.</p>
+    </main>
+  </div>
+  <script type="module">
+    import { LESSONS } from './assets/js/ui/lessons.js';
+    const list = document.getElementById('path-list');
+    for (const l of LESSONS) {
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="n">${String(l.n).padStart(2, '0')}</span><div><a href="./${l.file}"></a><p></p></div>`;
+      li.querySelector('a').textContent = l.title;
+      li.querySelector('p').textContent = l.blurb;
+      list.append(li);
+    }
+  </script>
+</body>
+</html>

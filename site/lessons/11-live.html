@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playing it live | Signal Path</title>
+  <meta name="description" content="Knob banks, macro assignments, hands-free tricks and MIDI controllers: turning the FM-1 into an instrument you perform with.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 11</p>
+      <h1>Playing it live</h1>
+      <p class="lede">Designing a sound is half the job. The other half is playing it: sweeping a filter as a chord swells, pushing a lead into distortion for one phrase, opening a reverb at the end of a section. The FM-1+VA was built for exactly this, and almost all of it runs through four knobs.</p>
+
+      <h2>Four knobs, ten banks</h2>
+      <p>KNOB1 to KNOB4 always do something, on any screen. A <strong>knob bank</strong> decides what. There are ten:</p>
+      <ul>
+        <li><strong>Preset:</strong> four settings you choose for each preset, saved with it.</li>
+        <li><strong>One bank per effect</strong> (Filter, Reverb, Delay, Distortion, Chorus, Phaser, Bitcrush): that effect’s three main settings on KNOB1 to KNOB3, and its on/off switch on KNOB4.</li>
+        <li><strong>Global:</strong> Tempo, Arp Rate, Arp Gate and Glide Time.</li>
+        <li><strong>Mixer:</strong> the preset’s level and the metronome’s, or on an 8-Bit preset the drums, bass and lead levels.</li>
+      </ul>
+      <p>Two ways to switch banks:</p>
+      <ol>
+        <li>On the HOME screen, press <span class="btn-name">HOME</span> to open the Knob Banks menu, turn SELECT to a bank and press <span class="btn-name">SEL</span>.</li>
+        <li>From <em>any</em> screen, hold <span class="btn-name">HOME</span> and turn SELECT. Each click steps to the next bank and the FM-1 names it. This is the one to learn for performing.</li>
+      </ol>
+      <p>The bank belongs to the FM-1, not the preset, so it stays put when you change presets. Press <span class="btn-name">SAVE</span> and the FM-1 starts on that bank next time.</p>
+
+      <h2>Choosing what the Preset knobs play</h2>
+      <p>On the Preset bank, each knob can play one of eight settings, depending on the engine:</p>
+      <ul>
+        <li><strong>Virtual Analog:</strong> Cutoff, Resonance, Filter Env, Filter Decay, Shape, Super, Detune, LFO to Cutoff. A new preset starts with the first four.</li>
+        <li><strong>FM:</strong> Brightness, Feedback, Attack, Decay, Release, Vibrato, LFO Speed, Cutoff. A new preset starts with Brightness, Feedback, Attack and Release.</li>
+        <li><strong>8-Bit:</strong> Drum Decay, Bass Arpeggio, Lead Arpeggio, Lead Decay, Lead Arp Speed, Lead Vibrato, Lead Release, Bass Decay. A new preset starts with the first four.</li>
+      </ul>
+      <p>To change one, stay on the Preset bank, hold <span class="btn-name">HOME</span> and turn the knob you want to reassign; each click steps to the next choice and the FM-1 names it. Or set all four at once in the Knobs group near the end of the <span class="btn-name">EDIT</span> list. Then <span class="btn-name">SAVE</span>.</p>
+      <p>One thing to know before a gig: on <strong>Virtual Analog and 8-Bit</strong> presets, a knob changes notes that are already sounding, so you hear the sweep under your fingers. On <strong>FM</strong> presets, a knob change applies from the next note you play.</p>
+
+      <h2>Three setups worth saving</h2>
+      <ul>
+        <li><strong>The filter player:</strong> Preset bank with Cutoff, Resonance, Filter Env and LFO to Cutoff. Good for basses and pads.</li>
+        <li><strong>The wide lead:</strong> Cutoff, Filter Env, Super and Detune. Thin it for verses, open it up for the chorus.</li>
+        <li><strong>The grit and space switcher:</strong> keep the Preset bank for tone, and hold <span class="btn-name">HOME</span> and turn SELECT to jump to the Distortion bank (Gain, Tone, Level, on/off) or the Reverb bank (type, Decay, Mix, on/off) for a moment, then back.</li>
+      </ul>
+
+      <h2>Getting your hands free</h2>
+      <p>The FM-1 has 27 small keys and four knobs right next to each other, so you can’t easily hold a chord with one hand and play much else with it. Three ways around that:</p>
+      <ul>
+        <li><strong>Arpeggiator with Latch.</strong> Press <span class="btn-name">ARP</span>, set Latch to On, play a chord and let go. It keeps playing, and both hands are free for the knobs. The next chord you play replaces it.</li>
+        <li><strong>The sequencer.</strong> Record a pattern, press <span class="btn-name">PLAY</span>, and perform on the knobs over it. Patterns can be up to 64 steps and chained into songs.</li>
+        <li><strong>Long envelopes.</strong> A pad with a long release keeps sounding after you lift your hand, buying you a moment to reach for a knob.</li>
+      </ul>
+
+      <h2>Practice: one knob, one pass</h2>
+      <p>Hold a chord below (or latch the arpeggiator on the FM-1 and turn on Mirror to FM-1), then spend a full minute moving <em>only</em> Cutoff. Slow sweeps, sudden drops, tiny wobbles. Then do the same with Resonance, then with Filter envelope. Learning what one knob can do on its own is how you find the moves you’ll actually use.</p>
+
+      <synth-lab heading="Practice panel" intro="Hold a chord, then work one control at a time." controls="cutoff resonance filterEnv lfoToCutoff super detune" preset='{"waveform":"saw","super":50,"detune":35,"filterType":"lp24","cutoff":900,"resonance":40,"filterEnv":25,"filterDecay":45,"lfoToCutoff":0,"lfoSpeed":30,"attack":5,"sustain":90,"release":50,"fx":{"reverb":{"on":true,"type":"hall","decay":50,"mix":30}}}' views="spectrum wave" filter-curve chord="45 52 57 60"></synth-lab>
+
+      <h2>Adding a controller</h2>
+      <p>The FM-1 listens to MIDI control messages, so a keyboard or controller with knobs can play it too. The FM-1+VA manual lists them, and a few are especially handy for performing:</p>
+      <ul>
+        <li><strong>CC 85 to 88</strong> turn KNOB1 to KNOB4.</li>
+        <li>On a Virtual Analog preset, <strong>CC 74</strong> sets Cutoff and <strong>CC 71</strong> Resonance, the numbers many controllers already send from their first knobs.</li>
+        <li>Notes, pitch bend, mod wheel, aftertouch and sustain pedal all work as you’d expect.</li>
+      </ul>
+      <p>There’s deliberately no MIDI message for SAVE, so a controller can never overwrite a preset by accident. The full list is in the MIDI chapter of <a href="https://baudgirl.com/work/FM-1+VA/manual">Baud Girl’s manual</a>.</p>
+
+      <aside class="on-fm1">
+        <h3>A two-minute routine</h3>
+        <ol>
+          <li>Load the warm pad or acid bass from lesson 10.</li>
+          <li>Set the Preset knobs to Cutoff, Resonance, Filter Env and LFO to Cutoff, and <span class="btn-name">SAVE</span>.</li>
+          <li>Press <span class="btn-name">ARP</span>, turn on Latch, choose a slow Rate, and play a chord.</li>
+          <li>Play with the four knobs for a minute. Then hold <span class="btn-name">HOME</span>, turn SELECT to Knobs: Reverb, and bring the Mix up for the ending.</li>
+          <li>Press <span class="btn-name">ARP</span> again to stop.</li>
+        </ol>
+      </aside>
+
+      <p class="note">That’s the course. For everything not covered here, from the sequencer’s step locks to loading DX7 banks, Baud Girl’s manual is thorough and well written. And the best next step is the simplest: pick a recipe, change one thing at a time, and listen.</p>
+    </main>
+  </div>
+</body>
+</html>

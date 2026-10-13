@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FM synthesis | Signal Path</title>
+  <meta name="description" content="How frequency modulation turns fast vibrato into new tones: carriers, modulators, ratios, index, algorithms, and the FM-1’s six-operator engine.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 8</p>
+      <h1>FM synthesis</h1>
+      <p class="lede">The FM-1 was built as an FM synth: “FM” is in its name. FM makes the glassy electric pianos, bells and metallic basses of the 1980s, and it does it with nothing but sine waves. It also has a reputation for being impossible to program. It isn’t, once you’ve seen what it does.</p>
+
+      <h2>Vibrato, sped up</h2>
+      <p>Start where the last lesson on LFOs ended. Take a sine wave you can hear, the <strong>carrier</strong>, and wobble its pitch with a second sine wave, the <strong>modulator</strong>. When the modulator is slow, that’s vibrato. Now speed the modulator up.</p>
+
+      <fm-lab slow heading="From vibrato to tone" intro="Hold a note. Raise Slow it down from 20 towards 100, then drag it all the way to 0." ratio="1" index="2" mod-rate="20"></fm-lab>
+
+      <p>As the wobble speeds past about 20 a second, you stop hearing a pitch going up and down and start hearing a new, richer tone. The wobble is now too fast to follow, and what your ear receives instead are new frequencies called <strong>sidebands</strong>, appearing on both sides of the carrier. That’s frequency modulation, FM.</p>
+
+      <h2>Ratio and index</h2>
+      <p>Two numbers control almost everything about an FM tone:</p>
+      <ul>
+        <li><span class="sig-sound">Ratio</span> is the modulator’s frequency divided by the carrier’s. The sidebands land at the carrier’s frequency plus and minus whole multiples of the modulator’s. The pink ticks on the spectrum below mark where.</li>
+        <li><span class="sig-sound">Index</span> is how hard the modulator pushes. At 0 you hear a plain sine. As it rises, more and stronger sidebands appear and the tone gets brighter and harsher.</li>
+      </ul>
+
+      <fm-lab heading="Ratio and index" intro="Hold a note, then move Index. Then try ratios 1, 2, 3 and 3.5." ratio="1" index="1.5"></fm-lab>
+
+      <p>Try these and look at where the sidebands fall:</p>
+      <ol>
+        <li><strong>Ratio 1, index rising:</strong> sidebands land exactly on the harmonic ladder from lesson 1. The tone goes from sine to something like a saw. FM can make classic waveforms.</li>
+        <li><strong>Ratio 2:</strong> only odd harmonics. Hollow, square-like, even clarinet-like at low index.</li>
+        <li><strong>Ratio 3.5, or switch off snapping and try 1.41:</strong> sidebands land <em>between</em> the rungs of the ladder. That’s inharmonic: bells, gongs, metal, glass.</li>
+      </ol>
+      <p>Whole-number ratios give pitched, musical tones. Odd ones give clangs and bells. That’s the most useful rule in FM.</p>
+
+      <h2>Brightness that changes over time</h2>
+      <p>On a real instrument, the tone changes as a note goes on: a struck bell or a piano is bright at the moment of impact and mellows as it rings. In FM, that’s just the index falling over time. Raise <span class="sig-time">Index decay</span> above, set Index around 4 and play short notes: each one starts bright and settles to a softer tone. A ratio of 1 with a decaying index starts to sound like an electric piano; a ratio of 3.5 sounds like a bell.</p>
+
+      <h2>Six operators, 32 algorithms</h2>
+      <p>The FM-1’s FM engine, like the Yamaha DX7 it’s modeled on, has six of these sine-wave building blocks, called <strong>operators</strong>. Each has its own frequency ratio, its own output level and its own envelope. An <strong>algorithm</strong> decides how they’re wired: which operators you hear (carriers) and which ones modulate others (modulators). There are 32 algorithms, from one long chain of six to six carriers side by side with no modulation at all.</p>
+      <p>Two consequences explain most FM programming:</p>
+      <ul>
+        <li><strong>A modulator’s level is its index.</strong> Turning a modulator up makes the carrier below it brighter, not louder.</li>
+        <li><strong>A modulator’s envelope is the brightness envelope.</strong> That’s why the preset-wide Release can only shorten an FM sound: the operators’ own envelopes decide how long it rings.</li>
+      </ul>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Electric pianos, bells, mallets, glassy keys:</strong> FM’s home ground.</li>
+          <li><strong>Punchy, bright basses:</strong> ratio 1 or 0.5 with a fast-decaying index.</li>
+          <li><strong>Metallic hits and clangs:</strong> odd ratios and a short envelope.</li>
+          <li><strong>Warm pads and big detuned leads:</strong> usually easier on the Virtual Analog engine.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>All 128 factory presets are FM presets. Turn PRESETS to an electric piano or bell and play.</li>
+          <li>Turn ALGORITHM on the HOME screen. The first click draws the algorithm diagram; each click after changes it. The boxes at the bottom of each stack are carriers.</li>
+          <li>Press <span class="btn-name">EDIT</span>. Now the top-row keys are buttons: press OP1 to OP6 to open an operator’s settings. <strong>Hold</strong> an OP key to mute that operator while you play, a great way to hear what each one adds.</li>
+          <li>In an operator, Coarse and Fine set its ratio, Output Level its level (its index, if it’s a modulator), and Rate and Level 1 to 4 its envelope.</li>
+          <li>For quick changes, the Preset knob bank on an FM preset starts with Brightness, Feedback, Attack and Release. Brightness moves all the modulators’ levels at once. Feedback (0 to 7) feeds one operator back into itself and roughens the tone.</li>
+          <li>FM presets can borrow the Virtual Analog filter: the Filter group sits after the operators. It costs a few notes of polyphony.</li>
+        </ol>
+        <p>Knob changes on FM presets take effect from the next note you play, not on notes already sounding. On Virtual Analog and 8-Bit presets you hear them immediately. The FM-1 also loads classic DX7 patch banks sent over MIDI, so decades of DX7 sounds will play on it.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1967</dt>
+          <dd>At Stanford, composer John Chowning experiments with extreme vibrato on a computer and finds that very fast vibrato produces new, complex tones.</dd>
+          <dt>1973</dt>
+          <dd>Chowning publishes “The Synthesis of Complex Audio Spectra by Means of Frequency Modulation” in the <em>Journal of the Audio Engineering Society</em>. Stanford licenses the technique to Yamaha; the license becomes one of the university’s most lucrative.</dd>
+          <dt>1983</dt>
+          <dd>Yamaha releases the DX7: six operators, 32 algorithms, and the electric piano and bell sounds that define the decade’s pop music. It becomes one of the best-selling synthesizers ever made.</dd>
+          <dt>2026</dt>
+          <dd>The FM-1 puts a six-operator, 32-algorithm FM engine in your pocket, and FM-1+VA adds a filter and a new interface for it.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

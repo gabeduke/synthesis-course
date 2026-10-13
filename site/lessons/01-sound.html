@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sound you can see | Signal Path</title>
+  <meta name="description" content="Pitch, loudness and tone, how to read an oscilloscope and a spectrum, and why every sound is a stack of sine waves.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 1</p>
+      <h1>Sound you can see</h1>
+      <p class="lede">Sound is air being pushed and pulled very quickly. A synthesizer is a machine for deciding exactly how that push and pull goes. Before turning any knobs, it helps to learn the two pictures this course uses everywhere: the waveform and the spectrum.</p>
+
+      <h2>The waveform: pressure over time</h2>
+      <p>A speaker cone moves forward and back, squeezing and stretching the air in front of it. Draw its position over time and you get a <strong>waveform</strong>. The oscilloscope on the left of the panel below does exactly that, freezing the picture each time the wave crosses the centre line going up, so a steady note draws as a steady shape.</p>
+      <p>Three things about that shape matter:</p>
+      <ul>
+        <li><strong>How often it repeats is the pitch.</strong> Repetitions per second are measured in hertz (Hz). The A above middle C repeats 440 times a second. Double the rate and you go up an octave: 880 Hz is the next A up.</li>
+        <li><strong>How tall it is is the loudness.</strong> Bigger swings push more air.</li>
+        <li><strong>What shape it is is the tone</strong>, or timbre. A smooth curve sounds pure; a shape with sharp corners and edges sounds bright and buzzy.</li>
+      </ul>
+
+      <synth-lab heading="Four shapes, four tones" intro="Hold a chord, then switch the waveform. Watch both pictures." controls="waveform" preset='{"waveform":"sine","cutoff":20000,"release":30}' chord="45" span="1400"></synth-lab>
+
+      <p>Pitch and loudness are easy to hear and easy to see. Tone is the interesting one, and the spectrum on the right is how we’ll read it.</p>
+
+      <h2>The spectrum: what the tone is made of</h2>
+      <p>In 1822 the mathematician Joseph Fourier published an idea that turns out to underpin all of this: any shape that repeats can be built by adding together sine waves, the smooth, pure kind, at whole-number multiples of the repeat rate. For a note at 110 Hz, those are sines at 110, 220, 330, 440 Hz and up. They’re called <strong>harmonics</strong> (or partials).</p>
+      <p>A <strong>spectrum</strong> shows how much of each frequency is in a sound. Low frequencies are on the left, high on the right, and taller means louder. Hold a note on the panel above and you’ll see a row of peaks: that’s the harmonic ladder. A sine has a single peak. A saw has a peak at every rung, each a little shorter than the last. A square has peaks only at the odd rungs.</p>
+      <p>The axis is spaced so each octave takes the same width, because that’s how we hear pitch. That’s why the rungs of the ladder crowd together towards the right.</p>
+
+      <h2>Build a wave by hand</h2>
+      <p>Here’s Fourier’s idea you can touch. Each bar is one sine wave. The first is the note itself; the second is twice its frequency, the third three times, and so on. Drag the bars and the waveform on the right is their sum.</p>
+
+      <harmonics-lab shape="sine" spectrum></harmonics-lab>
+
+      <ol>
+        <li>Press <span class="btn-name">Play</span>, then <span class="btn-name">Add them one at a time</span>. Starting from one sine, it adds harmonics at a falling level, and the curve sharpens into a sawtooth. Listen to the tone get brighter with each one.</li>
+        <li>Choose <span class="btn-name">Square</span>. Every other bar is empty: a square wave uses only the odd harmonics. That gap is why squares sound hollow next to saws.</li>
+        <li>Choose <span class="btn-name">Triangle</span>. Odd harmonics again, but they fade out much faster, so it sounds soft, almost like a sine with a little edge.</li>
+        <li>Make something of your own. Pull up only the high bars and the sound gets thin and glassy; keep only the first two or three and it gets round and woody.</li>
+      </ol>
+
+      <section class="use-it">
+        <h3>Why this matters for everything that follows</h3>
+        <ul>
+          <li><strong>Filters</strong> (lesson 3) work by turning harmonics down. You can only take away what’s there, which is why synths start from bright waves like saws.</li>
+          <li><strong>Detune</strong> (lesson 6) makes harmonics beat against each other, and the high ones beat fastest.</li>
+          <li><strong>FM</strong> (lesson 8) creates new partials, and some of them don’t sit on the ladder at all. That’s where bells and metallic tones come from.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Connect the FM-1’s audio with the panel in the top-right corner. Its signal will draw in purple on the panel above.</li>
+          <li>Choose a Virtual Analog preset (113 to 128 from the VA pack).</li>
+          <li>Hold a key on the FM-1 and turn ALGORITHM on the HOME screen. On a Virtual Analog preset it steps through Sine, Saw, Tri and Square, and the FM-1 names each one as you land on it.</li>
+          <li>Compare the purple waveform with the blue one. The shapes match; the details differ a little, because the FM-1’s oscillators are band-limited and its output goes through its own converter.</li>
+        </ol>
+        <p>If the FM-1’s preset has a filter or effects on, its picture will look rounder than the page’s. That’s a preview of lesson 3.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1822</dt>
+          <dd>Joseph Fourier’s <em>Analytical Theory of Heat</em> shows repeating signals can be written as sums of sine waves. He was studying heat flow, not music.</dd>
+          <dt>1863</dt>
+          <dd>Hermann von Helmholtz’s <em>On the Sensations of Tone</em> uses tuned glass resonators to pick individual partials out of a sound, and argues that the mix of partials is what we hear as timbre.</dd>
+          <dt>1897–1906</dt>
+          <dd>Thaddeus Cahill builds the Telharmonium, a 200-ton instrument that makes tones by adding up harmonics from spinning electrical generators. It’s often called the first synthesizer.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

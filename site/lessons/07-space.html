@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Space: chorus, delay, reverb | Signal Path</title>
+  <meta name="description" content="Is a detuned supersaw a kind of reverb? Pitch tricks versus time tricks, and how to use chorus, delay, reverb and distortion on the FM-1.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 7</p>
+      <h1>Space: chorus, delay, reverb</h1>
+      <p class="lede">Turn up Super and Detune and a sound gets bigger, wider, lusher. Turn up reverb and it gets bigger and lusher too. So is a detuned stack a kind of reverb? No, and working out why is the best way to understand what every effect on the FM-1 is actually doing.</p>
+
+      <h2>Two ways to make a sound bigger</h2>
+      <p>Every effect in this lesson, and Super and Detune too, works by making copies of the sound and mixing them back in. What differs is how the copies differ from the original.</p>
+      <ul>
+        <li><strong>Pitch tricks.</strong> Super makes copies at slightly different <em>pitches</em>, all sounding at the same moment. Nothing arrives late. The copies exist only while the oscillator is playing.</li>
+        <li><strong>Time tricks.</strong> Chorus, delay and reverb make copies that arrive <em>later</em> than the original. Because they’re late, they can keep sounding after the original has stopped.</li>
+      </ul>
+      <p>That gives a simple test: play a short note and see what happens after you let go.</p>
+
+      <space-lab></space-lab>
+
+      <p>Press each button in turn. All five play the same short note; the plot keeps every run so you can compare them.</p>
+      <ul>
+        <li><strong>Dry</strong> drops to silence right after the key is released.</li>
+        <li><strong>Super + Detune</strong> also drops right away. While the key is down its line wobbles, which is the beating from lesson 6, but there’s no tail at all. A detuned stack has no idea a room exists.</li>
+        <li><strong>Chorus</strong> stops almost as fast. Its copies are only a few hundredths of a second late, too short to hear as an echo.</li>
+        <li><strong>Delay</strong> comes back in distinct bumps after the note ends: echoes.</li>
+        <li><strong>Reverb</strong> fades away smoothly for a second or more after the note ends. That long, dense tail is what makes a room sound like a room.</li>
+      </ul>
+
+      <h2>So why does detune feel like space?</h2>
+      <p>Because your ear uses the same clues for both. A real room and a big ensemble both smear things: the pitch is slightly less exact, the edges of the sound blur, and the sound seems to come from many places instead of one point. Detune produces some of those clues, so it reads as big. But only reverb gives you the tail and the sense of a distance between you and the sound. That’s why they stack so well: Super for thickness, chorus for movement, reverb for the room.</p>
+
+      <h2>Chorus: detune made from delay</h2>
+      <p>Chorus sits right on the border between the two families, which is what makes it interesting. It mixes in a copy of the sound delayed by roughly 20 to 30 milliseconds, and keeps nudging that delay time longer and shorter with a slow LFO. A delay that’s stretching makes the copy fall slightly flat; one that’s shrinking makes it slightly sharp. The result is a copy whose pitch gently wanders around the original’s, a lot like detune, but made in the time domain.</p>
+      <p>That’s why chorus was the classic way to make one oscillator sound like a string section, long before synths could afford seven oscillators per note.</p>
+
+      <h2>Delay and reverb</h2>
+      <p><span class="sig-space">Delay</span> plays the sound back after a gap, and <strong>feedback</strong> sends each echo back in to make another, quieter one. Short gaps with high feedback get metallic and resonant; long gaps give clear, rhythmic repeats.</p>
+      <p><span class="sig-space">Reverb</span> imitates thousands of reflections off walls, floor and ceiling. The first few arrive separately within a few milliseconds and tell your ear how big the room is. Then they pile up into a smooth wash that fades out. The FM-1 offers three kinds: Room (small and close), Hall (big and slow), and Plate (bright and dense, after the steel-plate reverbs of 1950s studios).</p>
+
+      <synth-lab heading="The FM-1’s space effects" intro="Turn effects on one at a time. Play short notes to hear the tails." controls="Chorus Delay Reverb" preset='{"waveform":"saw","super":40,"detune":30,"cutoff":3500,"resonance":10,"attack":0,"decay":40,"sustain":60,"release":25}' views="env wave" chord="52 59 64"></synth-lab>
+
+      <h2>A word on grit</h2>
+      <p>Distortion isn’t a space effect, but it lives in the same FX list and it’s the other half of what makes a patch feel alive. It works by squashing the waveform’s peaks, which adds new harmonics. The FM-1 has three types: <strong>Soft Clip</strong> rounds the peaks off for warm saturation; <strong>Hard Clip</strong> slices them flat for a buzzier edge; <strong>Foldback</strong> reflects anything past the limit back down on itself, which gets strange and metallic fast. Gain sets how hard you drive it, Tone how bright the result is, and Level its output.</p>
+
+      <synth-lab heading="Distortion" intro="Hold the chord, switch distortion on and raise Gain. Watch the waveform’s peaks." controls="Distortion cutoff" preset='{"waveform":"saw","cutoff":1800,"resonance":20,"release":30,"fx":{"distortion":{"on":true,"type":"soft","gain":30,"tone":55,"level":70}}}' views="wave spectrum" chord="40 47"></synth-lab>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Chorus:</strong> pads, electric pianos, and any single-oscillator sound that feels thin. Keep it light on bass.</li>
+          <li><strong>Delay:</strong> leads and plucks. Short, sparse notes leave room for echoes.</li>
+          <li><strong>Reverb:</strong> nearly everything, a little. Lots, on pads and drones. Less on bass, or the low end turns to mud.</li>
+          <li><strong>Distortion:</strong> basses and leads that need to cut through. Put it before reverb, or the reverb tail gets distorted too.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Press <span class="btn-name">FX</span>. Every preset has seven effects: Filter, Reverb, Delay, Distortion, Chorus, Phaser and Bitcrush. Their settings and their order are saved with the preset.</li>
+          <li>Highlight an effect and turn ALGORITHM to switch it on or off. Press <span class="btn-name">SEL</span> to open its settings.</li>
+          <li>The effects run in the order of the list, and you can change it: highlight an effect and hold <span class="btn-name">SEL</span>; the row flashes. Keep holding and turn SELECT to move it, then let go.</li>
+          <li>For playing live, use a knob bank. On the HOME screen, press <span class="btn-name">HOME</span>, choose Knobs: Reverb (or any effect) and press <span class="btn-name">SEL</span>. KNOB1 to KNOB3 now set that effect and KNOB4 switches it on and off.</li>
+          <li>Delay’s Rate works backwards from what you might expect: higher means a shorter gap, from 0.8 seconds down to 0.1.</li>
+        </ol>
+        <p>With MIDI connected, the Chorus, Delay, Reverb and Distortion sliders above can mirror to the FM-1’s effects. Phaser, Bitcrush and the Filter effect have their own rows on the hardware worth exploring too.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1900</dt>
+          <dd>Wallace Sabine publishes his formula for how long a room keeps ringing. Reverberation time is still the first number anyone gives for a reverb.</dd>
+          <dt>1947</dt>
+          <dd>Engineer Bill Putnam uses a studio washroom as an echo chamber on “Peg o’ My Heart”. Studios soon build dedicated chambers.</dd>
+          <dt>1957</dt>
+          <dd>EMT’s 140 plate reverb, a large steel sheet set vibrating by the signal, becomes the studio standard. Plate reverb settings, including the FM-1’s, imitate that bright, dense sound.</dd>
+          <dt>1959</dt>
+          <dd>The Echoplex tape delay gives performers echo they can carry on stage.</dd>
+          <dt>1974</dt>
+          <dd>Roland’s RE-201 Space Echo combines tape delay with spring reverb. The Solina String Ensemble, sold by ARP, uses modulated delays to turn one tone into a string section.</dd>
+          <dt>1975–76</dt>
+          <dd>Roland’s JC-120 Jazz Chorus amp, then the Boss CE-1 pedal, bring chorus to guitarists and then to everyone.</dd>
+          <dt>1976–78</dt>
+          <dd>The EMT 250 and Lexicon 224 compute reverb digitally, the approach behind today’s reverbs, the FM-1’s included.</dd>
+          <dt>1982</dt>
+          <dd>Roland’s Juno-6 and Juno-60 put a two-speed chorus on a one-oscillator synth. It sounds enormous, and it’s still one of the most copied chorus sounds.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

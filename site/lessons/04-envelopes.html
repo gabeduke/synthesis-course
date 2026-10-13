@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Envelopes | Signal Path</title>
+  <meta name="description" content="Attack, decay, sustain and release, filter envelopes, and how plucks, pads and swells are made, on the FM-1 and in the browser.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 4</p>
+      <h1>Envelopes</h1>
+      <p class="lede">A piano note hits hard and fades. A violin can swell in slowly and hold for as long as the bow keeps moving. Same pitch, same rough tone, completely different instruments. The difference is the envelope: how a sound changes from the moment you press a key to well after you let go.</p>
+
+      <h2>Attack, decay, sustain, release</h2>
+      <p>Almost every synth describes loudness over time with the same four stages, ADSR:</p>
+      <ul>
+        <li><span class="sig-time">Attack</span>: how long the sound takes to rise from silence to full level after you press a key.</li>
+        <li><span class="sig-time">Decay</span>: how long it then takes to fall to the sustain level.</li>
+        <li><span class="sig-time">Sustain</span>: the level it holds while you keep the key down. This one is a level, not a time.</li>
+        <li><span class="sig-time">Release</span>: how long it takes to fade to silence after you let go.</li>
+      </ul>
+
+      <synth-lab heading="Shaping loudness" intro="Hold a key and watch the dot travel along the shape. Let go to see the release." controls="Envelope" preset='{"waveform":"saw","cutoff":4000,"attack":30,"decay":55,"sustain":60,"release":50}' views="shape env wave" chord="48 55 60"></synth-lab>
+
+      <p>The left picture is the envelope you’ve set. The middle one is the measured loudness of what’s actually coming out, scrolling past. Try these shapes:</p>
+      <ul>
+        <li><strong>Organ:</strong> Attack 0, Sustain 100, Release low. On and off like a switch.</li>
+        <li><strong>Pluck:</strong> Attack 0, Decay around 40, Sustain 0, Release around 30. A sharp hit that dies away even if you hold the key.</li>
+        <li><strong>Pad:</strong> Attack around 60, Sustain 80 or more, Release high. It fades in and lingers after you let go.</li>
+        <li><strong>Swell:</strong> Attack near the top. Hold a chord and wait for it to bloom.</li>
+      </ul>
+      <p>Notice that Release on the FM-1’s Virtual Analog engine runs from 0.1 to 2 seconds. For longer tails, reverb (lesson 7) takes over.</p>
+
+      <h2>The filter envelope</h2>
+      <p>An envelope doesn’t have to control loudness. Pointed at the filter’s cutoff, it changes the <em>tone</em> over the life of a note: bright at the start, darker as it fades. That’s how real plucked strings behave, and it’s the core of most synth basses and plucks.</p>
+      <p>The FM-1’s Virtual Analog filter has its own simple envelope. Every note jumps the cutoff up by the <span class="sig-time">Filter envelope</span> amount, then lets it fall back over <span class="sig-time">Filter decay</span>. On the hardware a third control, Shape, changes the curve of that fall.</p>
+
+      <synth-lab heading="A filter envelope" intro="Play short notes. Raise Filter envelope, then shorten Filter decay." controls="filterEnv filterDecay cutoff resonance" preset='{"waveform":"saw","filterType":"lp24","cutoff":300,"resonance":35,"filterEnv":60,"filterDecay":35,"attack":0,"decay":45,"sustain":70,"release":25}' views="spectrum wave" filter-curve low="36"></synth-lab>
+
+      <p>Watch the dashed filter line: each note flings it to the right, then it slides back. A big amount with a short decay is a pluck or a “blip”. A long decay with a low cutoff is a slow, wah-like opening. Push resonance up and you’re most of the way to an acid bass.</p>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Notes blurring together?</strong> Shorten Release.</li>
+          <li><strong>Pad sounds abrupt?</strong> Lengthen Attack and Release.</li>
+          <li><strong>Bass lacks punch?</strong> Keep Attack at 0 and add a short filter envelope.</li>
+          <li><strong>Lead too static?</strong> A little filter envelope makes each note speak.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Every preset’s Envelope starts <strong>off</strong>. Hold <span class="btn-name">ENV</span> for about a second to switch it on; the FM-1 shows “Envelope On”, and the ENV button stays lit. The setting is saved with each preset.</li>
+          <li>Press <span class="btn-name">ENV</span> to open Attack, Decay, Sustain and Release.</li>
+          <li>On a freshly erased preset all four start at 0. Raise Sustain first, or every note will be a short blip.</li>
+          <li>The filter envelope lives in the Filter group under <span class="btn-name">EDIT</span>: Envelope, Decay and Shape. On a blank VA preset, KNOB3 and KNOB4 are already Filter Env and Filter Decay.</li>
+          <li>Connect the FM-1’s audio and the middle picture above draws its loudness in purple next to the page’s. Play the same note on both with Play on: Both and compare envelopes.</li>
+        </ol>
+        <p>On FM presets, Release works differently: each FM operator has its own envelope, and the preset’s Release can only cut a fade short, never lengthen it. Lesson 8 covers why.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1965</dt>
+          <dd>Composer Vladimir Ussachevsky asks Robert Moog for an envelope with four stages. Moog builds it as the 911 envelope module.</dd>
+          <dt>1970s</dt>
+          <dd>ARP Instruments labels the four stages Attack, Decay, Sustain and Release on its synthesizers, and “ADSR” becomes the standard name.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
