@@ -106,6 +106,9 @@ export class Keyboard {
     // The drawn keys are for mouse and touch. Keyboard users play with A–K,
     // so the keys themselves are hidden from screen readers.
     this.root = el('div', { class: 'keys', 'aria-hidden': 'true' });
+    // Holding a key on a touchscreen is a long press: don't let the browser
+    // turn that into its context menu or a text selection.
+    this.root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.pointerNotes = new Map();
     this._build();
     window.addEventListener('blur', () => {

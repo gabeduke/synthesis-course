@@ -1,5 +1,6 @@
 // Entry point for every page.
 import './ui/shell.js';
+import './ui/pwa.js';
 import './widgets/fm1-panel.js';
 import './widgets/synth-lab.js';
 import './widgets/voice-stack.js';

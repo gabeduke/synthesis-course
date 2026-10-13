@@ -21,9 +21,13 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      # Lists every file for offline use, stamps the service worker with a
+      # version hash, and fails the deploy on any broken link or import.
+      - name: Build service worker
+        run: python3 scripts/build_pwa.py
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: site
       - id: deployment

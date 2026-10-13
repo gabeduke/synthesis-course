@@ -5,6 +5,7 @@
 let ctx = null;
 let master = null;
 let noiseBuffer = null;
+let levelMeter = null;
 
 export function audio() {
   if (!ctx) {
@@ -27,8 +28,24 @@ export function audio() {
     master = ctx.createGain();
     master.gain.value = 0.7;
     master.connect(dcBlock).connect(limiter).connect(ctx.destination);
+
+    // A small meter on everything the page plays, so the app can tell when
+    // you're making sound (to keep the screen awake while you practice).
+    levelMeter = ctx.createAnalyser();
+    levelMeter.fftSize = 512;
+    master.connect(levelMeter);
   }
   return { ctx, master };
+}
+
+// How loud the page is right now (RMS, 0–1). 0 before any audio has started.
+const meterBuf = new Float32Array(512);
+export function playingLevel() {
+  if (!ctx || !levelMeter || ctx.state !== 'running') return 0;
+  levelMeter.getFloatTimeDomainData(meterBuf);
+  let s = 0;
+  for (let i = 0; i < meterBuf.length; i++) s += meterBuf[i] * meterBuf[i];
+  return Math.sqrt(s / meterBuf.length);
 }
 
 export async function resume() {

@@ -2,7 +2,7 @@
 <html lang="en" data-root=".">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Signal Path: learn synthesis on the M-VAVE FM-1</title>
   <meta name="description" content="A free, hands-on synthesis course for the M-VAVE FM-1 running Baud Girl’s FM-1+VA firmware. Hear and see every idea in the browser, and connect your FM-1 over USB to follow along.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,6 +10,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./assets/css/course.css">
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#e9edf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d2229" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Signal Path">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
   <script type="module" src="./assets/js/main.js"></script>
 </head>
 <body>
@@ -26,6 +34,8 @@
           <a class="btn" href="./lessons/06-unison.html">Jump to Super and Detune</a>
         </div>
       </section>
+
+      <div data-install-slot></div>
 
       <h2>How the pictures work</h2>
       <p>Color means the same thing in every widget, so you can read a panel at a glance.</p>

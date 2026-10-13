@@ -52,7 +52,7 @@ class HistoryTimeline extends HTMLElement {
     if (this._built) return;
     this._built = true;
     const root = document.documentElement.dataset.root || '.';
-    const filters = el('div', { class: 'timeline-filter seg', role: 'group', 'aria-label': 'Show' });
+    const filters = el('div', { class: 'timeline-filter seg neutral', role: 'group', 'aria-label': 'Show' });
     let active = 'all';
     const list = el('div', { class: 'lanes' });
     const render = () => {

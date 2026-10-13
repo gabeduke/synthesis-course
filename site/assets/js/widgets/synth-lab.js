@@ -16,6 +16,7 @@ import { fm1 } from '../hw/fm1.js';
 import { GROUPS, PARAMS, getParam, toPartial, ccFor } from '../ui/params.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
+import { share } from '../ui/pwa.js';
 import {
   onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, yForDb, rms, makeAnalyser,
 } from '../ui/draw.js';
@@ -51,12 +52,12 @@ class SynthLab extends HTMLElement {
   ensure() {
     if (this.synth) return this.synth;
     const { ctx, master } = audio();
-    this.synth = new VASynth(this.preset);
+    // Start from the panel's current settings (a shared patch, or the lesson's).
+    this.synth = new VASynth(this._full());
     this.analyser = makeAnalyser(ctx, 8192, 0.5);
     this.synth.output.connect(this.analyser).connect(master);
     this.lfoAnalyser = makeAnalyser(ctx, 256, 0);
     this.synth.lfoOut.connect(this.lfoAnalyser);
-    this.synth.set(this.params);
     // Hidden filters used only to draw the response curve.
     this.curveFilters = [ctx.createBiquadFilter(), ctx.createBiquadFilter()];
     return this.synth;
@@ -184,7 +185,7 @@ class SynthLab extends HTMLElement {
     box.append(el('div', { class: 'keys-wrap' }, [keysBar, this.kb.root]));
 
     // Footer: where notes go, FM-1 mirroring
-    const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Play on', style: '--c: var(--ink)' });
+    const seg = el('div', { class: 'seg neutral', role: 'group', 'aria-label': 'Play on' });
     const targets = [['page', 'This page'], ['fm1', 'FM-1'], ['both', 'Both']];
     const segBtns = targets.map(([val, label]) => {
       const b = el('button', { type: 'button', text: label, 'aria-pressed': String(val === this.target) });
@@ -206,13 +207,16 @@ class SynthLab extends HTMLElement {
     sendBtn.addEventListener('click', () => this._send());
     const resetBtn = el('button', { class: 'btn', type: 'button', text: 'Reset' });
     resetBtn.addEventListener('click', () => this.reset());
+    const shareBtn = el('button', { class: 'btn', type: 'button', text: 'Share patch' });
+    shareBtn.title = 'A link that opens this page with these exact settings';
+    shareBtn.addEventListener('click', () => this.sharePatch());
     this.hwBits = [seg, mirror.parentElement, sendBtn];
 
     const foot = el('div', { class: 'instrument-foot' }, [
       el('span', { class: 'label', text: 'Play on' }), seg,
       el('label', { class: 'switch', for: mirrorId, style: '--c: var(--hw)' }, [mirror, el('span', { text: 'Mirror to FM-1' })]),
       el('span', { class: 'grow' }),
-      sendBtn, resetBtn,
+      sendBtn, shareBtn, resetBtn,
     ]);
     box.append(foot);
     this.status = el('div', { class: 'where', role: 'status' });
@@ -241,6 +245,83 @@ class SynthLab extends HTMLElement {
     for (const [v, { c, legend }] of Object.entries(this.canvases)) {
       onFrame(c, (now) => this._draw(v, c, legend, now));
     }
+    this._loadSharedPatch();
+  }
+
+  // ---------- Patch links ----------
+  // A patch travels in the address: page.html#patch2=<settings>, where 2 is
+  // which panel on the page it belongs to. Nothing is stored on a server.
+  get _index() { return [...document.querySelectorAll('synth-lab')].indexOf(this); }
+
+  async sharePatch() {
+    const json = JSON.stringify(this.params);
+    const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(json)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const url = `${location.origin}${location.pathname}#patch${this._index}=${b64}`;
+    const heading = this.getAttribute('heading') || 'Synth';
+    const how = await share({ title: `${heading} patch | Signal Path`, text: `A patch for “${heading}” on Signal Path`, url });
+    if (how === 'copied' || how === 'shared') this.say('Anyone who opens the link gets this panel with these settings.');
+  }
+
+  _loadSharedPatch() {
+    const m = location.hash.match(new RegExp(`^#patch${this._index}=([A-Za-z0-9_-]+)$`));
+    if (!m) return;
+    try {
+      const b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+      const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
+      const patch = this._clean(JSON.parse(new TextDecoder().decode(bytes)));
+      this._applyParams(patch);
+      this.say('Loaded a shared patch. Reset brings back the lesson’s starting settings.');
+      requestAnimationFrame(() => this.scrollIntoView({ block: 'center' }));
+    } catch (_) {
+      this.say('That patch link looks damaged, so the lesson’s own settings are shown.');
+    }
+  }
+
+  // Only accept settings this panel knows, with values of the right kind.
+  _clean(input) {
+    const d = this._defaults();
+    const out = {};
+    const ok = (key, def, v) => {
+      const spec = PARAMS[key];
+      if (typeof def === 'number') return typeof v === 'number' && Number.isFinite(v)
+        ? Math.min(spec?.max ?? 20000, Math.max(spec?.min ?? 0, v)) : undefined;
+      if (typeof def === 'boolean') return typeof v === 'boolean' ? v : undefined;
+      if (typeof def === 'string') return spec?.options ? (spec.options.includes(v) ? v : undefined) : undefined;
+      return undefined;
+    };
+    for (const [k, v] of Object.entries(input || {})) {
+      if (k === 'fx' && v && typeof v === 'object') {
+        out.fx = {};
+        for (const [fx, fields] of Object.entries(v)) {
+          if (!d.fx[fx] || !fields || typeof fields !== 'object') continue;
+          out.fx[fx] = {};
+          for (const [f, fv] of Object.entries(fields)) {
+            if (!(f in d.fx[fx])) continue;
+            const clean = ok(`fx.${fx}.${f}`, d.fx[fx][f], fv);
+            if (clean !== undefined) out.fx[fx][f] = clean;
+          }
+        }
+      } else if (k in d && k !== 'fx') {
+        const clean = ok(k, d[k], v);
+        if (clean !== undefined) out[k] = clean;
+      }
+    }
+    return out;
+  }
+
+  _full() {
+    const d = this._defaults();
+    const fx = {};
+    for (const k of Object.keys(d.fx)) fx[k] = { ...d.fx[k], ...(this.params.fx?.[k] || {}) };
+    return { ...d, ...this.params, fx };
+  }
+
+  _applyParams(params) {
+    this.params = structuredClone(params);
+    const full = this._full();
+    if (this.synth) this.synth.set(full);
+    for (const [k, c] of this.ctls) c.update(getParam(full, k));
   }
 
   _defaults() {
@@ -249,8 +330,7 @@ class SynthLab extends HTMLElement {
 
   _send(message) {
     if (!fm1.output) return;
-    const full = { ...this._defaults(), ...this.params, fx: { ...this._defaults().fx, ...(this.params.fx || {}) } };
-    const n = fm1.sendPatch(full);
+    const n = fm1.sendPatch(this._full());
     this.say(message || `Sent ${n} settings to the FM-1. Pick a Virtual Analog preset first (113–128 with the VA pack). Press SAVE on the FM-1 to keep them.`);
   }
 
@@ -263,11 +343,8 @@ class SynthLab extends HTMLElement {
 
   reset() {
     this._releaseAll();
-    this.params = structuredClone(this.preset);
-    const d = this._defaults();
-    const full = { ...d, ...this.params, fx: { ...d.fx, ...(this.params.fx || {}) } };
-    if (this.synth) this.synth.set(full);
-    for (const [k, c] of this.ctls) c.update(getParam(full, k));
+    this._applyParams(this.preset);
+    if (location.hash.startsWith(`#patch${this._index}=`)) history.replaceState(null, '', location.pathname + location.search);
     if (this.mirror) this._send('Reset, and sent the starting settings to the FM-1.');
   }
 
