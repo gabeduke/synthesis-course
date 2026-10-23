@@ -26,6 +26,7 @@ model.
 | 9 | 8-Bit | Pulse widths, stepped triangle, console noise, arpeggios |
 | 10 | Five patches to build | Full recipes, sendable to the FM-1 in one click |
 | 11 | Playing it live | Knob banks, macros, hands-free tricks, controllers |
+| 12 | Drones | Holding a note, slow movement, latching, sending it to other gear |
 
 Plus a filterable history timeline with sources.
 
@@ -88,7 +89,9 @@ the FM-1.
   no documented CCs, so those lessons use the FM-1 connection for playing and
   listening only. How the FM-1 maps CC values onto Cutoff's 20 Hz–20 kHz range
   isn't documented; the page uses a logarithmic spread.
-- The course was written against FM-1+VA version 97. Baud Girl's manual is the
+- The course was written against FM-1+VA version 97. Attack and Decay times were
+  rechecked against version 102 (5 ms to 10 s); the CC map is still the version 93
+  one, with the envelope CCs (73, 75, 70, 72) confirmed in version 102. Baud Girl's manual is the
   authority when the firmware changes.
 
 ## Credits

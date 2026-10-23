@@ -12,6 +12,7 @@ export const LESSONS = [
   { n: 9, file: 'lessons/09-8bit.html', title: '8-Bit: the chiptune engine', blurb: 'Pulse waves, stepped triangles, noise drums and the console arpeggio trick.' },
   { n: 10, file: 'lessons/10-recipes.html', title: 'Five patches to build', blurb: 'Pad, supersaw lead, acid bass, pluck and drone, with exact settings.' },
   { n: 11, file: 'lessons/11-live.html', title: 'Playing it live', blurb: 'Knob banks, macros, and getting your left hand free for the knobs.' },
+  { n: 12, file: 'lessons/12-drones.html', title: 'Drones', blurb: 'Hold a note, keep it moving, fill the room. Long envelopes, slow LFOs, latching and feeding other gear.' },
 ];
 
 export const EXTRAS = [

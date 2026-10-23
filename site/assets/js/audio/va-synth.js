@@ -31,8 +31,11 @@ const OSC_TYPE = { sine: 'sine', saw: 'sawtooth', tri: 'triangle', square: 'squa
 const resDb = (r) => -3 + 31 * Math.pow(clamp(r, 0, 100) / 100, 1.6);
 const resQ = (r) => 0.6 + 18 * Math.pow(clamp(r, 0, 100) / 100, 2);
 
-export const attackTime = (v) => expTime(v, 0.002, 8);
-export const decayTime = (v) => expTime(v, 0.01, 8);
+// Version 102 of the manual: Attack and Decay run from 5 ms to 10 s; VA Release
+// runs from 0.1 s to 2 s (since version 84). The curve between the ends isn't
+// documented, so the page spreads it exponentially.
+export const attackTime = (v) => expTime(v, 0.005, 10);
+export const decayTime = (v) => expTime(v, 0.005, 10);
 export const releaseTime = (v) => expTime(v, 0.1, 2); // FM-1: 0.1 s at 0, 2 s at 100
 export const lfoHz = (v) => 0.05 * Math.pow(1000, clamp(v, 0, 99) / 99);
 export const filterDecayTime = (v) => expTime(v, 0.01, 4);

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Drones | Signal Path</title>
+  <meta name="description" content="A note that never stops, and never quite stays the same: how to hold a sound, keep it moving, and let it fill a room on the FM-1.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#e9edf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d2229" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Signal Path">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+    <main id="main">
+      <p class="lesson-number">Lesson 12</p>
+      <h1>Drones</h1>
+      <p class="lede">A drone is a sound that stays. One note, or a few, held for minutes instead of beats, with nothing to hum along to and nowhere to resolve. It sounds like it should be the simplest thing a synth can do. It isn’t, because a held tone that never changes goes dead in about ten seconds. A good drone has to do three jobs at once: hold, move and fill the room.</p>
+
+      <h2>Job one: hold</h2>
+      <p>The first problem is practical. The FM-1 has 27 small keys, and a note only sounds while your finger is on it. To get a sound that stays, you need either something that keeps the note going after you let go, or an envelope that doesn’t let it fade.</p>
+      <p>Start with the envelope, because you met it in lesson 4. On a new FM-1+VA preset the envelope is off, and a held note simply plays at full level until you let go. Turn the envelope on and you choose what happens instead. Two settings matter for a drone:</p>
+      <ul>
+        <li><span class="sig-time">Sustain</span> at 100. The note settles at full level and stays there while the key is down. At 0, the FM-1 fades a held note to silence, which is exactly what you don’t want here.</li>
+        <li><span class="sig-time">Attack</span> long. The note rises slowly instead of starting at once. A drone that fades in is much harder to point at: nobody hears it begin, and it just seems to have always been there.</li>
+      </ul>
+      <p>Then there’s <span class="sig-time">Release</span>. When you finally let go, a long release lets the note fade out over seconds, so the drone ends as quietly as it began. On a Virtual Analog preset the release tops out at 2 seconds, which is plenty.</p>
+
+      <synth-lab heading="Hold, fade in, fade out" intro="Press Hold a chord, then lengthen Attack and listen to it bloom. Press Hold again and listen to the release." controls="attack sustain release cutoff" preset='{"waveform":"saw","cutoff":1800,"attack":55,"decay":50,"sustain":100,"release":85,"fx":{"reverb":{"on":true,"type":"hall","decay":60,"mix":30}}}' views="env wave" chord="36 43 48"></synth-lab>
+
+      <p>Even so, a note that lasts only while you hold the key is a tiring way to play a drone. The FM-1 gives you three ways to let go of the keys:</p>
+      <ul>
+        <li><strong>Latch the arpeggiator.</strong> Press <span class="btn-name">ARP</span>, set Latch to On, and play a chord. It keeps sounding after you lift your hands, and the next chord you play replaces it. The Note Engine’s Auto-Chord mode has a Latch row too, and is the one to try if you want a held chord rather than a rippling arpeggio.</li>
+        <li><strong>Record long notes.</strong> In the sequencer, hold <span class="btn-name">REC</span> while you play keys, and those notes are held into the next step. Play the same chord on each step and you record one long chord. A pattern can be up to 64 steps, so one chord can run for a long time, and a pattern set to repeat will play it again and again by itself.</li>
+        <li><strong>Chain patterns.</strong> Give each pattern a Chain setting and the next one starts exactly on the beat. Pattern 1 to 2, 2 to 3, 3 back to 1 gives you a slow progression of drones with no one touching the keys.</li>
+      </ul>
+
+      <h2>Job two: move</h2>
+      <p>A held tone with nothing happening inside it stops registering as sound. Your ear tunes it out the way it tunes out a refrigerator. So the second job is to keep the sound changing, slowly enough that you never hear a “change”, only a feeling that something is alive in there.</p>
+      <p>You already have most of the tools. Each one is a different kind of slow movement:</p>
+      <ul>
+        <li><span class="sig-sound">Super</span> and <span class="sig-sound">Detune</span> (lesson 6) set copies of the note slightly apart, so they beat against each other at different speeds. This is movement built into the tone itself, and it never repeats exactly.</li>
+        <li><span class="sig-sound">Drift</span> lets each note wander in pitch, unpredictably. A little keeps a pad from sounding mechanical. For a drone, a bit more is welcome.</li>
+        <li>An <span class="sig-move">LFO</span> (lesson 5) sweeping the filter. Set the speed low enough that one cycle takes many seconds, and use the sine wave so there are no sharp corners. The cutoff slowly opens and closes, and the sound brightens and darkens like light moving across a wall.</li>
+      </ul>
+      <p>A useful rule: give two of these different speeds, so they never line up. A slow filter sweep over a faster pitch drift means the combination keeps changing for far longer than either one alone.</p>
+
+      <synth-lab heading="Movement, not melody" intro="Hold a chord. Raise LFO to cutoff with the speed low, then add Drift and listen for it never repeating." controls="lfoToCutoff lfoSpeed drift super detune resonance cutoff" preset='{"waveform":"tri","super":55,"detune":28,"drift":35,"filterType":"lp12","cutoff":1300,"resonance":35,"lfoWave":"sine","lfoSpeed":10,"lfoToCutoff":35,"attack":70,"decay":50,"sustain":100,"release":90}' views="spectrum lfo" filter-curve chord="36 43 48 55"></synth-lab>
+
+      <p>Waveform matters too. A <span class="sig-sound">Tri</span> or <span class="sig-sound">Sine</span> is soft and hollow, a gentle hum. A <span class="sig-sound">Saw</span> is bright and buzzy, with plenty of harmonics for the filter to work on. A <span class="sig-sound">Square</span> sounds reedy and a bit hollow, like a clarinet. The same chord with each wave is a different drone. Add a little <span class="sig-sound">Noise</span> if you want breath in it.</p>
+
+      <h2>What to play</h2>
+      <p>Because a drone never changes, the notes you choose are most of the character. Two habits make it easy to start:</p>
+      <ul>
+        <li><strong>Go low.</strong> Drones sit best below middle C, where the harmonics are wide apart and the beating from Detune is slow and easy to enjoy. Drop an octave or two with <span class="btn-name">OCT−</span>.</li>
+        <li><strong>Use open fifths.</strong> A root, the note a fifth above it, and the root again an octave up is neither major nor minor. It doesn’t tell the listener what mood to be in, which is why it works under almost anything. Try C, G and C. When you’re ready, add a ninth or a fourth for color, but not a third, until you want the drone to commit.</li>
+      </ul>
+      <p>Then play something over it, or move to a different root and hold that. Because every note is held, the harmony changes slowly, and that’s the drama a drone gets to have.</p>
+
+      <h2>Job three: fill the room</h2>
+      <p>Last, the space. A drone is more a place than a sound, so it almost always wants the effects from lesson 7. The two that matter most:</p>
+      <ul>
+        <li><span class="sig-space">Reverb</span>, on a Hall with a long decay and a generous mix. The reverb’s tail blurs into the held note, so you can’t tell where the sound ends and the room begins.</li>
+        <li><span class="sig-space">Delay</span> with high feedback and a low mix. Each repeat is a faded copy of the last, so a held chord gets a slow echo of itself underneath, and any movement you added comes back a few seconds later, out of step with itself.</li>
+      </ul>
+      <p>Chorus adds a gentle shimmer on top. Go lightly: a drone with every effect at full is just loud, not big.</p>
+
+      <synth-lab heading="Filling the room" intro="Start dry, then raise Reverb mix and Decay, and bring Delay feedback up slowly." controls="fx.reverb.decay fx.reverb.mix fx.delay.feedback fx.delay.mix fx.delay.rate" preset='{"waveform":"saw","super":50,"detune":30,"drift":30,"filterType":"lp12","cutoff":1100,"resonance":30,"lfoWave":"sine","lfoSpeed":8,"lfoToCutoff":25,"attack":65,"decay":50,"sustain":100,"release":90,"fx":{"reverb":{"on":true,"type":"hall","decay":40,"mix":20},"delay":{"on":true,"rate":15,"feedback":30,"mix":15}}}' views="spectrum wave" filter-curve chord="36 43 48 55"></synth-lab>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>Under improvising.</strong> A held fifth gives you a key to play in without a backing track.</li>
+          <li><strong>Between sections.</strong> A drone that swells in during the last bar of a section hides the gap before the next.</li>
+          <li><strong>As a bed for texture.</strong> Quiet, wide and slow, behind something sharper that does the talking.</li>
+          <li><strong>Feeding other gear.</strong> A drone makes an excellent raw sound for a sampler, a looper or an effects pedal, because it’s steady and rich in harmonics. The next section covers that.</li>
+          <li><strong>Keep it out of the way.</strong> A drone sits across a wide stretch of the spectrum, so keep it low in level and let the cutoff stay modest, or it will mask everything else.</li>
+        </ul>
+      </section>
+
+      <h2>Sending it somewhere else</h2>
+      <p>A drone is a good place to use the FM-1 as a sound source for other gear. Take its headphone output into a sampler, a looper or an effects pedal, and the FM-1 becomes the oscillator in a larger instrument. Hold a chord, then use the other box to do what it does best: sample a slice and pitch it down, run it through a filter you don’t have, stretch it, freeze it or glitch it. The FM-1 supplies the endless, evolving tone, and the other box turns it into something new.</p>
+      <p>Two small tips. First, set the preset’s level with the Mixer knob bank (lesson 11) before you connect, because a headphone output can be much louder than a line input expects. Second, if you plan to sample it, keep the drone’s own reverb and delay modest and add those later, after the other gear, so you don’t sample a tail you can’t take back.</p>
+      <p>The firmware has a related setting on the other side of the same idea. With <span class="btn-name">Local Control</span> set to Off (in <span class="btn-name">GLO</span> › MIDI), the keys send MIDI but don’t play the FM-1’s own sound. That turns it into a keyboard for other gear instead, and notes sent to it from outside still play its sound engine.</p>
+
+      <aside class="on-fm1">
+        <h3>On the FM-1</h3>
+        <ol>
+          <li>Make a Virtual Analog preset: press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset, press <span class="btn-name">SEL</span>, choose Erase, then VA.</li>
+          <li>In <span class="btn-name">EDIT</span> › Oscillator, choose Saw or Tri, then set Super to about 55, Detune to about 28 and Drift to about 35.</li>
+          <li>In Filter, set a low Cutoff of around 1.3 kHz and a little Resonance. Set LFO to Cutoff to about 35.</li>
+          <li>Press <span class="btn-name">LFO</span> and choose Sine with a low Speed, around 10.</li>
+          <li>Hold <span class="btn-name">ENV</span> to switch the envelope on. Raise Attack to around 70, leave Sustain at 100 and raise Release to around 90.</li>
+          <li>Press <span class="btn-name">FX</span> and switch on Reverb (Hall, long Decay) and Delay (low Mix, moderate Feedback).</li>
+          <li>Press <span class="btn-name">OCT−</span> once or twice, and play C, G and C.</li>
+          <li>To let go of the keys, press <span class="btn-name">ARP</span> and turn Latch on, then play the chord again.</li>
+          <li>Set the Preset knobs to Cutoff, Resonance, LFO to Cutoff and Detune, and play them slowly. <span class="btn-name">SAVE</span> before you change preset.</li>
+        </ol>
+        <p>With the FM-1 connected, <strong>Mirror to FM-1</strong> on any panel above sets the same controls on the hardware. Settings on the page are a model, so tune the final result by ear on the FM-1.</p>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>Ancient</dt>
+          <dd>Bagpipes, hurdy-gurdies and the Indian tanpura all hold one or two notes continuously under a melody. The tanpura is a drone with its own slow shimmer, since each of its strings is plucked in turn and the overtones keep shifting.</dd>
+          <dt>1960s and 70s</dt>
+          <dd>Composers such as La Monte Young build whole pieces from sustained tones, and Éliane Radigue makes long, slowly changing pieces on an ARP 2500 modular synthesizer. Oscillators that never need to breathe are exactly what the technique wanted.</dd>
+          <dt>2026</dt>
+          <dd>Baud Girl’s FM-1+VA firmware adds a Virtual Analog engine with Super, Detune and Drift, a long envelope, a latched arpeggiator and 64-step patterns with held notes, to a synthesizer small enough to carry in a pocket.</dd>
+        </dl>
+      </section>
+
+      <p class="note">Lesson 10’s ambient drone recipe is a good finished example to compare with the one you just built. Change one thing at a time, and listen for how long it takes before you hear it repeat.</p>
+    </main>
+  </div>
+</body>
+</html>
