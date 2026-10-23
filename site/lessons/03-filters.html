@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -66,11 +67,11 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>On a Virtual Analog preset, press <span class="btn-name">EDIT</span>, then turn SELECT down to the Filter group and press <span class="btn-name">SEL</span>.</li>
+          <li>On a Virtual Analog preset, press <span class="btn-name">EDIT</span>, then turn <span class="ctl-name">SELECT</span> down to the Filter group and press <span class="btn-name">SEL</span>.</li>
           <li>The first three rows do most of the work: Type, Cutoff and Resonance. Cutoff runs from 20 Hz to 20 kHz.</li>
-          <li>A blank Virtual Analog preset already has Cutoff, Resonance, Filter Env and Filter Decay on KNOB1 to KNOB4. Make sure the HOME screen reads Knobs: Preset, then just play and turn KNOB1.</li>
+          <li>A blank Virtual Analog preset already has Cutoff, Resonance, Filter Env and Filter Decay on <span class="ctl-name">KNOB1</span> to <span class="ctl-name">KNOB4</span>. Make sure the HOME screen reads Knobs: Preset, then just play and turn <span class="ctl-name">KNOB1</span>.</li>
           <li>Key Tracking is further down the Filter group, alongside Velocity, which raises the cutoff when you play harder.</li>
         </ol>
         <p>Don’t confuse this filter with the <strong>Filter effect</strong> in <span class="btn-name">FX</span>. The Virtual Analog filter works on each note separately, so every note can have its own sweep. The effect filters the whole finished sound at once, after the notes are mixed together.</p>

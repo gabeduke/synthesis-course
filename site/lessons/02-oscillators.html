@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -40,7 +41,7 @@
         <li><strong>Square:</strong> odd harmonics only. Hollow and woody, a bit like a clarinet. It’s also the classic video-game tone.</li>
         <li><strong>Triangle (Tri):</strong> odd harmonics that fall away quickly. Soft and rounded, flute-like. It sits between sine and square.</li>
       </ul>
-      <p>On the FM-1, Sine and Saw presets can play twelve notes at once; Tri and Square presets play eight, because they take more processing. Keep that in mind for big pad chords.</p>
+      <p>On the <span class="dev-name">FM-1</span>, Sine and Saw presets can play twelve notes at once; Tri and Square presets play eight, because they take more processing. Keep that in mind for big pad chords.</p>
 
       <h2>Sub and noise</h2>
       <p>Two more ingredients are mixed in alongside the main wave:</p>
@@ -55,7 +56,7 @@
 
       <h2>Pulse width and PWM</h2>
       <p>A square wave spends exactly half its time up and half down. Change that split and you get a <strong>pulse wave</strong>: at 25% up and 75% down it sounds thinner and more nasal, and narrower still it gets reedy. The split is called the pulse width (or duty cycle).</p>
-      <p><span class="sig-move">PWM</span>, pulse-width modulation, sweeps that width back and forth on its own. The harmonics shift as it moves, so the tone gently swirls. It’s the signature sound of 1980s analog string pads. On the FM-1, PWM only does anything when the waveform is Square.</p>
+      <p><span class="sig-move">PWM</span>, pulse-width modulation, sweeps that width back and forth on its own. The harmonics shift as it moves, so the tone gently swirls. It’s the signature sound of 1980s analog string pads. On the <span class="dev-name">FM-1</span>, PWM only does anything when the waveform is Square.</p>
 
       <synth-lab heading="Pulse-width modulation" intro="Hold the chord and raise PWM." controls="pwm waveform" preset='{"waveform":"square","pwm":0,"cutoff":4500,"attack":20,"release":55}' chord="48 55 60 64"></synth-lab>
 
@@ -74,15 +75,15 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>Choose a Virtual Analog preset, or make a blank one: press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset and press <span class="btn-name">SEL</span>, turn SELECT to Erase and press <span class="btn-name">SEL</span>, then turn SELECT to VA and press <span class="btn-name">SEL</span>. Nothing is erased until that last press; <span class="btn-name">HOME</span> cancels before then. The new preset is named INIT.</li>
-          <li>Press <span class="btn-name">EDIT</span>, turn SELECT to Oscillator and press <span class="btn-name">SEL</span>. Its rows are Waveform, Super, Detune, Drift, Sub, Noise and PWM. The FM-1 draws the waveform on its row instead of naming it.</li>
-          <li>Turn SELECT to Sub and ALGORITHM to raise it while holding a low key. Then try Noise.</li>
+          <li>Choose a Virtual Analog preset, or make a blank one: press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Erase Preset and press <span class="btn-name">SEL</span>, turn <span class="ctl-name">SELECT</span> to Erase and press <span class="btn-name">SEL</span>, then turn <span class="ctl-name">SELECT</span> to VA and press <span class="btn-name">SEL</span>. Nothing is erased until that last press; <span class="btn-name">HOME</span> cancels before then. The new preset is named INIT.</li>
+          <li>Press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Oscillator and press <span class="btn-name">SEL</span>. Its rows are Waveform, Super, Detune, Drift, Sub, Noise and PWM.<span data-device="fm1"> The FM-1 draws the waveform on its row instead of naming it.</span></li>
+          <li>Turn <span class="ctl-name">SELECT</span> to Sub and <span class="ctl-name">ALGORITHM</span> to raise it while holding a low key. Then try Noise.</li>
           <li>Set Waveform to Square and raise PWM. Set Waveform back to Saw and notice PWM stops doing anything.</li>
           <li>Press <span class="btn-name">SAVE</span> if you want to keep it.</li>
         </ol>
-        <p>With MIDI connected, switch on <strong>Mirror to FM-1</strong> on a panel above and its sliders move the same rows on the hardware.</p>
+        <p>With MIDI connected, switch on <strong>Mirror to <span class="dev-name">FM-1</span></strong> on a panel above and its sliders move the same rows on the hardware.</p>
       </aside>
 
       <section class="history">

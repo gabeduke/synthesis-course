@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -28,18 +29,20 @@
       <p class="lesson-number">Lesson 0</p>
       <h1>Start here</h1>
       <p class="lede">This course teaches synthesis on one small, cheap, surprisingly deep instrument: the M-VAVE FM-1, running Baud Girl’s FM-1+VA firmware. You don’t need any background. You do need ears, and ideally headphones.</p>
+      <p>The course also reads for Baud Girl’s SMK-37+VA firmware on the M-VAVE SMK-37, which shares the FM-1+VA’s sound engines. Choose your instrument from the menu at the top of every page: button names, the hands-on steps and the USB connection follow it, and boxes that only apply to one instrument appear when it’s chosen. The lessons about sound are the same for both.</p>
 
       <div data-install-slot></div>
 
       <h2>What you need</h2>
       <ul>
-        <li><strong>A computer with Chrome or Edge.</strong> Every lesson makes sound and draws it right in the page. Firefox works for nearly everything; Safari plays the sounds but can’t talk to the FM-1.</li>
+        <li><strong>A computer with Chrome or Edge.</strong> Every lesson makes sound and draws it right in the page. Firefox works for nearly everything; Safari plays the sounds but can’t talk to the <span class="dev-name">FM-1</span>.</li>
         <li><strong>Headphones or decent speakers.</strong> Laptop speakers hide most of the low end, and much of synthesis lives there.</li>
-        <li><strong>An FM-1, if you have one.</strong> It’s optional. Every lesson works without it. With it, the page can play it, set its controls, and draw its real output next to the page’s version.</li>
-        <li><strong>A USB-C cable that carries data,</strong> not just charging.</li>
+        <li><strong>An <span class="dev-name">FM-1</span>, if you have one.</strong> It’s optional. Every lesson works without it. With it, the page can play it, set its controls, and draw its real output next to the page’s version.</li>
+        <li><strong>A <span data-device="fm1">USB-C </span>cable that carries data,</strong> not just charging.</li>
       </ul>
 
       <h2>Getting the firmware</h2>
+      <div data-device="fm1">
       <p>The FM-1 ships as an FM synthesizer. FM-1+VA is a free custom firmware by Baud Girl that keeps the FM engine and adds two more: Virtual Analog and 8-Bit. It also reworks the controls so you can reach everything with a few moves, and adds the knob banks this course relies on for live playing.</p>
       <ol>
         <li>Follow the install steps on <a href="https://baudgirl.com/work/FM-1+VA/install">Baud Girl’s install page</a>. It runs in Chrome or Edge, takes under a minute, and keeps your saved presets.</li>
@@ -47,48 +50,70 @@
         <li>Install the two free preset packs from the same page. The Virtual Analog pack goes into presets 113 to 128 and the 8-Bit pack into 97 to 112, replacing what was there, which is why the backup comes first.</li>
       </ol>
       <p>This course was written against FM-1+VA version 97, and its envelope times were rechecked against version 102. The firmware updates often; when something here doesn’t match your FM-1, <a href="https://baudgirl.com/work/FM-1+VA/manual">Baud Girl’s manual</a> is the authority.</p>
+      </div>
+      <div data-device="smk37">
+      <p>SMK-37+VA is Baud Girl’s free custom firmware for the SMK-37 keyboard. It has the same three engines as FM-1+VA (FM, Virtual Analog and 8-Bit) and the same knob banks this course relies on for live playing, laid out for the SMK-37’s knobs, faders and pads. The same firmware runs on the SMK-37 Pro and Elite, the Donner Starrykey-37 Play and the EROK MKE-P37.</p>
+      <ol>
+        <li>Follow the steps on <a href="https://baudgirl.com/work/SMK-37+VA/install">Baud Girl’s SMK-37+VA install page</a>, in Chrome or Edge. The installer backs up and restores your saved presets and patterns, but resets the device’s settings.</li>
+        <li>Open the <a href="https://baudgirl.com/work/SMK-37+VA/device-manager">Device Manager</a> and save a backup of your presets.</li>
+        <li>Install the two free preset packs. As on the FM-1, the Virtual Analog pack goes into presets 113 to 128 and the 8-Bit pack into 97 to 112, replacing what was there.</li>
+      </ol>
+      <p>The course was written against FM-1+VA version 97, and its envelope times were rechecked against version 102. Its SMK-37 control names come from the SMK-37+VA version 102 manual. When something here doesn’t match your SMK-37, <a href="https://baudgirl.com/work/SMK-37+VA/manual">Baud Girl’s SMK-37+VA manual</a> is the authority.</p>
+      </div>
 
       <h2>Four moves that reach every setting</h2>
-      <p>Almost everything on the FM-1+VA happens with four controls. Learn these once and every lesson’s “On the FM-1” steps will make sense.</p>
+      <p>Almost everything on the <span class="fw-name">FM-1+VA</span> happens with four controls. Learn these once and every lesson’s “On the <span class="dev-name">FM-1</span>” steps will make sense.</p>
       <ul>
-        <li><strong>SELECT</strong> (knob) moves the highlight up and down a list.</li>
-        <li><strong>ALGORITHM</strong> (knob) changes the value on the highlighted row.</li>
+        <li><strong class="ctl-name">SELECT</strong> (knob) moves the highlight up and down a list.</li>
+        <li><strong class="ctl-name">ALGORITHM</strong> (knob) changes the value on the highlighted row.</li>
         <li><span class="btn-name">SEL</span> goes into whatever is highlighted.</li>
         <li><span class="btn-name">HOME</span> comes back out, one level at a time.</li>
       </ul>
-      <p>Then a handful of buttons jump straight to a screen: <span class="btn-name">EDIT</span> for the preset’s own settings, <span class="btn-name">FX</span> for its effects, <span class="btn-name">ENV</span> for its envelope, <span class="btn-name">LFO</span> for its LFO and <span class="btn-name">GLO</span> for settings of the whole FM-1. Turn <strong>PRESETS</strong> to choose a preset. <strong>KNOB1</strong> to <strong>KNOB4</strong> change four settings from any screen.</p>
-      <p>One habit to build early: a preset you’ve changed goes back to its stored version the moment you turn PRESETS, unless you press <span class="btn-name">SAVE</span> first. A dot after the preset’s name on the HOME screen means you have unsaved changes.</p>
+      <p>Then a handful of buttons jump straight to a screen: <span class="btn-name">EDIT</span> for the preset’s own settings, <span class="btn-name">FX</span> for its effects, <span class="btn-name">ENV</span> for its envelope, <span class="btn-name">LFO</span> for its LFO and <span class="btn-name">GLO</span> for settings of the whole <span class="dev-name">FM-1</span>. Turn <strong class="ctl-name">PRESETS</strong> to choose a preset. <strong class="ctl-name">KNOB1</strong> to <strong class="ctl-name">KNOB4</strong> change four settings from any screen.</p>
+      <p>One habit to build early: a preset you’ve changed goes back to its stored version the moment you turn <span class="ctl-name">PRESETS</span>, unless you press <span class="btn-name">SAVE</span> first. A dot after the preset’s name on the HOME screen means you have unsaved changes.</p>
+
+      <aside class="on-device" data-device="smk37">
+        <h3>Reading the SMK-37’s panel</h3>
+        <p>The firmware gives a few of the SMK-37’s buttons jobs their printed names don’t suggest, so it’s worth learning the translation once:</p>
+        <ul>
+          <li><span class="btn-name">NOTE REPEAT</span> opens the preset’s Envelope list; hold it for about a second to switch the Envelope on or off. <span class="btn-name">SCALE</span> opens the LFO list.</li>
+          <li>K4 is the volume knob. Hold <span class="btn-name">&gt;</span> while turning K2 to move a value ten steps a click.</li>
+          <li><span class="btn-name">CHORD</span> opens the same Note Engine screen as <span class="btn-name">ARP</span>, with Auto-Chord switched on.</li>
+        </ul>
+        <p>The faders, pads and wheels have no FM-1 equivalent. Lesson 11 covers them, and lesson 12 the sustain pedal.</p>
+      </aside>
 
       <h2>How the panels work</h2>
       <p>Each lesson has panels you play. They all work the same way:</p>
       <ul>
         <li>Play the drawn keys with a mouse or finger, or use your computer keyboard: <kbd>A</kbd> to <kbd>K</kbd> are the white keys, the row above them the black keys, and <kbd>Z</kbd> and <kbd>X</kbd> shift the octave. The keyboard plays whichever panel you clicked last.</li>
         <li><span class="btn-name">Hold a chord</span> latches a chord so both hands are free for the sliders.</li>
-        <li>Hover over or tab to any slider and the line under the panel says where the same setting lives on the FM-1.</li>
-        <li>Color tells you what kind of thing a control is: <span class="sig-sound">blue</span> shapes the sound itself, <span class="sig-time">amber</span> is about time, <span class="sig-move">pink</span> is movement, <span class="sig-space">green</span> is effects, and <span class="sig-hw">purple</span> is always the FM-1’s real signal.</li>
+        <li>Hover over or tab to any slider and the line under the panel says where the same setting lives on the <span class="dev-name">FM-1</span>.</li>
+        <li>Color tells you what kind of thing a control is: <span class="sig-sound">blue</span> shapes the sound itself, <span class="sig-time">amber</span> is about time, <span class="sig-move">pink</span> is movement, <span class="sig-space">green</span> is effects, and <span class="sig-hw">purple</span> is always the <span class="dev-name">FM-1</span>’s real signal.</li>
       </ul>
       <p>The page’s synth is a model of the FM-1’s Virtual Analog engine, built from the same parameter list and ranges. It’s close enough to learn from, but it won’t sound identical. That’s exactly why it’s useful to connect the real thing.</p>
 
-      <h2 id="connect">Connect your FM-1</h2>
+      <h2 id="connect">Connect your <span class="dev-name">FM-1</span></h2>
       <p>The same panel is always in the top-right corner of every page, so you only need to do this once per visit. Your browser remembers the permission.</p>
 
       <fm1-panel></fm1-panel>
 
       <ul>
-        <li><strong>MIDI</strong> lets the page play notes on the FM-1 and change its settings. The browser will ask permission to use MIDI devices.</li>
-        <li><strong>Audio</strong> lets the page listen to the FM-1, which is also a USB audio interface. Browsers call every audio input a microphone, so the permission prompt will say microphone. The page only analyzes the sound to draw it; nothing is recorded or sent anywhere.</li>
+        <li><strong>MIDI</strong> lets the page play notes on the <span class="dev-name">FM-1</span> and change its settings. The browser will ask permission to use MIDI devices.</li>
+        <li><strong>Audio</strong> lets the page listen to <span data-device="fm1">the FM-1, which is also a USB audio interface.</span><span data-device="smk37">the SMK-37, if it shows up on your computer as a USB audio input; check on your unit, since the manual doesn’t say.</span> Browsers call every audio input a microphone, so the permission prompt will say microphone. The page only analyzes the sound to draw it; nothing is recorded or sent anywhere.</li>
       </ul>
       <p>Once MIDI is connected, every panel gains three things:</p>
       <ul>
-        <li><strong>Play on</strong> sends your notes to the page, the FM-1, or both.</li>
-        <li><strong>Mirror to FM-1</strong> makes each slider you move set the same control on the hardware, live.</li>
-        <li><span class="btn-name">Send settings to FM-1</span> copies the whole panel to the FM-1 in one go.</li>
+        <li><strong>Play on</strong> sends your notes to the page, the <span class="dev-name">FM-1</span>, or both.</li>
+        <li><strong>Mirror to <span class="dev-name">FM-1</span></strong> makes each slider you move set the same control on the hardware, live.</li>
+        <li><span class="btn-name">Send settings to FM-1</span> copies the whole panel to the <span class="dev-name">FM-1</span> in one go.</li>
       </ul>
-      <p>Those last two change the preset that’s selected on the FM-1, so pick a Virtual Analog preset first (113 to 128 from the pack). They never save: the firmware has no MIDI control for SAVE, and this page never sends the kind of patch data that would overwrite a preset, so nothing changes for good until you press <span class="btn-name">SAVE</span> yourself.</p>
+      <p>Those last two change the preset that’s selected on the <span class="dev-name">FM-1</span>, so pick a Virtual Analog preset first (113 to 128 from the pack). They never save: <span data-device="fm1">the firmware has no MIDI control for SAVE, and </span>this page never sends the kind of patch data that would overwrite a preset, so nothing changes for good until you press <span class="btn-name">SAVE</span> yourself.</p>
 
       <synth-lab heading="Check that it works" intro="Press Hold a chord. With MIDI connected, try Play on: Both." controls="waveform" preset='{"waveform":"saw","cutoff":5000,"release":30}'></synth-lab>
 
-      <p>If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; its name should include “FM-1”.</p>
+      <p data-device="fm1">If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; its name should include “FM-1”.</p>
+      <p data-device="smk37">If the page plays but the SMK-37 doesn’t, open the SMK-37 panel in the top-right corner, press <span class="btn-name">Play a test note on the FM-1</span>, and if nothing plays, choose the SMK-37’s port from the output list yourself. The page picks the port by guessing from its name, and the name the SMK-37+VA firmware gives its USB MIDI port hasn’t been confirmed yet. The same goes for its audio input: if a purple trace never appears, choose it from the list, if your unit has one.</p>
 
       <p class="note">The control numbers the page uses to set the FM-1 come from the MIDI chapter of Baud Girl’s manual. The panels send Virtual Analog settings and four effects. FM presets accept some MIDI controls too (Brightness, Feedback, Algorithm, envelope and LFO), but the FM lesson’s demo is a simplified two-operator model rather than the FM-1’s six-operator engine, and the manual lists no MIDI controls for the 8-Bit engine. So on those two lessons the FM-1 connection is for playing and listening.</p>
     </main>

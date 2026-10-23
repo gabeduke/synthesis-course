@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -80,16 +81,16 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>Choose a Virtual Analog preset. The free VA preset pack puts sixteen of them at 113 to 128, or make your own: press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset and press <span class="btn-name">SEL</span>, turn SELECT to Erase and press <span class="btn-name">SEL</span>, then turn SELECT to VA and press <span class="btn-name">SEL</span>.</li>
-          <li>Press <span class="btn-name">EDIT</span>, turn SELECT to Oscillator and press <span class="btn-name">SEL</span>. Turn SELECT to Waveform and ALGORITHM to choose Saw.</li>
+          <li>Choose a Virtual Analog preset. The free VA preset pack puts sixteen of them at 113 to 128, or make your own: press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Erase Preset and press <span class="btn-name">SEL</span>, turn <span class="ctl-name">SELECT</span> to Erase and press <span class="btn-name">SEL</span>, then turn <span class="ctl-name">SELECT</span> to VA and press <span class="btn-name">SEL</span>.</li>
+          <li>Press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Oscillator and press <span class="btn-name">SEL</span>. Turn <span class="ctl-name">SELECT</span> to Waveform and <span class="ctl-name">ALGORITHM</span> to choose Saw.</li>
           <li>Turn Super up to about 70. Play a note: no change yet.</li>
           <li>Now turn Detune up slowly while holding a chord, and listen for the moment it starts to shimmer.</li>
-          <li>Put both on knobs so you can play them live. Press <span class="btn-name">HOME</span> until you’re back on the HOME screen, and check that the line under the knob values reads Knobs: Preset. Hold <span class="btn-name">HOME</span> and turn KNOB3 until it says Super, then KNOB4 until it says Detune.</li>
-          <li>Press <span class="btn-name">SAVE</span>, or the preset goes back to its stored version as soon as you turn PRESETS.</li>
+          <li>Put both on knobs so you can play them live. Press <span class="btn-name">HOME</span> until you’re back on the HOME screen, and check that the line under the knob values reads Knobs: Preset. Hold <span class="btn-name">HOME</span> and turn <span class="ctl-name">KNOB3</span> until it says Super, then <span class="ctl-name">KNOB4</span> until it says Detune.</li>
+          <li>Press <span class="btn-name">SAVE</span>, or the preset goes back to its stored version as soon as you turn <span class="ctl-name">PRESETS</span>.</li>
         </ol>
-        <p>With the FM-1 connected, turn on <strong>Mirror to FM-1</strong> on either panel above and every slider you move sets the same control on the hardware. Connect its audio too and the purple trace on the scope is the FM-1 itself.</p>
+        <p>With the <span class="dev-name">FM-1</span> connected, turn on <strong>Mirror to <span class="dev-name">FM-1</span></strong> on either panel above and every slider you move sets the same control on the hardware. Connect its audio too and the purple trace on the scope is the <span class="dev-name">FM-1</span> itself.</p>
       </aside>
 
       <section class="history">

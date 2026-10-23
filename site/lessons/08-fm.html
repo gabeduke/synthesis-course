@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -76,16 +77,18 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>All 128 factory presets are FM presets. Turn PRESETS to an electric piano or bell and play.</li>
-          <li>Turn ALGORITHM on the HOME screen. The first click draws the algorithm diagram; each click after changes it. The boxes at the bottom of each stack are carriers.</li>
-          <li>Press <span class="btn-name">EDIT</span>. On this screen the top-row keys stop playing notes and become buttons: press OP1 to OP6 to open an operator’s settings. <strong>Holding</strong> an OP key switches that operator off (its light goes dark). Press <span class="btn-name">HOME</span> and play to hear what’s missing. It stays off until you switch it back on with its On row or change preset.</li>
+          <li data-device="fm1">All 128 factory presets are FM presets. Turn <span class="ctl-name">PRESETS</span> to an electric piano or bell and play.</li>
+          <li data-device="smk37">Turn K3 to an FM preset, such as an electric piano or bell, and play.</li>
+          <li>Turn <span class="ctl-name">ALGORITHM</span> on the HOME screen. The first click draws the algorithm diagram; each click after changes it. The boxes at the bottom of each stack are carriers.</li>
+          <li data-device="fm1">Press <span class="btn-name">EDIT</span>. On this screen the top-row keys stop playing notes and become buttons: press OP1 to OP6 to open an operator’s settings. <strong>Holding</strong> an OP key switches that operator off (its light goes dark). Press <span class="btn-name">HOME</span> and play to hear what’s missing. It stays off until you switch it back on with its On row or change preset.</li>
+          <li data-device="smk37">Press <span class="btn-name">PARA</span>. On an FM preset, the first six black keys above the first F open OP1 to OP6, the operators’ settings. <strong>Holding</strong> one switches that operator off. Press <span class="btn-name">&lt;</span> and play to hear what’s missing. It stays off until you switch it back on with its On row or change preset.</li>
           <li>In an operator, Coarse and Fine set its ratio, Output Level its level (its index, if it’s a modulator), and Rate and Level 1 to 4 its envelope.</li>
           <li>For quick changes, the Preset knob bank on an FM preset starts with Brightness, Feedback, Attack and Release. Brightness moves all the modulators’ levels at once. Feedback (0 to 7) feeds one operator back into itself and roughens the tone.</li>
           <li>FM presets can borrow the Virtual Analog filter: the Filter group sits after the operators. It costs a few notes of polyphony.</li>
         </ol>
-        <p>Knob changes on FM presets take effect from the next note you play, not on notes already sounding. On Virtual Analog and 8-Bit presets you hear them immediately. The FM-1 also loads classic DX7 patch banks sent over MIDI. They play, though they won’t sound exactly like a DX7. A single DX7 patch sent this way is stored straight over the selected preset, so pick one you can lose.</p>
+        <p>Knob changes on FM presets take effect from the next note you play, not on notes already sounding. On Virtual Analog and 8-Bit presets you hear them immediately.<span data-device="fm1"> The FM-1 also loads classic DX7 patch banks sent over MIDI. They play, though they won’t sound exactly like a DX7. A single DX7 patch sent this way is stored straight over the selected preset, so pick one you can lose.</span></p>
       </aside>
 
       <section class="history">

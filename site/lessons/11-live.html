@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -27,22 +28,35 @@
     <main id="main">
       <p class="lesson-number">Lesson 11</p>
       <h1>Playing it live</h1>
-      <p class="lede">Designing a sound is half the job. The other half is playing it: sweeping a filter as a chord swells, pushing a lead into distortion for one phrase, opening a reverb at the end of a section. The FM-1+VA was built for exactly this, and almost all of it runs through four knobs.</p>
+      <p class="lede">Designing a sound is half the job. The other half is playing it: sweeping a filter as a chord swells, pushing a lead into distortion for one phrase, opening a reverb at the end of a section. The <span class="fw-name">FM-1+VA</span> was built for exactly this, and almost all of it runs through four knobs.</p>
 
-      <h2>Four knobs, ten banks</h2>
-      <p>KNOB1 to KNOB4 always do something, on any screen. A <strong>knob bank</strong> decides what. There are ten:</p>
+      <h2>Four knobs, <span data-device="fm1">ten</span><span data-device="smk37">eleven</span> banks</h2>
+      <p><span class="ctl-name">KNOB1</span> to <span class="ctl-name">KNOB4</span> always do something, on any screen. A <strong>knob bank</strong> decides what. There are <span data-device="fm1">ten</span><span data-device="smk37">eleven</span>:</p>
       <ul>
         <li><strong>Preset:</strong> four settings you choose for each preset, saved with it.</li>
-        <li><strong>One bank per effect</strong> (Filter, Reverb, Delay, Distortion, Chorus, Phaser, Bitcrush): that effect’s three main settings on KNOB1 to KNOB3, and its on/off switch on KNOB4.</li>
+        <li><strong>One bank per effect</strong> (Filter, Reverb, Delay, Distortion, Chorus, Phaser, Bitcrush): that effect’s three main settings on <span class="ctl-name">KNOB1</span> to <span class="ctl-name">KNOB3</span>, and its on/off switch on <span class="ctl-name">KNOB4</span>.</li>
         <li><strong>Global:</strong> Tempo, Arp Rate, Arp Gate and Glide Time.</li>
         <li><strong>Mixer:</strong> the preset’s level and the metronome’s, or on an 8-Bit preset the drums, bass and lead levels.</li>
+        <li data-device="smk37"><strong>MIDI CC</strong> (SMK-37 only): <span class="ctl-name">KNOB1</span> to <span class="ctl-name">KNOB4</span> send CC 74, 71, 73 and 72 on the Out Channel, for playing other gear.</li>
       </ul>
       <p>Two ways to switch banks:</p>
       <ol>
-        <li>On the HOME screen, press <span class="btn-name">HOME</span> to open the Knob Banks menu, turn SELECT to a bank and press <span class="btn-name">SEL</span>.</li>
-        <li>From <em>any</em> screen, hold <span class="btn-name">HOME</span> and turn SELECT. Each click steps to the next bank and the FM-1 names it. This is the one to learn for performing.</li>
+        <li data-device="fm1">On the HOME screen, press <span class="btn-name">HOME</span> to open the Knob Banks menu, turn <span class="ctl-name">SELECT</span> to a bank and press <span class="btn-name">SEL</span>.</li>
+        <li data-device="smk37">Press <span class="btn-name">KNOB BANK</span> to open the Knob Banks menu, turn <span class="ctl-name">SELECT</span> to a bank and press <span class="btn-name">SEL</span>.</li>
+        <li>From <em>any</em> screen, hold <span class="btn-name">HOME</span> and turn <span class="ctl-name">SELECT</span>. Each click steps to the next bank and the <span class="dev-name">FM-1</span> names it. This is the one to learn for performing.</li>
       </ol>
-      <p>The bank belongs to the FM-1, not the preset, so it stays put when you change presets. Press <span class="btn-name">SAVE</span> and the FM-1 starts on that bank next time.</p>
+      <p data-device="fm1">The bank belongs to the FM-1, not the preset, so it stays put when you change presets. Press <span class="btn-name">SAVE</span> and the FM-1 starts on that bank next time.</p>
+      <p data-device="smk37">On the FM-1 the bank belongs to the instrument, not the preset, and saving makes it the starting bank. Check on your unit whether the SMK-37 keeps it across presets and after <span class="btn-name">PATCH</span> the same way.</p>
+
+      <aside class="on-device" data-device="smk37">
+        <h3>Four faders, a bank of their own</h3>
+        <p>The SMK-37 adds four faders, and they play a bank too, chosen separately from the knobs’. They start on the Mixer bank, so out of the box the faders set levels while K5 to K8 shape the sound.</p>
+        <ul>
+          <li>Press <span class="btn-name">FADER BANK</span> to open the Fader Banks list. It offers the same banks as the knobs; choose one the way you choose a knob bank.</li>
+          <li>A split worth trying: knobs on the Preset bank for tone, faders on the Reverb or Delay bank for space. Both are under your hands at once, with no switching mid-phrase.</li>
+          <li>On the MIDI CC bank the faders send CC 7, 10, 91 and 93, the usual volume, pan, reverb and chorus numbers on other gear.</li>
+        </ul>
+      </aside>
 
       <h2>Choosing what the Preset knobs play</h2>
       <p>On the Preset bank, each knob can play one of eight settings, depending on the engine:</p>
@@ -51,37 +65,51 @@
         <li><strong>FM:</strong> Brightness, Feedback, Attack, Decay, Release, Vibrato, LFO Speed, Cutoff. A new preset starts with Brightness, Feedback, Attack and Release.</li>
         <li><strong>8-Bit:</strong> Drum Decay, Bass Arpeggio, Lead Arpeggio, Lead Decay, Lead Arp Speed, Lead Vibrato, Lead Release, Bass Decay. A new preset starts with the first four.</li>
       </ul>
-      <p>To change one, stay on the Preset bank, hold <span class="btn-name">HOME</span> and turn the knob you want to reassign; each click steps to the next choice and the FM-1 names it. Or set all four at once in the Knobs group near the end of the <span class="btn-name">EDIT</span> list. Then <span class="btn-name">SAVE</span>.</p>
+      <p>To change one, stay on the Preset bank, hold <span class="btn-name">HOME</span> and turn the knob you want to reassign; each click steps to the next choice and the <span class="dev-name">FM-1</span> names it. Or set all four at once in the Knobs group near the end of the <span class="btn-name">EDIT</span> list. Then <span class="btn-name">SAVE</span>.</p>
       <p>One thing to know before a gig: on <strong>Virtual Analog and 8-Bit</strong> presets, a knob changes notes that are already sounding, so you hear the sweep under your fingers. On <strong>FM</strong> presets, a knob change applies from the next note you play.</p>
 
       <h2>Three setups worth saving</h2>
       <ul>
         <li><strong>The filter player:</strong> Preset bank with Cutoff, Resonance, Filter Env and LFO to Cutoff. Good for basses and pads.</li>
         <li><strong>The wide lead:</strong> Cutoff, Filter Env, Super and Detune. Thin it for verses, open it up for the chorus.</li>
-        <li><strong>The grit and space switcher:</strong> keep the Preset bank for tone, and hold <span class="btn-name">HOME</span> and turn SELECT to jump to the Distortion bank (Gain, Tone, Level, on/off) or the Reverb bank (type, Decay, Mix, on/off) for a moment, then back.</li>
+        <li><strong>The grit and space switcher:</strong> keep the Preset bank for tone, and hold <span class="btn-name">HOME</span> and turn <span class="ctl-name">SELECT</span> to jump to the Distortion bank (Gain, Tone, Level, on/off) or the Reverb bank (type, Decay, Mix, on/off) for a moment, then back.</li>
       </ul>
 
       <h2>Getting your hands free</h2>
-      <p>The FM-1 has 27 small keys and four knobs right next to each other, so you can’t easily hold a chord with one hand and play much else with it. Three ways around that:</p>
+      <p><span data-device="fm1">The FM-1 has 27 small keys and four knobs right next to each other, so you can’t easily hold a chord with one hand and play much else with it.</span><span data-device="smk37">Even with 37 keys, a hand holding a chord is a hand that isn’t on the knobs, faders or wheels.</span> Three ways around that:</p>
       <ul>
         <li><strong>Arpeggiator with Latch.</strong> Press <span class="btn-name">ARP</span>, set Latch to On, play a chord and let go. It keeps playing, and both hands are free for the knobs. The next chord you play replaces it.</li>
-        <li><strong>The sequencer.</strong> Record a pattern, press <span class="btn-name">PLAY</span>, and perform on the knobs over it. Patterns can be up to 64 steps and chained into songs.</li>
+        <li><strong>The sequencer.</strong> Record a pattern, press <span class="btn-name">PLAY</span>, and perform on the knobs over it. <span data-device="fm1">Patterns can be up to 64 steps and chained into songs.</span><span data-device="smk37">Patterns can be chained into songs.</span></li>
         <li><strong>Long envelopes.</strong> A pad with a long release keeps sounding after you lift your hand, buying you a moment to reach for a knob.</li>
       </ul>
 
+      <aside class="on-device" data-device="smk37">
+        <h3>Pads and wheels</h3>
+        <p>The SMK-37’s sixteen pads have three banks. Press <span class="btn-name">KNOB BANK</span> and <span class="btn-name">FADER BANK</span> together (the panel prints the pair as PAD BANK) to step to the next one. They start on Sequencer.</p>
+        <ul>
+          <li><strong>Sequencer:</strong> each pad moves the cursor to a step on the current pattern page.</li>
+          <li><strong>Notes:</strong> each pad plays a note, as loud as you strike it. On an 8-Bit preset the pads play the drums and sound effects, so one hand can drum while the other plays the lead.</li>
+          <li><strong>Presets:</strong> tap a pad to load the preset stored on it; hold a pad and turn K3 to store one there. Sixteen sounds a tap away is a quick way to change sound between sections. Turning K3 drops unsaved changes without asking, so press <span class="btn-name">PATCH</span> before you change preset either way.</li>
+        </ul>
+        <p>The <strong>PITCH</strong> wheel springs back to the middle; set its range with Bend Up and Bend Down in <span class="btn-name">GLOBE</span>. The <strong>MOD</strong> wheel stays where you leave it. Two power-on habits from the manual: leave the pitch wheel alone while switching on, since its position then becomes the center, and move the mod wheel to the bottom once so its full range is available. What the mod wheel moves on each engine, and whether pressing harder on a pad after the strike does anything (it didn’t in version 101), are worth checking on your unit.</p>
+      </aside>
+
       <h2>Practice: one knob, one pass</h2>
-      <p>Hold a chord below (or latch the arpeggiator on the FM-1 and turn on Mirror to FM-1), then spend a full minute moving <em>only</em> Cutoff. Slow sweeps, sudden drops, tiny wobbles. Then do the same with Resonance, then with Filter envelope. Learning what one knob can do on its own is how you find the moves you’ll actually use.</p>
+      <p>Hold a chord below (or latch the arpeggiator on the <span class="dev-name">FM-1</span> and turn on Mirror to <span class="dev-name">FM-1</span>), then spend a full minute moving <em>only</em> Cutoff. Slow sweeps, sudden drops, tiny wobbles. Then do the same with Resonance, then with Filter envelope. Learning what one knob can do on its own is how you find the moves you’ll actually use.</p>
 
       <synth-lab heading="Practice panel" intro="Hold a chord, then work one control at a time." controls="cutoff resonance filterEnv lfoToCutoff super detune" preset='{"waveform":"saw","super":50,"detune":35,"filterType":"lp24","cutoff":900,"resonance":40,"filterEnv":25,"filterDecay":45,"lfoToCutoff":0,"lfoSpeed":30,"attack":5,"sustain":90,"release":50,"fx":{"reverb":{"on":true,"type":"hall","decay":50,"mix":30}}}' views="spectrum wave" filter-curve chord="45 52 57 60"></synth-lab>
 
       <h2>Adding a controller</h2>
-      <p>The FM-1 listens to MIDI control messages, so a keyboard or controller with knobs can play it too. The FM-1+VA manual lists them, and a few are especially handy for performing:</p>
+      <p data-device="fm1">The FM-1 listens to MIDI control messages, so a keyboard or controller with knobs can play it too. The FM-1+VA manual lists them, and a few are especially handy for performing:</p>
+      <p data-device="smk37">The SMK-37 listens to MIDI control messages too, so another keyboard or controller with knobs can play it. The numbers below are the FM-1+VA ones the page itself sends; the SMK-37+VA manual lists the same envelope numbers (CC 73, 75, 70 and 72), so check its MIDI chapter for the rest on your unit:</p>
       <ul>
-        <li><strong>CC 85 to 88</strong> turn KNOB1 to KNOB4.</li>
+        <li data-device="fm1"><strong>CC 85 to 88</strong> turn KNOB1 to KNOB4.</li>
+        <li data-device="smk37">On the FM-1, <strong>CC 85 to 88</strong> turn its four knobs. The SMK-37+VA manual this course was checked against doesn’t list numbers for turning K5 to K8 from outside, so look in its MIDI chapter.</li>
         <li>On a Virtual Analog preset, <strong>CC 74</strong> sets Cutoff and <strong>CC 71</strong> Resonance, the numbers many controllers already send from their first knobs.</li>
-        <li>Notes, velocity and pitch bend work as usual, and the mod wheel and aftertouch push the LFO. Keep your controller on the FM-1’s MIDI channel, not its FX channel (2 by default), or some controls are read as effect settings.</li>
+        <li>Notes, velocity and pitch bend work as usual, and the mod wheel and aftertouch push the LFO. Keep your controller on the <span class="dev-name">FM-1</span>’s MIDI channel, not its FX channel (2 by default), or some controls are read as effect settings.</li>
       </ul>
-      <p>There’s deliberately no MIDI control for SAVE, so a controller’s knobs can never overwrite a preset by accident. The full list is in the MIDI chapter of <a href="https://baudgirl.com/work/FM-1+VA/manual">Baud Girl’s manual</a>.</p>
+      <p data-device="fm1">There’s deliberately no MIDI control for SAVE, so a controller’s knobs can never overwrite a preset by accident. The full list is in the MIDI chapter of <a href="https://baudgirl.com/work/FM-1+VA/manual">Baud Girl’s manual</a>.</p>
+      <p data-device="smk37">On the FM-1 there’s deliberately no MIDI control for saving, so a controller’s knobs can never overwrite a preset by accident. The full list for the SMK-37 is in the MIDI chapter of <a href="https://baudgirl.com/work/SMK-37+VA/manual">Baud Girl’s SMK-37+VA manual</a>.</p>
 
       <aside class="on-fm1">
         <h3>A two-minute routine</h3>
@@ -89,7 +117,7 @@
           <li>Load the warm pad or acid bass from lesson 10.</li>
           <li>Set the Preset knobs to Cutoff, Resonance, Filter Env and LFO to Cutoff, and <span class="btn-name">SAVE</span>.</li>
           <li>Press <span class="btn-name">ARP</span>, turn on Latch, choose a slow Rate, and play a chord.</li>
-          <li>Play with the four knobs for a minute. Then hold <span class="btn-name">HOME</span>, turn SELECT to Knobs: Reverb, and bring the Mix up for the ending.</li>
+          <li>Play with the four knobs for a minute. Then hold <span class="btn-name">HOME</span>, turn <span class="ctl-name">SELECT</span> to Knobs: Reverb, and bring the Mix up for the ending.</li>
           <li>Press <span class="btn-name">ARP</span> again to stop.</li>
         </ol>
       </aside>

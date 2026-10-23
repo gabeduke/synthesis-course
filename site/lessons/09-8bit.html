@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -30,7 +31,7 @@
       <p class="lede">Early game consoles had sound chips with a handful of voices, a few fixed waveforms and almost no memory. Composers made unforgettable music with them anyway, using tricks that are now a style of their own. The FM-1+VA’s third engine is built around those tricks.</p>
 
       <h2>A whole band on one preset</h2>
-      <p>An 8-Bit preset isn’t one sound. It’s a kit: twelve drums, twelve sound effects, a bass and a lead, each living on its own range of notes. On the FM-1’s keys at the normal octave, almost everything plays the bass, and the top three keys play the lead. Press <span class="btn-name">OCT−</span> three times to reach the drums on the lowest twelve keys; the sound effects (Coin, Jump, Laser, Explosion and eight more) sit one octave above them.</p>
+      <p>An 8-Bit preset isn’t one sound. It’s a kit: twelve drums, twelve sound effects, a bass and a lead, each living on its own range of notes. <span data-device="fm1">On the FM-1’s keys at the normal octave, almost everything plays the bass, and the top three keys play the lead. Press <span class="btn-name">OCT−</span> three times to reach the drums on the lowest twelve keys; the sound effects (Coin, Jump, Laser, Explosion and eight more) sit one octave above them.</span><span data-device="smk37">On the SMK-37, press <span class="btn-name">OCTAVE−</span> three times and the drums sit on the twelve keys from the first F. Where the sound effects (Coin, Jump, Laser, Explosion and eight more), the bass and the lead fall on its 37 keys is in the SMK-37+VA manual; check it against your unit.</span></p>
       <p>This lesson’s panel models the lead, the part with the most to learn.</p>
 
       <h2>Pulse widths</h2>
@@ -63,22 +64,22 @@
         <ul>
           <li><strong>Game-music leads:</strong> Pulse 25 or 12.5, a little vibrato, a fast arpeggio for chords.</li>
           <li><strong>Plucky, clean basses:</strong> the triangle, which is where a new 8-Bit preset’s bass starts.</li>
-          <li><strong>Quick drum ideas:</strong> the drums are always there on the bottom octave, with Drum Decay on KNOB1.</li>
+          <li><strong>Quick drum ideas:</strong> the drums are always there on the bottom octave, with Drum Decay on <span class="ctl-name">KNOB1</span>.</li>
           <li><strong>Harmony from one finger:</strong> Key, Scale and Lead Follows, for sketching chord progressions fast.</li>
         </ul>
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>Install the free 8-Bit preset pack (presets 97 to 112), or make one: press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset and press <span class="btn-name">SEL</span>, turn SELECT to Erase and press <span class="btn-name">SEL</span>, then turn SELECT to 8-Bit and press <span class="btn-name">SEL</span>. A new 8-Bit preset starts with a triangle bass, a lead on a 25% pulse, Tone set to Smooth and Tuning set to Exact.</li>
+          <li>Install the free 8-Bit preset pack (presets 97 to 112), or make one: press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Erase Preset and press <span class="btn-name">SEL</span>, turn <span class="ctl-name">SELECT</span> to Erase and press <span class="btn-name">SEL</span>, then turn <span class="ctl-name">SELECT</span> to 8-Bit and press <span class="btn-name">SEL</span>. A new 8-Bit preset starts with a triangle bass, a lead on a 25% pulse, Tone set to Smooth and Tuning set to Exact.</li>
           <li>Press <span class="btn-name">EDIT</span>. On an 8-Bit preset, pressing a key opens the part it plays, so press a bass key to open the bass’s rows, a lead key for the lead’s.</li>
           <li>Each part has Wave, Duty Sequence, Arpeggio, User Arpeggio, Arp Speed, an envelope, Vibrato, Glide, Sweep, Octave, Level and Mono. Duty Sequence changes the pulse width during each note, for example Pluck 50&gt;25 starts round and gets brighter.</li>
-          <li>Turn ALGORITHM on the HOME screen to step the lead’s wave without opening anything.</li>
+          <li>Turn <span class="ctl-name">ALGORITHM</span> on the HOME screen to step the lead’s wave without opening anything.</li>
           <li>Tone switches between Raw (the plain chip sound, with volume in sixteen steps) and Smooth (cleaned up and filtered). Tuning set to Chip snaps notes to the pitches a console could actually make.</li>
-          <li>A new 8-Bit preset puts Drum Decay, Bass Arpeggio, Lead Arpeggio and Lead Decay on KNOB1 to KNOB4.</li>
+          <li>A new 8-Bit preset puts Drum Decay, Bass Arpeggio, Lead Arpeggio and Lead Decay on <span class="ctl-name">KNOB1</span> to <span class="ctl-name">KNOB4</span>.</li>
         </ol>
-        <p>The FM-1+VA manual lists no MIDI controls for the 8-Bit engine’s settings, so the page doesn’t mirror this panel to the hardware. Connect the FM-1’s audio instead and its purple trace will draw over the page’s: try matching the pulse widths by ear and by eye.</p>
+        <p>The FM-1+VA manual lists no MIDI controls for the 8-Bit engine’s settings, so the page doesn’t mirror this panel to the hardware. Connect the <span class="dev-name">FM-1</span>’s audio instead and its purple trace will draw over the page’s: try matching the pulse widths by ear and by eye.</p>
       </aside>
 
       <section class="history">

@@ -1,6 +1,6 @@
 // The course outline. Order here is the order of the rail and the pager.
 export const LESSONS = [
-  { n: 0, file: 'lessons/00-start.html', title: 'Start here', blurb: 'What you need, how the lessons work, and connecting an FM-1 if you have one.' },
+  { n: 0, file: 'lessons/00-start.html', title: 'Start here', blurb: 'What you need, how the lessons work, and connecting an FM-1 or SMK-37 if you have one.' },
   { n: 1, file: 'lessons/01-sound.html', title: 'Sound you can see', blurb: 'Pitch, loudness and tone, and why every sound is a stack of simple waves.' },
   { n: 2, file: 'lessons/02-oscillators.html', title: 'Oscillators', blurb: 'The four classic waveforms, plus sub, noise and pulse width.' },
   { n: 3, file: 'lessons/03-filters.html', title: 'Filters', blurb: 'Carving a bright wave into a darker, rounder or thinner one.' },

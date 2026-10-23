@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -77,15 +78,17 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
           <li>Press <span class="btn-name">FX</span>. Every preset has seven effects: Filter, Reverb, Delay, Distortion, Bitcrush, Chorus and Phaser. Their settings and their order are saved with the preset.</li>
-          <li>Highlight an effect and turn ALGORITHM to switch it on or off. Press <span class="btn-name">SEL</span> to open its settings.</li>
-          <li>The effects run in the order of the list, and you can change it: highlight an effect and hold <span class="btn-name">SEL</span>; the row flashes. Keep holding and turn SELECT to move it, then let go.</li>
-          <li>For playing live, use a knob bank. On the HOME screen, press <span class="btn-name">HOME</span>, choose Knobs: Reverb (or any effect) and press <span class="btn-name">SEL</span>. KNOB1 to KNOB3 now set that effect and KNOB4 switches it on and off.</li>
+          <li>Highlight an effect and turn <span class="ctl-name">ALGORITHM</span> to switch it on or off. Press <span class="btn-name">SEL</span> to open its settings.</li>
+          <li data-device="fm1">The effects run in the order of the list, and you can change it: highlight an effect and hold <span class="btn-name">SEL</span>; the row flashes. Keep holding and turn <span class="ctl-name">SELECT</span> to move it, then let go.</li>
+          <li data-device="smk37">The effects run in the order of the list, and you can change it. The steps differ from the FM-1’s, so follow the Effects chapter of the SMK-37+VA manual.</li>
+          <li data-device="fm1">For playing live, use a knob bank. On the HOME screen, press <span class="btn-name">HOME</span>, choose Knobs: Reverb (or any effect) and press <span class="btn-name">SEL</span>. <span class="ctl-name">KNOB1</span> to <span class="ctl-name">KNOB3</span> now set that effect and <span class="ctl-name">KNOB4</span> switches it on and off.</li>
+          <li data-device="smk37">For playing live, use a knob bank. Press <span class="btn-name">KNOB BANK</span>, turn K1 to Knobs: Reverb (or any effect) and press <span class="btn-name">&gt;</span>. K5 to K7 now set that effect and K8 switches it on and off.</li>
           <li>Delay’s Rate works backwards from what you might expect: higher means a shorter gap, from 0.8 seconds down to 0.1.</li>
         </ol>
-        <p>With MIDI connected, the Chorus, Delay, Reverb and Distortion sliders above can mirror to the FM-1’s effects. Phaser, Bitcrush and the Filter effect have their own rows on the hardware worth exploring too.</p>
+        <p>With MIDI connected, the Chorus, Delay, Reverb and Distortion sliders above can mirror to the <span class="dev-name">FM-1</span>’s effects. Phaser, Bitcrush and the Filter effect have their own rows on the hardware worth exploring too.</p>
       </aside>
 
       <section class="history">

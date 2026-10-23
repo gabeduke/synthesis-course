@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -68,13 +69,13 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>Every preset’s Envelope starts <strong>off</strong>. Hold <span class="btn-name">ENV</span> for about a second to switch it on; the FM-1 shows “Envelope On”, and the ENV button stays lit. The setting is saved with each preset.</li>
+          <li>Every preset’s Envelope starts <strong>off</strong>. Hold <span class="btn-name">ENV</span> for about a second to switch it on; the <span class="dev-name">FM-1</span> shows “Envelope On”, and the <span class="ctl-name">ENV</span> button stays lit. The setting is saved with each preset.</li>
           <li>Press <span class="btn-name">ENV</span> to open Attack, Decay, Sustain and Release.</li>
           <li>On a freshly erased preset all four start at 0. Raise Sustain first, or every note will be a short blip.</li>
-          <li>The filter envelope lives in the Filter group under <span class="btn-name">EDIT</span>: Envelope, Decay and Shape. On a blank VA preset, KNOB3 and KNOB4 are already Filter Env and Filter Decay.</li>
-          <li>Connect the FM-1’s audio and the middle picture above draws its loudness in purple next to the page’s. Play the same note on both with Play on: Both and compare envelopes.</li>
+          <li>The filter envelope lives in the Filter group under <span class="btn-name">EDIT</span>: Envelope, Decay and Shape. On a blank VA preset, <span class="ctl-name">KNOB3</span> and <span class="ctl-name">KNOB4</span> are already Filter Env and Filter Decay.</li>
+          <li>Connect the <span class="dev-name">FM-1</span>’s audio and the middle picture above draws its loudness in purple next to the page’s. Play the same note on both with Play on: Both and compare envelopes.</li>
         </ol>
         <p>On FM presets, Release works differently: each FM operator has its own envelope, and the preset’s Release can only cut a fade short, never lengthen it. Lesson 8 covers why.</p>
       </aside>

@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -69,13 +70,14 @@
       </section>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
           <li>Press <span class="btn-name">LFO</span> on any preset. The rows are Wave, Speed, Delay, Pitch Mod Depth, Amp Mod Depth, Pitch Sensitivity and LFO Sync. They’re the same on all three engines.</li>
           <li>On a new preset every depth starts at zero, so the LFO moves nothing until you raise one.</li>
           <li>On a Virtual Analog preset, the LFO also reaches the filter through <strong>LFO to Cutoff</strong>, in the Filter group under <span class="btn-name">EDIT</span>. It’s one of the eight choices you can put on a knob, too.</li>
           <li>LFO Sync restarts the wave each time you press a key, so every note’s wobble starts the same way.</li>
-          <li>If you play the FM-1 from a MIDI keyboard, its mod wheel and aftertouch can push the same LFO harder.</li>
+          <li data-device="fm1">If you play the FM-1 from a MIDI keyboard, its mod wheel and aftertouch can push the same LFO harder.</li>
+          <li data-device="smk37">The SMK-37 has a MOD wheel of its own. How far it pushes the LFO isn’t spelled out in the manual this course was checked against, so try it on your unit: raise Pitch Mod Depth a little, hold a note and move the wheel. After switching on, move the wheel to the bottom once so its full range is available.</li>
         </ol>
       </aside>
 

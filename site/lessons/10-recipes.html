@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -27,17 +28,17 @@
     <main id="main">
       <p class="lesson-number">Lesson 10</p>
       <h1>Five patches to build</h1>
-      <p class="lede">Time to put the pieces together. Each recipe below is a complete Virtual Analog patch with every setting given. Play it here, send it to your FM-1 in one click, or, better, build it by hand from a blank preset so the steps stick.</p>
+      <p class="lede">Time to put the pieces together. Each recipe below is a complete Virtual Analog patch with every setting given. Play it here, send it to your <span class="dev-name">FM-1</span> in one click, or, better, build it by hand from a blank preset so the steps stick.</p>
 
       <h2>Building from a blank preset</h2>
       <p>Making each patch by hand is where the learning happens. Start each one the same way:</p>
       <ol>
-        <li>Pick a preset slot you don’t mind overwriting, then press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset and press <span class="btn-name">SEL</span>, turn SELECT to Erase and press <span class="btn-name">SEL</span>, then turn SELECT to VA and press <span class="btn-name">SEL</span>.</li>
+        <li>Pick a preset slot you don’t mind overwriting, then press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Erase Preset and press <span class="btn-name">SEL</span>, turn <span class="ctl-name">SELECT</span> to Erase and press <span class="btn-name">SEL</span>, then turn <span class="ctl-name">SELECT</span> to VA and press <span class="btn-name">SEL</span>.</li>
         <li>Hold <span class="btn-name">ENV</span> for a second to switch the Envelope on, then press <span class="btn-name">ENV</span> and raise Sustain, or every note will be silent after its attack.</li>
         <li>Work through the recipe’s settings top to bottom: Oscillator and Filter under <span class="btn-name">EDIT</span>, the envelope under <span class="btn-name">ENV</span>, the LFO under <span class="btn-name">LFO</span>, effects under <span class="btn-name">FX</span>.</li>
-        <li>Name it (Name, near the end of the EDIT list) and press <span class="btn-name">SAVE</span>.</li>
+        <li>Name it (Name, near the end of the <span class="ctl-name">EDIT</span> list) and press <span class="btn-name">SAVE</span>.</li>
       </ol>
-      <p>Or, with MIDI connected, select the blank VA preset and press <span class="btn-name">Send settings to FM-1</span> on a recipe, then compare. The page sends the oscillator and filter settings, the envelope, the LFO’s Speed, Pitch Mod Depth and Delay, and the four effects’ main settings. A few things have no MIDI control and must be set by hand: the LFO’s Wave, Mono, Glide Time and the distortion type. Cutoff is approximate, since how the FM-1 maps MIDI values onto 20 Hz to 20 kHz isn’t documented, so trust your ears.</p>
+      <p>Or, with MIDI connected, select the blank VA preset and press <span class="btn-name">Send settings to FM-1</span> on a recipe, then compare. The page sends the oscillator and filter settings, the envelope, the LFO’s Speed, Pitch Mod Depth and Delay, and the four effects’ main settings. A few things have no MIDI control and must be set by hand: the LFO’s Wave, Mono, Glide Time and the distortion type. Cutoff is approximate, since how the <span class="dev-name">FM-1</span> maps MIDI values onto 20 Hz to 20 kHz isn’t documented, so trust your ears.</p>
 
       <h2>1. Warm pad</h2>
       <p>Slow to arrive, slow to leave, gently moving. The detuned saws give width; the closed filter and a slow LFO on the cutoff keep it soft and alive; chorus and a hall reverb put it in a room.</p>
@@ -49,13 +50,13 @@
       <p>The trance lead from lesson 6: lots of Super, Detune in its upper range, a quick attack, a touch of delayed vibrato and some echo.</p>
       <synth-lab heading="Supersaw lead" intro="Play a melody in the upper octave." controls="super detune cutoff lfoPitch lfoDelay" preset='{"waveform":"saw","super":85,"detune":62,"drift":10,"filterType":"lp24","cutoff":6500,"resonance":10,"attack":3,"decay":50,"sustain":90,"release":35,"lfoWave":"sine","lfoSpeed":55,"lfoPitch":12,"lfoDelay":45,"fx":{"delay":{"on":true,"rate":55,"feedback":30,"mix":22},"reverb":{"on":true,"type":"plate","decay":40,"mix":25}}}' low="60" chord="72 76 79"></synth-lab>
       <p><strong>By hand:</strong> Saw · Super 85 · Detune 62 · Drift 10 · Filter LP24, Cutoff about 6.5 kHz, Resonance 10 · Envelope on: Attack 3, Decay 50, Sustain 90, Release 35 · LFO Sine, Speed 55, Pitch Mod Depth 12, Delay 45 · Delay on (Rate 55, Feedback 30, Mix 22) · Reverb Plate (Decay 40, Mix 25).</p>
-      <p><strong>Make it yours:</strong> put Super and Detune on KNOB3 and KNOB4 and ride them during a phrase.</p>
+      <p><strong>Make it yours:</strong> put Super and Detune on <span class="ctl-name">KNOB3</span> and <span class="ctl-name">KNOB4</span> and ride them during a phrase.</p>
 
       <h2>3. Acid bass</h2>
       <p>One saw, a resonant low-pass held mostly shut, and a short filter envelope that snaps it open on every note. Mono with glide makes notes slide into each other when you play legato; a little distortion adds grit.</p>
       <synth-lab heading="Acid bass" intro="Play low, overlapping notes. Ride Cutoff and Resonance." controls="cutoff resonance filterEnv filterDecay glide" preset='{"waveform":"saw","super":0,"filterType":"lp24","cutoff":320,"resonance":72,"filterEnv":68,"filterDecay":32,"filterVelocity":40,"keyTrack":33,"attack":0,"decay":40,"sustain":70,"release":10,"mono":true,"glide":30,"fx":{"distortion":{"on":true,"type":"soft","gain":45,"tone":50,"level":60}}}' views="spectrum wave" filter-curve low="36" chord="36"></synth-lab>
-      <p><strong>By hand:</strong> Saw · Super 0 · Filter LP24, Cutoff about 320 Hz, Resonance 72, Envelope 68, Decay 32, Velocity 40, Key Tracking 33 · Envelope on: Attack 0, Decay 40, Sustain 70, Release 10 · Mono on, then Glide Time about 30 under <span class="btn-name">GLO</span> › Glide (Glide Time belongs to the whole FM-1, so it isn’t saved with this preset) · Distortion Soft Clip (Gain 45, Tone 50, Level 60).</p>
-      <p><strong>Make it yours:</strong> play it from the FM-1’s sequencer and keep one hand on KNOB1 (Cutoff) and the other on KNOB2 (Resonance).</p>
+      <p><strong>By hand:</strong> Saw · Super 0 · Filter LP24, Cutoff about 320 Hz, Resonance 72, Envelope 68, Decay 32, Velocity 40, Key Tracking 33 · Envelope on: Attack 0, Decay 40, Sustain 70, Release 10 · Mono on, then Glide Time about 30 under <span class="btn-name">GLO</span> › Glide (Glide Time belongs to the whole <span class="dev-name">FM-1</span>, so it isn’t saved with this preset) · Distortion Soft Clip (Gain 45, Tone 50, Level 60).</p>
+      <p><strong>Make it yours:</strong> play it from the <span class="dev-name">FM-1</span>’s sequencer and keep one hand on <span class="ctl-name">KNOB1</span> (Cutoff) and the other on <span class="ctl-name">KNOB2</span> (Resonance).</p>
 
       <h2>4. Pluck</h2>
       <p>No sustain at all: every note is a short, bright snap that darkens as it fades, like a plucked string. The filter envelope does most of the work. A dotted echo turns simple patterns into something hypnotic.</p>
@@ -67,7 +68,7 @@
       <p>An atmosphere that never quite repeats. Detuned triangles with plenty of Drift wander against each other; a slow LFO sweeps a resonant filter; a little noise adds air; long delay and a big hall smear it into a space.</p>
       <synth-lab heading="Ambient drone" intro="Hold a low chord and leave it. Then slowly move LFO to cutoff." controls="drift noise cutoff resonance lfoToCutoff lfoSpeed" preset='{"waveform":"tri","super":60,"detune":30,"drift":45,"noise":12,"filterType":"lp12","cutoff":1400,"resonance":38,"lfoWave":"sine","lfoSpeed":12,"lfoToCutoff":30,"attack":80,"decay":60,"sustain":100,"release":100,"fx":{"chorus":{"on":true,"rate":15,"depth":60,"mix":50},"delay":{"on":true,"rate":15,"feedback":55,"mix":30},"reverb":{"on":true,"type":"hall","decay":85,"mix":55}}}' views="spectrum lfo" filter-curve chord="38 45 50 57"></synth-lab>
       <p><strong>By hand:</strong> Tri · Super 60 · Detune 30 · Drift 45 · Noise 12 · Filter LP12, Cutoff about 1.4 kHz, Resonance 38 · LFO to Cutoff 30 · Envelope on: Attack 80, Decay 60, Sustain 100, Release 100 · LFO Sine, Speed 12 · Chorus on (Rate 15, Depth 60, Mix 50) · Delay on (Rate 15, Feedback 55, Mix 30) · Reverb Hall (Decay 85, Mix 55).</p>
-      <p><strong>Make it yours:</strong> switch on the FM-1’s arpeggiator with Latch on, hold a chord, and let the drone play itself while both hands work the knobs. <a href="12-drones.html">Lesson 12</a> goes deeper on drones.</p>
+      <p><strong>Make it yours:</strong> switch on the <span class="dev-name">FM-1</span>’s arpeggiator with Latch on, hold a chord, and let the drone play itself while both hands work the knobs. <a href="12-drones.html">Lesson 12</a> goes deeper on drones.</p>
 
       <p class="note">These settings are written in the FM-1’s own units (mostly 0 to 100, with Cutoff in hertz), so they transfer row for row. The page’s synth is a model, not a copy, so a patch will sound related on both, not identical. That’s normal: tune it by ear on the hardware.</p>
     </main>

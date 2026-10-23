@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="../assets/js/main.js"></script>
 </head>
 <body>
@@ -30,22 +31,29 @@
       <p class="lede">A drone is a sound that stays. One note, or a few, held for minutes instead of beats, with nothing to hum along to and nowhere to resolve. It sounds like it should be the simplest thing a synth can do. It isn’t, because a held tone that never changes goes dead in about ten seconds. A good drone has to do three jobs at once: hold, move and fill the room.</p>
 
       <h2>Job one: hold</h2>
-      <p>The first problem is practical. The FM-1 has 27 small keys, and a note only sounds while your finger is on it. To get a sound that stays, you need either something that keeps the note going after you let go, or an envelope that doesn’t let it fade.</p>
-      <p>Start with the envelope, because you met it in lesson 4. On a new FM-1+VA preset the envelope is off, and a held note simply plays at full level until you let go. Turn the envelope on and you choose what happens instead. Two settings matter for a drone:</p>
+      <p>The first problem is practical. <span data-device="fm1">The FM-1 has 27 small keys, and a note only sounds while your finger is on it.</span><span data-device="smk37">A note only sounds while your finger is on its key.</span> To get a sound that stays, you need either something that keeps the note going after you let go, or an envelope that doesn’t let it fade.</p>
+      <p>Start with the envelope, because you met it in lesson 4. On a new <span class="fw-name">FM-1+VA</span> preset the envelope is off, and a held note simply plays at full level until you let go. Turn the envelope on and you choose what happens instead. Two settings matter for a drone:</p>
       <ul>
-        <li><span class="sig-time">Sustain</span> at 100. The note settles at full level and stays there while the key is down. At 0, the FM-1 fades a held note to silence, which is exactly what you don’t want here.</li>
+        <li><span class="sig-time">Sustain</span> at 100. The note settles at full level and stays there while the key is down. At 0, the <span class="dev-name">FM-1</span> fades a held note to silence, which is exactly what you don’t want here.</li>
         <li><span class="sig-time">Attack</span> long. The note rises slowly instead of starting at once. A drone that fades in is much harder to point at: nobody hears it begin, and it just seems to have always been there.</li>
       </ul>
       <p>Then there’s <span class="sig-time">Release</span>. When you finally let go, a long release lets the note fade out over seconds, so the drone ends as quietly as it began. On a Virtual Analog preset the release tops out at 2 seconds, which is plenty.</p>
 
       <synth-lab heading="Hold, fade in, fade out" intro="Press Hold a chord, then lengthen Attack and listen to it bloom. Press Hold again and listen to the release." controls="attack sustain release cutoff" preset='{"waveform":"saw","cutoff":1800,"attack":55,"decay":50,"sustain":100,"release":85,"fx":{"reverb":{"on":true,"type":"hall","decay":60,"mix":30}}}' views="env wave" chord="36 43 48"></synth-lab>
 
-      <p>Even so, a note that lasts only while you hold the key is a tiring way to play a drone. The FM-1 gives you three ways to let go of the keys:</p>
+      <p>Even so, a note that lasts only while you hold the key is a tiring way to play a drone. The <span class="dev-name">FM-1</span> gives you three ways to let go of the keys:</p>
       <ul>
         <li><strong>Latch the arpeggiator.</strong> Press <span class="btn-name">ARP</span>, set Latch to On, and play a chord. It keeps sounding after you lift your hands, and the next chord you play replaces it. The Note Engine’s Auto-Chord mode has a Latch row too, and is the one to try if you want a held chord rather than a rippling arpeggio.</li>
-        <li><strong>Record long notes.</strong> In the sequencer, hold <span class="btn-name">REC</span> while you play keys, and those notes are held into the next step. Play the same chord on each step and you record one long chord. A pattern can be up to 64 steps, so one chord can run for a long time, and a pattern set to repeat will play it again and again by itself.</li>
+        <li data-device="fm1"><strong>Record long notes.</strong> In the sequencer, hold <span class="btn-name">REC</span> while you play keys, and those notes are held into the next step. Play the same chord on each step and you record one long chord. A pattern can be up to 64 steps, so one chord can run for a long time, and a pattern set to repeat will play it again and again by itself.</li>
+        <li data-device="smk37"><strong>Record long notes.</strong> While step recording with <span class="btn-name">SEQ REC</span>, the sequencer can hold the notes you play into the next step; the “Long Notes” section of the SMK-37+VA manual has the exact moves. Play the same chord on each step and you record one long chord, and a pattern set to repeat will play it again and again by itself.</li>
         <li><strong>Chain patterns.</strong> Give each pattern a Chain setting and the next one starts exactly on the beat. Pattern 1 to 2, 2 to 3, 3 back to 1 gives you a slow progression of drones with no one touching the keys.</li>
       </ul>
+
+      <aside class="on-device" data-device="smk37">
+        <h3>A fourth way: the sustain pedal</h3>
+        <p>The SMK-37 has a sustain pedal jack on the back, and for a drone it may be the most natural way to let go: play the chord, put your foot down, and take your hands away. The manual says notes you play are sustained while the pedal is down, and that the firmware reads the pedal’s position at power-on as up, so switch on with your foot off the pedal and either kind of pedal reads correctly.</p>
+        <p>That’s all the manual this course was checked against says, so test the rest on your unit before relying on it: how long a held note lasts with the pedal down and Sustain at 100, whether Release still fades the drone out when you lift your foot, and what the pedal does with a latched arpeggio or Auto-Chord.</p>
+      </aside>
 
       <h2>Job two: move</h2>
       <p>A held tone with nothing happening inside it stops registering as sound. Your ear tunes it out the way it tunes out a refrigerator. So the second job is to keep the sound changing, slowly enough that you never hear a “change”, only a feeling that something is alive in there.</p>
@@ -93,12 +101,13 @@
       <h2>Sending it somewhere else</h2>
       <p>A drone is a good place to use the FM-1 as a sound source for other gear. Take its headphone output into a sampler, a looper or an effects pedal, and the FM-1 becomes the oscillator in a larger instrument. Hold a chord, then use the other box to do what it does best: sample a slice and pitch it down, run it through a filter you don’t have, stretch it, freeze it or glitch it. The FM-1 supplies the endless, evolving tone, and the other box turns it into something new.</p>
       <p>Two small tips. First, set the preset’s level with the Mixer knob bank (lesson 11) before you connect, because a headphone output can be much louder than a line input expects. Second, if you plan to sample it, keep the drone’s own reverb and delay modest and add those later, after the other gear, so you don’t sample a tail you can’t take back.</p>
-      <p>The firmware has a related setting on the other side of the same idea. With <span class="btn-name">Local Control</span> set to Off (in <span class="btn-name">GLO</span> › MIDI), the keys send MIDI but don’t play the FM-1’s own sound. That turns it into a keyboard for other gear instead, and notes sent to it from outside still play its sound engine.</p>
+      <p data-device="smk37">The SMK-37+VA manual this course was checked against doesn’t describe the SMK-37’s audio outputs, so check which ones your unit has, and how loud they run, before planning a setup around them.</p>
+      <p>The firmware has a related setting on the other side of the same idea. With <span class="btn-name">Local Control</span> set to Off (in <span class="btn-name">GLO</span> › MIDI), the keys send MIDI but don’t play the <span class="dev-name">FM-1</span>’s own sound. That turns it into a keyboard for other gear instead, and notes sent to it from outside still play its sound engine.</p>
 
       <aside class="on-fm1">
-        <h3>On the FM-1</h3>
+        <h3>On the <span class="dev-name">FM-1</span></h3>
         <ol>
-          <li>Make a Virtual Analog preset: press <span class="btn-name">EDIT</span>, turn SELECT to Erase Preset, press <span class="btn-name">SEL</span>, choose Erase, then VA.</li>
+          <li>Make a Virtual Analog preset: press <span class="btn-name">EDIT</span>, turn <span class="ctl-name">SELECT</span> to Erase Preset, press <span class="btn-name">SEL</span>, choose Erase, then VA.</li>
           <li>In <span class="btn-name">EDIT</span> › Oscillator, choose Saw or Tri, then set Super to about 55, Detune to about 28 and Drift to about 35.</li>
           <li>In Filter, set a low Cutoff of around 1.3 kHz and a little Resonance. Set LFO to Cutoff to about 35.</li>
           <li>Press <span class="btn-name">LFO</span> and choose Sine with a low Speed, around 10.</li>
@@ -108,7 +117,7 @@
           <li>To let go of the keys, press <span class="btn-name">ARP</span> and turn Latch on, then play the chord again.</li>
           <li>Set the Preset knobs to Cutoff, Resonance, LFO to Cutoff and Detune, and play them slowly. <span class="btn-name">SAVE</span> before you change preset.</li>
         </ol>
-        <p>With the FM-1 connected, <strong>Mirror to FM-1</strong> on any panel above sets the same controls on the hardware. Settings on the page are a model, so tune the final result by ear on the FM-1.</p>
+        <p>With the <span class="dev-name">FM-1</span> connected, <strong>Mirror to <span class="dev-name">FM-1</span></strong> on any panel above sets the same controls on the hardware. Settings on the page are a model, so tune the final result by ear on the <span class="dev-name">FM-1</span>.</p>
       </aside>
 
       <section class="history">
