@@ -87,6 +87,38 @@ FM-1. If storage is blocked the page starts on the FM-1 each time.
 3. Run `python3 scripts/build_pwa.py` and check every lesson with the device
    selected: no FM-1 control names should be left in the steps.
 
+## Bluetooth MIDI
+
+The connection panel can also reach the instrument over **Bluetooth MIDI**,
+without a cable. This is for setups where the operating system pairs with the
+instrument but doesn't offer it to the browser as a MIDI port, which is common
+with Chrome on Android.
+
+- `site/assets/js/hw/ble-midi.js` speaks the standard BLE MIDI profile
+  (service `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`, characteristic
+  `7772E5DB-3868-4112-A1A9-F2669D106BF3`) over Web Bluetooth: it parses the
+  instrument's notifications into ordinary MIDI messages and packs the page's
+  notes and CCs into 20-byte packets, written one at a time.
+- `hw/fm1.js` treats it as another MIDI input and output. **While Bluetooth is
+  connected it is the link**: the page sends only over Bluetooth and listens
+  only to Bluetooth, so an instrument that's also plugged in by USB doesn't
+  get every note and setting twice. The USB ports stay selected and take over
+  again when Bluetooth disconnects. An unexpected drop gets one quiet
+  reconnect attempt.
+- Browser support: Chrome on Android, and Chrome or Edge on Windows, macOS
+  and ChromeOS (Web Bluetooth). Not Firefox or Safari, and not on iOS. It
+  needs https or `localhost`, and a tap on the button each time a page loads,
+  since the lessons are separate pages.
+- **Untested against real hardware.** The parser and builder are unit-tested
+  and the panel is tested against a simulated device, but no FM-1 or SMK-37
+  has been connected this way yet. The SMK-37 has a Bluetooth button; whether
+  it speaks standard BLE MIDI (and in which mode) is unconfirmed.
+
+Run the parser tests with `node scripts/test_ble_midi.mjs`, and the browser
+tests (a simulated device, plus the USB path and every page on both devices)
+with `NODE_PATH=$(npm root -g) node scripts/test_ble_browser.mjs` (needs
+Playwright and Chromium).
+
 ## How it works
 
 Plain HTML, CSS and JavaScript modules. No build step, no dependencies, no
@@ -100,6 +132,7 @@ server: GitHub Pages serves the `site/` folder as is.
 - `site/assets/js/hw/fm1.js` — the FM-1 link: Web MIDI in and out, the CC map
   from Baud Girl's manual, and capture of the FM-1's USB audio input. It
   serves every device; `hw/devices.js` decides which port it looks for.
+  `hw/ble-midi.js` adds Bluetooth MIDI (see [Bluetooth MIDI](#bluetooth-midi)).
 - `site/assets/js/hw/devices.js` and `site/assets/js/ui/device.js` — device
   profiles and the translation layer (see above).
 - `site/assets/js/widgets/` — the custom elements used in lessons:
@@ -137,8 +170,8 @@ Web MIDI and audio input need a secure context; `localhost` counts.
 
 ## Browser support
 
-Chrome and Edge support everything. Firefox supports Web MIDI with a site
-permission. Safari plays the lessons but has no Web MIDI, so it can't talk to
+Chrome and Edge support everything, including Bluetooth MIDI. Firefox supports
+Web MIDI with a site permission, but not Bluetooth. Safari plays the lessons but has no Web MIDI, so it can't talk to
 the FM-1.
 
 ## Accuracy notes

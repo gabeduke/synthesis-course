@@ -98,6 +98,7 @@ export const DEVICES = {
       'Sixteen pads in three banks (Sequencer, Notes, Presets), switched with KNOB BANK and FADER BANK together.',
       'PITCH and MOD wheels; a sustain pedal jack read at power-on.',
       'Unverified: USB MIDI port and audio device names, Elite-specific differences, how the wheels and sustain pedal interact with the Virtual Analog engine, pad aftertouch after version 101.',
+      'Unverified: Bluetooth MIDI. The SMK-37 has a BT button (Device or Host mode), but whether it offers standard BLE MIDI that the panel’s Connect over Bluetooth button can reach, and in which mode, hasn’t been tested.',
     ],
   },
 };

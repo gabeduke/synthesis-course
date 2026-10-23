@@ -115,6 +115,12 @@
       <p data-device="fm1">If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; its name should include “FM-1”.</p>
       <p data-device="smk37">If the page plays but the SMK-37 doesn’t, open the SMK-37 panel in the top-right corner, press <span class="btn-name">Play a test note on the FM-1</span>, and if nothing plays, choose the SMK-37’s port from the output list yourself. The page picks the port by guessing from its name, and the name the SMK-37+VA firmware gives its USB MIDI port hasn’t been confirmed yet. The same goes for its audio input: if a purple trace never appears, choose it from the list, if your unit has one.</p>
 
+      <aside class="on-device" data-device="smk37">
+        <h3>Connecting the SMK-37 over Bluetooth</h3>
+        <p>The connection panel also has <span class="btn-name">Connect over Bluetooth</span>, in browsers that can use Bluetooth (Chrome on Android, Windows, macOS and ChromeOS). It talks to the keyboard over standard Bluetooth MIDI directly, which helps on a tablet where the paired SMK-37 never shows up in the MIDI port list. Switch Bluetooth on with the BT button first, and check on your unit whether it needs to be in Device mode. This hasn’t been tried with an SMK-37 yet: if it doesn’t connect or behaves oddly, use USB, and please report what happened.</p>
+        <p>Bluetooth <em>headphones</em> are another matter: they add a noticeable delay, often 100–200 ms, between pressing a key and hearing the page’s synth. Wired headphones, or a low-latency mode if your headphones have one, play much better.</p>
+      </aside>
+
       <p class="note">The control numbers the page uses to set the FM-1 come from the MIDI chapter of Baud Girl’s manual. The panels send Virtual Analog settings and four effects. FM presets accept some MIDI controls too (Brightness, Feedback, Algorithm, envelope and LFO), but the FM lesson’s demo is a simplified two-operator model rather than the FM-1’s six-operator engine, and the manual lists no MIDI controls for the 8-Bit engine. So on those two lessons the FM-1 connection is for playing and listening.</p>
     </main>
   </div>
