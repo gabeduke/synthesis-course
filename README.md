@@ -31,22 +31,51 @@ the USB link follow it (see [Supported devices](#supported-devices)).
 | 10 | Five patches to build | Full recipes, sendable to the FM-1 in one click |
 | 11 | Playing it live | Knob banks, macros, hands-free tricks, controllers |
 | 12 | Drones | Holding a note, slow movement, latching, sending it to other gear |
+| | **AKS Mini** | |
+| 13 | The AKS Mini | The EMS lineage and the pin matrix it dropped, its signal path, connecting it, its MIDI numbers |
+| 14 | Three VCOs, one filter | Saw/square/Shape, Detune, voice modes, paraphony, the Response filter |
+| 15 | The trapezoid and the joystick | Attack/On/Decay/Off, the looping envelope, Trapez vs Signal, the joystick |
 
 Plus a filterable history timeline with sources.
+
+Every lesson panel shows its **signal path** along the top (the sound after the
+oscillators, the filter, the amp and the effects, with the envelope and LFO
+drawn to what they move), and has a **Focus** button that fills the screen
+with it and adds a scope, spectrum and spectrogram.
 
 ## Supported devices
 
 | Device | Firmware | Status |
 |--------|----------|--------|
 | M-VAVE FM-1 | FM-1+VA | The course's source of truth. Written against version 97; envelope times rechecked against 102. |
-| M-VAVE SMK-37 (Pro, Elite) | SMK-37+VA | Control names and SMK-only notes from the version 102 manual and quick start. |
+| M-VAVE SMK-37 (Pro, Elite) | SMK-37+VA | Control names and SMK-only notes from the version 102 manual and quick start. USB and Bluetooth MIDI tested on a real unit (below). |
+| Behringer AKS Mini | its own | A separate track (lessons 13–15) with its own model and MIDI link; see [AKS Mini](#aks-mini-lessons-1315). Not a translation of the FM-1 lessons. |
 
 The SMK-37+VA firmware also runs on the Donner Starrykey-37 Play and the EROK
-MKE-P37; they aren't separate entries yet. Still unconfirmed for the SMK-37,
-and worded as "check on your unit" on the site: the names of its USB MIDI port
-and USB audio input (the page guesses, and you can pick the port by hand),
-differences on the Elite, what the wheels and sustain pedal do beyond what the
-manual says, and pad aftertouch after version 101.
+MKE-P37; they aren't separate entries yet.
+
+Checked on an SMK-37 running SMK-37+VA, from a Mac (October 2026):
+
+- **USB:** the MIDI port is named `SMK-37+VA` (in and out) and the audio
+  device `SMK-37+VA Audio` (2 channels in, 2 out, 44.1 kHz). The page picks
+  both by name. From Chrome, the page's own code found the port and played
+  notes on it, including from a lesson panel set to Play on: SMK-37
+  (confirmed by recording the SMK's USB audio).
+- **Bluetooth:** in BT Device mode it advertises standard BLE MIDI as
+  `SMK-37+VA_BLE` (the MIDI characteristic offers read, write without
+  response and notify). The panel's Connect over Bluetooth button connected
+  to it in about 2.5 s and the page's notes played; a manual disconnect was
+  clean.
+- **Not yet checked:** its own keys, knobs and wheels arriving at the page
+  (USB or Bluetooth), Elite-specific differences, and pad aftertouch after
+  version 101. The MIDI monitor in the connection panel shows what arrives.
+
+From the SMK-37+VA version 102 manual's MIDI chapter: it sends notes with
+velocity on its Out Channel (1), pitch bend, the mod wheel as CC 1 and the
+pedal as CC 64; with GLOBE › MIDI › Send CC on, every panel change goes out as
+the CC the firmware receives for it; on the MIDI CC bank K5–K8 send CC 74, 71,
+73 and 72 and the faders CC 7, 10, 91 and 93. Its Bend Up/Down default to 12
+semitones, which the page's synth copies (`bendRange` in the profile).
 
 ### How the device switch works
 
@@ -54,8 +83,8 @@ The lesson HTML stays in FM-1 terms; other devices are a translation of it.
 
 - `site/assets/js/hw/devices.js` holds one profile per device: its label,
   firmware name, a map from FM-1 control names to its own (`EDIT` → `PARA`,
-  `KNOB1` → `K5` …), regexes for its USB MIDI port and audio input, any CC
-  overrides, and notes.
+  `KNOB1` → `K5` …), regexes for its USB MIDI port and audio input, its
+  Bluetooth name and pitch-bend range, any CC overrides, and notes.
 - `site/assets/js/ui/device.js` keeps the choice (localStorage
   `course.device`, or `?device=smk37` in the address, which is remembered),
   draws the picker in the header, and rewrites the page when it changes:
@@ -71,8 +100,10 @@ The lesson HTML stays in FM-1 terms; other devices are a translation of it.
   - `<html data-device="…">` shows elements marked `data-device="smk37"`
     (or a space-separated list of ids) and hides the ones marked for other
     devices. Device-only boxes use `<aside class="on-device" data-device="…">`.
-- The USB link (`hw/fm1.js`) picks ports with the active profile's regexes.
-  Ports chosen by hand in the connection panel are remembered and win.
+- The USB link (`hw/fm1.js`) picks ports with the active profile's regexes,
+  preferring a port with the model's name over a generic one (`USB-MIDI`) and
+  a cable over a Bluetooth port the OS has paired. Ports chosen by hand in the
+  connection panel are remembered and win.
 
 Without JavaScript, or before it runs, a page reads exactly as it did for the
 FM-1. If storage is blocked the page starts on the FM-1 each time.
@@ -115,15 +146,40 @@ with Chrome on Android.
   and ChromeOS (Web Bluetooth). Not Firefox or Safari, and not on iOS. It
   needs https or `localhost`, and a tap on the button each time a page loads,
   since the lessons are separate pages.
-- **Untested against real hardware.** The parser and builder are unit-tested
-  and the panel is tested against a simulated device, but no FM-1 or SMK-37
-  has been connected this way yet. The SMK-37 has a Bluetooth button; whether
-  it speaks standard BLE MIDI (and in which mode) is unconfirmed.
+- **Tested with an SMK-37** (BT Device mode, `SMK-37+VA_BLE`): connect, notes
+  from the page, and disconnect, from Chrome on a Mac. Notes and CCs from the
+  SMK-37 back to the page over Bluetooth, and the FM-1, are still untested.
+  On a Mac the instrument can instead be paired once in Audio MIDI Setup,
+  after which it's an ordinary MIDI port.
 
 Run the parser tests with `node scripts/test_ble_midi.mjs`, and the browser
-tests (a simulated device, plus the USB path and every page on both devices)
-with `NODE_PATH=$(npm root -g) node scripts/test_ble_browser.mjs` (needs
-Playwright and Chromium).
+tests (a simulated device, the USB path, CCs and wheels into the page, the MIDI
+monitor, the signal path and Focus, and every page on both devices) with
+`NODE_PATH=$(npm root -g) node scripts/test_ble_browser.mjs` (needs
+Playwright and Chromium). The browser tests fake Web MIDI; for real hardware,
+use an installed Chrome: Chrome for Testing 148 on macOS stalled on Web MIDI
+sends to a real port, while Chrome 155 did not.
+
+## Playing the page from the instrument
+
+MIDI coming in goes to the panel you used last (or the first one on screen),
+through `ui/keyboard.js`:
+
+- **Notes** light the drawn keys, and play the page's synth when "keys also
+  play the page's synth" is on.
+- **Pitch bend, the mod wheel (and channel pressure) and the sustain pedal**
+  always reach the panel: bend moves every oscillator by the device's
+  `bendRange`, the wheel adds up to 60 cents of vibrato from the panel's LFO
+  (the firmware's default mapping for the wheel is Pitch), and the pedal holds
+  released keys. Small wheel gauges appear by the keyboard once they move.
+- **Knobs:** `paramFromCc()` in `hw/fm1.js` is `ccValue()` run backwards. A CC
+  the page knows moves the same setting on the panel (`hwParam`), the slider
+  glows purple, and the line under the panel names it. Settings that come from
+  the instrument are never mirrored back to it. CC 7, 91 and 93 (the SMK-37's
+  faders on the MIDI CC bank) move Level, reverb mix and chorus mix. The
+  connection panel's "knobs and wheels move the page" switch turns this off.
+- The connection panel's **MIDI monitor** lists every incoming message,
+  decoded, with clock counted rather than listed.
 
 ## How it works
 
@@ -143,7 +199,8 @@ server: GitHub Pages serves the `site/` folder as is.
   profiles and the translation layer (see above).
 - `site/assets/js/widgets/` — the custom elements used in lessons:
   `<synth-lab>`, `<voice-stack>`, `<beat-lab>`, `<harmonics-lab>`,
-  `<space-lab>`, `<fm-lab>`, `<chip-lab>`, `<fm1-panel>`, `<history-timeline>`.
+  `<space-lab>`, `<fm-lab>`, `<chip-lab>`, `<fm1-panel>`, `<history-timeline>`,
+  and `<aks-lab>` / `<aks-panel>` for the AKS Mini track.
 - `site/assets/js/ui/params.js` — every control's range, color, and where it
   lives on the FM-1 (translated for other devices). Start here to add or
   change a control.
@@ -162,7 +219,45 @@ are one line of HTML:
 
 `controls` takes parameter keys or group names (`Oscillator`, `Filter`,
 `Envelope`, `LFO`, `Chorus`, `Delay`, `Reverb`, `Distortion`). `views` takes any
-of `wave`, `spectrum`, `env`, `shape`, `lfo`.
+of `wave`, `spectrum`, `sono` (a scrolling spectrogram), `env`, `shape`, `lfo`.
+`flow="off"` hides the signal-path strip. The strip draws from analysers
+`VASynth.taps()` hangs off the oscillator mix, the filter output, the amp and
+the output; `ui/draw.js` has the spectrogram (`Sonogram`) and the auto-scaled
+mini scope.
+
+## AKS Mini (lessons 13–15)
+
+A short track for the **Behringer AKS Mini**, a 3-VCO paraphonic analog synth
+descended from EMS's VCS3 and Synthi AKS. It's a separate instrument, not
+another device in the picker: the FM-1 lessons don't translate to it.
+
+- `site/assets/js/audio/aks-core.js` holds the controls, ranges, CC map, voice
+  allocation and trapezoid timing as pure functions. `aks-synth.js` is the Web
+  Audio model: three always-running VCOs, one filter that self-oscillates near
+  full Response, one trapezoid envelope that loops when Off is 6 or below,
+  Trapez/Signal into the VCA, an LFO and a generated spring reverb.
+- `hw/aks.js` plays the real AKS Mini over the same Web MIDI permission as the
+  FM-1 link: notes, pitch bend and the guide's CCs (1, 32–51). It never sends
+  SysEx.
+- `<aks-lab>` takes `controls`, `preset` (0–10 knob scale), `views` (`wave
+  spectrum trap voices joystick`), `filter-curve`, `joystick="x y"` and
+  `chord`. `<aks-panel>` is just the port. An SMK-37 or FM-1 connected at the
+  top right can play it through the page (keys, wheels and pedal), with the
+  SMK-37's Local Control off so it doesn't sound itself.
+
+Run `node scripts/test_aks.mjs`.
+
+**Unverified.** Behringer has published only a draft Quick Start Guide (V 0.0).
+Everything below needs a real unit:
+
+- The USB MIDI port name (the page matches `/aks/i`).
+- The CC map (CC 51 labelled "Sustain", the overlapping CC 40 bands).
+- What the voice modes do, and whether the ring-modulation modes exist.
+- Two keys in Poly mode (the page doubles the first).
+- Whether holding a key stretches On.
+- Whether the loop runs with no key held.
+- Off times (borrowed from the original's 10 ms–5 s).
+- Self-oscillation, the 12/24 dB slope selection, and bend range and velocity.
 
 ## Running locally
 
@@ -194,10 +289,11 @@ the FM-1.
   one, with the envelope CCs (73, 75, 70, 72) confirmed in version 102. Baud Girl's manual is the
   authority when the firmware changes.
 - The SMK-37 translation was checked against the SMK-37+VA version 102 manual
-  and quick start. That manual lists the same envelope CCs and the MIDI CC
-  knob bank's 74, 71, 73 and 72; nothing in it suggests different numbers, so
-  the page sends the FM-1+VA map to both. It doesn't list the FM-1's CC 85–88
-  for the panel knobs.
+  and quick start. Its MIDI chapter lists the same Virtual Analog and effect
+  CCs as the FM-1+VA map, so the page sends that map to both. It adds a Filter
+  and a Phaser on the FX channel (CC 0–3, 20–23), and panel CCs on the MIDI
+  channel: 85–88 turn K5–K8, 89/90 and 102–119 step K1–K3 and press its
+  buttons (all but PATCH).
 
 ## Credits
 

@@ -19,15 +19,19 @@
  */
 'use strict';
 
-const VERSION = '330662b2d76a';
+const VERSION = '1b87c3555b08';
 const PRECACHE = [
   "./",
+  "assets/css/aks.css",
   "assets/css/course.css",
   "assets/favicon.svg",
+  "assets/js/audio/aks-core.js",
+  "assets/js/audio/aks-synth.js",
   "assets/js/audio/core.js",
   "assets/js/audio/fx.js",
   "assets/js/audio/supersaw.js",
   "assets/js/audio/va-synth.js",
+  "assets/js/hw/aks.js",
   "assets/js/hw/ble-midi.js",
   "assets/js/hw/devices.js",
   "assets/js/hw/fm1.js",
@@ -40,6 +44,7 @@ const PRECACHE = [
   "assets/js/ui/params.js",
   "assets/js/ui/pwa.js",
   "assets/js/ui/shell.js",
+  "assets/js/widgets/aks-lab.js",
   "assets/js/widgets/basics.js",
   "assets/js/widgets/chip-lab.js",
   "assets/js/widgets/fm-lab.js",
@@ -68,6 +73,9 @@ const PRECACHE = [
   "lessons/10-recipes.html",
   "lessons/11-live.html",
   "lessons/12-drones.html",
+  "lessons/13-aks-mini.html",
+  "lessons/14-aks-oscillators.html",
+  "lessons/15-aks-trapezoid.html",
   "manifest.webmanifest",
   "offline.html"
 ];
