@@ -18,6 +18,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
   <script type="module" src="./assets/js/main.js"></script>
 </head>
 <body>

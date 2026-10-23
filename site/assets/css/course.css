@@ -156,6 +156,28 @@ a:hover { text-decoration-thickness: 2px; }
 
 .site-header .spacer { flex: 1; }
 
+/* Instrument picker: which device the lessons' control names describe. */
+.device-label { display: inline-flex; align-items: center; }
+.device-select {
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 5px 26px 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  color: var(--ink);
+  appearance: none;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+    linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: right 13px center, right 8px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.device-select:hover { border-color: var(--ink-3); }
+
 /* ---------- Page grid ---------- */
 
 .page {
@@ -311,15 +333,21 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 3em 0; }
 
 /* ---------- Asides ---------- */
 
-.on-fm1 {
+.on-fm1, .on-device {
   margin: 2em 0;
   padding: 20px 22px 8px;
   border-left: 4px solid var(--hw);
   background: color-mix(in srgb, var(--hw) 7%, var(--surface));
   border-radius: 0 var(--radius) var(--radius) 0;
 }
-.on-fm1 h3 { margin-top: 0; color: var(--hw); font-size: 1.1rem; }
-.on-fm1 ol { padding-left: 1.2em; }
+.on-fm1 h3, .on-device h3 { margin-top: 0; color: var(--hw); font-size: 1.1rem; }
+.on-fm1 ol, .on-device ol { padding-left: 1.2em; }
+
+/* Text for one device only (data-device="fm1", "smk37" …). Before the
+   scripts run, and with no choice made, the page reads for the FM-1;
+   ui/device.js adds the matching rule for whichever device is selected. */
+html:not([data-device]) body [data-device]:not([data-device~="fm1"]),
+html[data-device="fm1"] body [data-device]:not([data-device~="fm1"]) { display: none !important; }
 
 .history {
   margin: 2.4em 0;

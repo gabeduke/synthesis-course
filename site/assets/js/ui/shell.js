@@ -4,6 +4,7 @@
 import { LESSONS, EXTRAS } from './lessons.js';
 import { el } from './controls.js';
 import { fm1 } from '../hw/fm1.js';
+import { deviceSelect } from './device.js';
 
 const root = document.documentElement.dataset.root || '.';
 const href = (file) => `${root}/${file}`;
@@ -28,7 +29,7 @@ function header() {
   h.classList.add('site-header');
   const mark = el('a', { class: 'wordmark', href: href('index.html') });
   mark.innerHTML = `${WAVE_MARK}<span>Signal Path</span>`;
-  h.replaceChildren(mark, el('div', { class: 'spacer' }), el('fm1-panel', { compact: true }));
+  h.replaceChildren(mark, el('div', { class: 'spacer' }), deviceSelect(el), el('fm1-panel', { compact: true }));
 }
 
 function rail() {
