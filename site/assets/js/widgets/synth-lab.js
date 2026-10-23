@@ -13,6 +13,7 @@
 import { audio, resume, clamp } from '../audio/core.js';
 import { VASynth, attackTime, decayTime, releaseTime } from '../audio/va-synth.js';
 import { fm1 } from '../hw/fm1.js';
+import { deviceLabel, devName, ctl, where as whereOn, onDeviceChange } from '../ui/device.js';
 import { GROUPS, PARAMS, getParam, toPartial, ccFor } from '../ui/params.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
@@ -157,7 +158,7 @@ class SynthLab extends HTMLElement {
         const where = () => {
           const cc = ccFor(k);
           this.where.innerHTML = '';
-          this.where.append('On the FM-1: ', el('b', { text: PARAMS[k].where }), cc ? ` (${cc})` : '');
+          this.where.append(`On the ${deviceLabel()}: `, el('b', { text: whereOn(PARAMS[k].where) }), cc ? ` (${cc})` : '');
         };
         c.addEventListener('pointerenter', where);
         c.addEventListener('focusin', where);
@@ -186,9 +187,9 @@ class SynthLab extends HTMLElement {
 
     // Footer: where notes go, FM-1 mirroring
     const seg = el('div', { class: 'seg neutral', role: 'group', 'aria-label': 'Play on' });
-    const targets = [['page', 'This page'], ['fm1', 'FM-1'], ['both', 'Both']];
+    const targets = [['page', 'This page'], ['fm1', devName()], ['both', 'Both']];
     const segBtns = targets.map(([val, label]) => {
-      const b = el('button', { type: 'button', text: label, 'aria-pressed': String(val === this.target) });
+      const b = el('button', { type: 'button', 'aria-pressed': String(val === this.target) }, label);
       b.addEventListener('click', () => {
         this._releaseAll();
         this.target = val;
@@ -201,9 +202,9 @@ class SynthLab extends HTMLElement {
     const mirror = el('input', { type: 'checkbox', id: mirrorId });
     mirror.addEventListener('change', () => {
       this.mirror = mirror.checked;
-      if (this.mirror) this._send('Mirroring: each control you move here moves on the FM-1 too.');
+      if (this.mirror) this._send(`Mirroring: each control you move here moves on the ${deviceLabel()} too.`);
     });
-    const sendBtn = el('button', { class: 'btn hw', type: 'button', text: 'Send settings to FM-1' });
+    const sendBtn = el('button', { class: 'btn hw', type: 'button' }, ['Send settings to ', devName()]);
     sendBtn.addEventListener('click', () => this._send());
     const resetBtn = el('button', { class: 'btn', type: 'button', text: 'Reset' });
     resetBtn.addEventListener('click', () => this.reset());
@@ -214,7 +215,7 @@ class SynthLab extends HTMLElement {
 
     const foot = el('div', { class: 'instrument-foot' }, [
       el('span', { class: 'label', text: 'Play on' }), seg,
-      el('label', { class: 'switch', for: mirrorId, style: '--c: var(--hw)' }, [mirror, el('span', { text: 'Mirror to FM-1' })]),
+      el('label', { class: 'switch', for: mirrorId, style: '--c: var(--hw)' }, [mirror, el('span', {}, ['Mirror to ', devName()])]),
       el('span', { class: 'grow' }),
       sendBtn, shareBtn, resetBtn,
     ]);
@@ -234,9 +235,10 @@ class SynthLab extends HTMLElement {
         this.target = 'page';
         segBtns.forEach((x, i) => x.setAttribute('aria-pressed', String(i === 0)));
       }
-      sendBtn.title = out ? '' : 'Connect the FM-1 (top right) to use this';
+      sendBtn.title = out ? '' : `Connect the ${deviceLabel()} (top right) to use this`;
     };
     fm1.addEventListener('change', syncHw);
+    onDeviceChange(() => { syncHw(); this.where.textContent = ''; });
     syncHw();
 
     this.addEventListener('pointerdown', () => { resume(); this.ensure(); }, { once: true });
@@ -331,7 +333,7 @@ class SynthLab extends HTMLElement {
   _send(message) {
     if (!fm1.output) return;
     const n = fm1.sendPatch(this._full());
-    this.say(message || `Sent ${n} settings to the FM-1. Pick a Virtual Analog preset first (113–128 with the VA pack). Press SAVE on the FM-1 to keep them.`);
+    this.say(message || `Sent ${n} settings to the ${deviceLabel()}. Pick a Virtual Analog preset first (113–128 with the VA pack). Press ${ctl('SAVE')} on the ${deviceLabel()} to keep them.`);
   }
 
   say(text) { this.status.textContent = text; }
@@ -345,7 +347,7 @@ class SynthLab extends HTMLElement {
     this._releaseAll();
     this._applyParams(this.preset);
     if (location.hash.startsWith(`#patch${this._index}=`)) history.replaceState(null, '', location.pathname + location.search);
-    if (this.mirror) this._send('Reset, and sent the starting settings to the FM-1.');
+    if (this.mirror) this._send(`Reset, and sent the starting settings to the ${deviceLabel()}.`);
   }
 
   // ---------- Drawing ----------
@@ -377,7 +379,7 @@ class SynthLab extends HTMLElement {
     this._record(now);
     const hw = fm1.analyser;
     const items = [['This page', c.sound]];
-    if (hw) items.push(['FM-1', c.hw]);
+    if (hw) items.push([deviceLabel(), c.hw]);
 
     if (view === 'wave') {
       grid(g, w, h, 8, 4);
@@ -395,7 +397,7 @@ class SynthLab extends HTMLElement {
       grid(g, w, h, 8, 3);
       this._drawHistory(g, w, h, this.hwLevelHist, c.hw, 4, 1.4, hw);
       this._drawHistory(g, w, h, this.levelHist, c.time, 4, 2, true);
-      this._legend(legend, hw ? [['This page', c.time], ['FM-1', c.hw]] : [['This page', c.time]]);
+      this._legend(legend, hw ? [['This page', c.time], [deviceLabel(), c.hw]] : [['This page', c.time]]);
     } else if (view === 'lfo') {
       grid(g, w, h, 8, 2);
       g.strokeStyle = c.rule; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();

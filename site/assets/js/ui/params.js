@@ -1,8 +1,9 @@
 // Every control in the course, in one place: its range, its signal color, how
-// to read its value, and where the same setting lives on the FM-1.
+// to read its value, and where the same setting lives on the FM-1. The "where"
+// paths are in FM-1 names; ui/device.js translates them for other devices.
 
 import { attackTime, decayTime, releaseTime, lfoHz, filterDecayTime } from '../audio/va-synth.js';
-import { VA_CC, FX_CC } from '../hw/fm1.js';
+import { vaCc, fxCc } from '../hw/fm1.js';
 
 const sec = (s) => (s < 1 ? `${Math.round(s * 1000)} ms` : `${s.toFixed(s < 10 ? 2 : 1)} s`);
 const hz = (f) => (f >= 1000 ? `${(f / 1000).toFixed(f >= 10000 ? 1 : 2)} kHz` : `${f < 10 ? f.toFixed(2) : Math.round(f)} Hz`);
@@ -59,14 +60,14 @@ export const PARAMS = {
   'fx.reverb.mix': { label: 'Mix', min: 0, max: 100, kind: 'space', where: 'FX › Reverb › Mix' },
 };
 
-// Which CC (if any) carries a setting to the FM-1, for the status line.
+// Which CC (if any) carries a setting to the selected device, for the status line.
 export function ccFor(key) {
   if (key.startsWith('fx.')) {
     const [, effect, field] = key.split('.');
-    const n = FX_CC[effect]?.[field];
+    const n = fxCc(effect, field);
     return n === undefined ? null : `CC ${n} on the FX channel`;
   }
-  const n = VA_CC[key];
+  const n = vaCc(key);
   return n === undefined ? null : `CC ${n}`;
 }
 

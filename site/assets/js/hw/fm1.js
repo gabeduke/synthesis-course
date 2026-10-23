@@ -13,10 +13,17 @@
 // version 93; later versions add to it). Check them against the manual for
 // the version on your FM-1 if something doesn't respond.
 
-import { audio, clamp } from '../audio/core.js';
+// The link isn't only for the FM-1: the same firmware family runs on other
+// boards (see devices.js). The selected device profile decides which MIDI
+// port and audio input to pick automatically; the CC maps below are the
+// FM-1+VA ones, with any per-device overrides from the profile applied when
+// a message is sent. Ports can always be chosen by hand in <fm1-panel>.
 
-const PORT_MATCH = /fm-?1|ota-fm|felucca|usb composite device|usb-midi/i;
-const AUDIO_MATCH = /fm-?1/i;
+import { audio, clamp } from '../audio/core.js';
+import { device, onDeviceChange } from '../ui/device.js';
+
+const portMatch = () => device().portMatch;
+const audioMatch = () => device().audioMatch;
 
 // Preset settings, sent on the FM-1's MIDI channel. Values 0–127 cover each
 // setting's whole range; lists split 0–127 into equal bands.
@@ -37,6 +44,17 @@ export const FX_CC = {
   chorus: { on: 16, rate: 17, depth: 18, mix: 19 },
 };
 const REVERB_TYPES = ['room', 'hall', 'plate'];
+
+// The CC for a setting on the selected device: the profile's override if it
+// has one (a number, or null for "not available"), otherwise the map above.
+export function vaCc(key) {
+  const o = device().cc?.VA;
+  return o && Object.hasOwn(o, key) ? (o[key] ?? undefined) : VA_CC[key];
+}
+export function fxCc(effect, field) {
+  const o = device().cc?.FX?.[effect];
+  return o && Object.hasOwn(o, field) ? (o[field] ?? undefined) : FX_CC[effect]?.[field];
+}
 
 // The FM-1's own panel, also on the MIDI channel.
 export const PANEL_CC = { knob1: 85, knob2: 86, knob3: 87, knob4: 88 };
@@ -85,6 +103,9 @@ class FM1Link extends EventTarget {
     this.monitoring = false;
     // Leaving the page mid-chord shouldn't leave the FM-1 droning.
     window.addEventListener('pagehide', () => this.releaseAll());
+    // A different device may match a port the last one didn't. Ports the
+    // user picked by hand are remembered by id and still win.
+    onDeviceChange(() => { if (this.access && !this.output) { this._pickPorts(); this._emit('change'); } });
   }
 
   get status() {
@@ -136,7 +157,7 @@ class FM1Link extends EventTarget {
     const savedIn = storage('fm1.inId');
     const savedOut = storage('fm1.outId');
     const pick = (list, saved) => list.find((p) => p.id === saved && p.state === 'connected')
-      || list.find((p) => PORT_MATCH.test(p.name) && p.state === 'connected') || null;
+      || list.find((p) => portMatch().test(p.name) && p.state === 'connected') || null;
     this.selectInput(pick(inputs, savedIn)?.id ?? null, false);
     const out = pick(outputs, savedOut);
     if (out !== this.output) this.releaseAll();
@@ -234,7 +255,7 @@ class FM1Link extends EventTarget {
   // Set one course parameter on the FM-1. Returns false if it has no CC.
   sendParam(key, value, throttled = true) {
     if (!this.output) return false;
-    const num = VA_CC[key];
+    const num = vaCc(key);
     if (num === undefined) return false;
     (throttled ? this.ccThrottled : this.cc).call(this, num, ccValue(key, value));
     return true;
@@ -242,7 +263,7 @@ class FM1Link extends EventTarget {
 
   sendFx(effect, key, value) {
     if (!this.output) return false;
-    const num = FX_CC[effect]?.[key];
+    const num = fxCc(effect, key);
     if (num === undefined) return false;
     let raw = value;
     if (key === 'on') raw = value ? 127 : 0;
@@ -256,19 +277,21 @@ class FM1Link extends EventTarget {
     if (!this.output) return 0;
     let n = 0;
     for (const key of Object.keys(VA_CC)) {
-      if (params[key] === undefined) continue;
-      this.cc(VA_CC[key], ccValue(key, params[key]));
+      const num = vaCc(key);
+      if (params[key] === undefined || num === undefined) continue;
+      this.cc(num, ccValue(key, params[key]));
       n++;
     }
     for (const effect of Object.keys(FX_CC)) {
       const fx = params.fx?.[effect];
       if (!fx) continue;
       for (const key of Object.keys(FX_CC[effect])) {
-        if (fx[key] === undefined) continue;
+        const num = fxCc(effect, key);
+        if (fx[key] === undefined || num === undefined) continue;
         let raw = fx[key];
         if (key === 'on') raw = fx[key] ? 127 : 0;
         else if (key === 'type') raw = Math.max(0, REVERB_TYPES.indexOf(fx[key]));
-        this.cc(FX_CC[effect][key], raw, this.fxChannel);
+        this.cc(num, raw, this.fxChannel);
         n++;
       }
     }
@@ -291,7 +314,7 @@ class FM1Link extends EventTarget {
       // First time through, device names appear only after permission. If the
       // FM-1 is plugged in but we opened the default mic, switch to the FM-1.
       if (!deviceId) {
-        const fm = (await this.audioInputs()).find((d) => AUDIO_MATCH.test(d.label));
+        const fm = (await this.audioInputs()).find((d) => audioMatch().test(d.label));
         const current = stream.getAudioTracks()[0]?.getSettings().deviceId;
         if (fm && fm.deviceId !== current) {
           stream.getTracks().forEach((t) => t.stop());
@@ -317,13 +340,15 @@ class FM1Link extends EventTarget {
     const track = stream.getAudioTracks()[0];
     const id = track?.getSettings().deviceId;
     if (id) storage('fm1.audioId', id);
-    storage('fm1.audioIsFm1', AUDIO_MATCH.test(track?.label || '') ? '1' : '0');
+    storage('fm1.audioIsFm1', audioMatch().test(track?.label || '') ? '1' : '0');
     if (track) track.onended = () => this.disconnectAudio();
     this._emit('change');
     return this.status;
   }
 
-  get isFm1Audio() { return AUDIO_MATCH.test(this.stream?.getAudioTracks()[0]?.label || ''); }
+  // True when the open audio input looks like the selected device.
+  get isDeviceAudio() { return audioMatch().test(this.stream?.getAudioTracks()[0]?.label || ''); }
+  get isFm1Audio() { return this.isDeviceAudio; }
 
   disconnectAudio(emit = true) {
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());

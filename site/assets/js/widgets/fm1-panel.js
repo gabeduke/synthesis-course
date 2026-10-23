@@ -1,10 +1,12 @@
-// <fm1-panel> — connect an FM-1 over USB. Two forms:
+// <fm1-panel> — connect the instrument over USB. Named for the FM-1, but its
+// labels follow the selected device (ui/device.js). Two forms:
 //   <fm1-panel compact>  status lights + a button that opens the full panel
 //   <fm1-panel>          the full panel inline (used in "Start here")
 
 import { fm1 } from '../hw/fm1.js';
 import { noteName, resume } from '../audio/core.js';
 import { el } from '../ui/controls.js';
+import { device, deviceLabel, devName, ctl, onDeviceChange } from '../ui/device.js';
 
 let popoverCount = 0;
 
@@ -15,11 +17,11 @@ function body(panel) {
   // MIDI
   const midiBtn = el('button', { class: 'btn hw', type: 'button', text: 'Connect MIDI' });
   const midiState = el('span', { class: 'light' }, el('span', { text: 'Not connected' }));
-  const inSel = el('select', { 'aria-label': 'MIDI input (FM-1 keys into the page)' });
-  const outSel = el('select', { 'aria-label': 'MIDI output (page to FM-1)' });
+  const inSel = el('select', { 'aria-label': 'MIDI input (instrument keys into the page)' });
+  const outSel = el('select', { 'aria-label': 'MIDI output (page to instrument)' });
   const ports = el('div', { class: 'pair' }, [
-    el('label', {}, [el('span', { text: 'From FM-1 (input)' }), inSel]),
-    el('label', {}, [el('span', { text: 'To FM-1 (output)' }), outSel]),
+    el('label', {}, [el('span', {}, ['From ', devName(), ' (input)']), inSel]),
+    el('label', {}, [el('span', {}, ['To ', devName(), ' (output)']), outSel]),
   ]);
 
   // Audio
@@ -34,15 +36,15 @@ function body(panel) {
   const fxCh = el('input', { type: 'number', min: 1, max: 16, value: fm1.fxChannel });
   const keysPlay = el('input', { type: 'checkbox', id: `kp-${popoverCount}` });
   keysPlay.checked = fm1.keysPlayPage;
-  const keysPlayLab = el('label', { class: 'switch', for: keysPlay.id, style: '--c: var(--hw)' }, [keysPlay, el('span', { text: 'FM-1 keys also play the page’s synth' })]);
-  const testBtn = el('button', { class: 'btn', type: 'button', text: 'Play a test note on the FM-1' });
+  const keysPlayLab = el('label', { class: 'switch', for: keysPlay.id, style: '--c: var(--hw)' }, [keysPlay, el('span', {}, [devName(), ' keys also play the page’s synth'])]);
+  const testBtn = el('button', { class: 'btn', type: 'button' }, ['Play a test note on the ', devName()]);
   const lastKey = el('span', { class: 'msg', text: '' });
 
   const refresh = async () => {
     const s = fm1.status;
     midiState.toggleAttribute('data-on', s.midiIn || s.midiOut);
     midiState.firstChild.textContent = s.midiIn || s.midiOut
-      ? `Connected${s.outputName ? `: ${s.outputName}` : ''}` : (fm1.access ? 'No FM-1 port selected' : 'Not connected');
+      ? `Connected${s.outputName ? `: ${s.outputName}` : ''}` : (fm1.access ? `No ${deviceLabel()} port selected` : 'Not connected');
     midiBtn.hidden = !!fm1.access;
     ports.hidden = !fm1.access;
     const { inputs, outputs } = fm1.ports();
@@ -70,7 +72,9 @@ function body(panel) {
   midiBtn.addEventListener('click', async () => {
     try {
       await fm1.connectMidi();
-      say(fm1.output ? 'Found the FM-1. Turning a slider with “Mirror to FM-1” on now moves its sound.' : 'MIDI is on, but no FM-1 port was found. Plug it in, or pick its port below.');
+      say(fm1.output
+        ? `Found the ${deviceLabel()}. Turning a slider with “Mirror to ${deviceLabel()}” on now moves its sound.`
+        : `MIDI is on, but no ${deviceLabel()} port was found. Plug it in, or pick its port below.`);
     } catch (err) { say(err.message || 'MIDI permission was refused.', true); }
   });
   inSel.addEventListener('change', () => fm1.selectInput(inSel.value || null));
@@ -82,7 +86,7 @@ function body(panel) {
       await resume();
       await fm1.connectAudio();
       const label = fm1.status.audioName || '';
-      say(/fm-?1/i.test(label) ? 'Listening to the FM-1. Its signal draws in purple on every scope.' : `Listening to “${label}”. If that isn’t the FM-1, pick it from the list.`);
+      say(fm1.isDeviceAudio ? `Listening to the ${deviceLabel()}. Its signal draws in purple on every scope.` : `Listening to “${label}”. If that isn’t the ${deviceLabel()}, pick it from the list.`);
     } catch (err) {
       say(err.name === 'NotAllowedError' ? 'Audio permission was refused. Allow microphone access for this site to listen.' : (err.message || 'Couldn’t open the audio input.'), true);
     }
@@ -98,15 +102,29 @@ function body(panel) {
   testBtn.addEventListener('click', () => {
     fm1.noteOn(60, 0.8);
     setTimeout(() => fm1.noteOff(60), 600);
-    say('Sent middle C. If the FM-1 played it, the output port is right.');
+    say(`Sent middle C. If the ${deviceLabel()} played it, the output port is right.`);
   });
 
   fm1.addEventListener('change', refresh);
-  fm1.addEventListener('noteon', (e) => { lastKey.textContent = `Last key from the FM-1: ${noteName(e.detail.note)}`; });
+  fm1.addEventListener('noteon', (e) => { lastKey.textContent = `Last key from the ${deviceLabel()}: ${noteName(e.detail.note)}`; });
+
+  const heading = el('h3');
+  const intro = el('p');
+  const chNote = el('p');
+  const words = () => {
+    const d = deviceLabel();
+    heading.textContent = `Connect ${device().article || 'a'} ${d}`;
+    intro.textContent = `Plug it in with a ${device().cable || 'USB'} data cable. MIDI lets the page play the ${d} and set its Virtual Analog controls; audio lets the page draw what the ${d} is really doing. Both are optional.`;
+    chNote.textContent = d === 'FM-1'
+      ? 'These match GLO › MIDI on the FM-1. The defaults (All and 2) work without changes.'
+      : `These match ${ctl('GLO')} › MIDI on the ${d}. If notes play but settings don’t move, check the channels there.`;
+  };
+  words();
+  onDeviceChange(() => { words(); refresh(); });
 
   const node = el('div', { class: 'fm1-body' }, [
-    el('h3', { text: 'Connect an FM-1' }),
-    el('p', { text: 'Plug it in with a USB-C data cable. MIDI lets the page play the FM-1 and set its Virtual Analog controls; audio lets the page draw what the FM-1 is really doing. Both are optional.' }),
+    heading,
+    intro,
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports]),
     el('hr'),
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab]),
@@ -117,7 +135,7 @@ function body(panel) {
         el('label', {}, [el('span', { text: 'MIDI channel' }), midiCh]),
         el('label', {}, [el('span', { text: 'FX channel' }), fxCh]),
       ]),
-      el('p', { text: 'These match GLO › MIDI on the FM-1. The defaults (All and 2) work without changes.' }),
+      chNote,
       keysPlayLab,
       el('div', { style: 'display:flex;gap:12px;align-items:center;flex-wrap:wrap' }, [testBtn, lastKey]),
     ]),
@@ -144,16 +162,20 @@ class FM1Panel extends HTMLElement {
     const midi = el('span', { class: 'light' }, el('span', { text: 'MIDI' }));
     const aud = el('span', { class: 'light' }, el('span', { text: 'Audio' }));
     const id = `fm1-pop-${++popoverCount}`;
-    const btn = el('button', { class: 'btn hw', type: 'button', popovertarget: id, text: 'FM-1' });
+    const btn = el('button', { class: 'btn hw', type: 'button', popovertarget: id, text: deviceLabel() });
     const pop = el('div', { id, popover: 'auto', class: 'fm1-popover' }, body(this));
-    this.append(el('div', { class: 'fm1-chip' }, [el('span', { class: 'lights', 'aria-label': 'FM-1 status' }, [midi, aud]), btn]), pop);
+    const lights = el('span', { class: 'lights' }, [midi, aud]);
+    this.append(el('div', { class: 'fm1-chip' }, [lights, btn]), pop);
     const update = () => {
       const s = fm1.status;
+      const d = deviceLabel();
       midi.toggleAttribute('data-on', s.midiIn || s.midiOut);
       aud.toggleAttribute('data-on', s.audio);
-      btn.textContent = s.midiOut || s.audio ? 'FM-1' : 'Connect FM-1';
+      btn.textContent = s.midiOut || s.audio ? d : `Connect ${d}`;
+      lights.setAttribute('aria-label', `${d} status`);
     };
     fm1.addEventListener('change', update);
+    onDeviceChange(update);
     fm1.addEventListener('noteon', () => {
       midi.setAttribute('data-flash', '');
       clearTimeout(this._flash);
