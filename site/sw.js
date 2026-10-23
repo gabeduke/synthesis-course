@@ -19,7 +19,7 @@
  */
 'use strict';
 
-const VERSION = '73893df10820';
+const VERSION = '71b9d6d3727e';
 const PRECACHE = [
   "./",
   "assets/css/course.css",
@@ -75,7 +75,12 @@ const FONTS = 'signal-path-fonts';
 const OFFLINE = 'offline.html';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+  // cache: 'reload' skips the browser's own HTTP cache. GitHub Pages lets
+  // browsers keep files for ten minutes, and a plain addAll() would happily
+  // store the old copies of a file it fetched just before a deploy, leaving
+  // the new version "installed" but still showing the old course.
+  event.waitUntil(caches.open(CACHE).then((cache) =>
+    cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' })))));
 });
 
 self.addEventListener('activate', (event) => {
