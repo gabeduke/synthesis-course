@@ -18,6 +18,15 @@ export function registerInstrument(inst) {
   const claim = () => setActive(inst);
   inst.root.addEventListener('pointerdown', claim, { capture: true });
   inst.root.addEventListener('focusin', claim);
+  new IntersectionObserver(([e]) => { inst._inView = e.isIntersecting; }).observe(inst.root);
+}
+
+// Where the instrument's keys, wheels and knobs go: the panel you used last,
+// or before you've used one, the first one on screen.
+export function hardwareTarget() {
+  if (active) return active;
+  const all = [...instruments];
+  return all.find((i) => i._inView) || all[0] || null;
 }
 
 export function setActive(inst) {
@@ -77,7 +86,7 @@ window.addEventListener('blur', () => {
 // another panel while holding it.
 const hwHeld = new Map();
 fm1.addEventListener('noteon', (e) => {
-  const inst = active || [...instruments][0];
+  const inst = hardwareTarget();
   if (!inst) return;
   const { note, velocity } = e.detail;
   inst.showHardwareNote?.(note, true);
@@ -93,6 +102,23 @@ fm1.addEventListener('noteoff', (e) => {
   hwHeld.delete(e.detail.note);
   h.inst.showHardwareNote?.(e.detail.note, false);
   if (h.plays) h.inst.noteOff(e.detail.note, 'fm1');
+});
+
+// Wheels, pedal and knobs. The wheels and pedal shape whatever the panel is
+// playing, from any source. A knob the page knows (fm1.js's paramFromCc)
+// moves the same control on the panel, while "knobs move the page" is on.
+// Instruments opt in by having the method.
+fm1.addEventListener('bend', (e) => hardwareTarget()?.hwBend?.(e.detail.value));
+// Pressure (aftertouch) does what the wheel does, as on the firmware; the
+// further of the two wins.
+let wheel = 0;
+let pressure = 0;
+const mod = () => hardwareTarget()?.hwMod?.(Math.max(wheel, pressure));
+fm1.addEventListener('mod', (e) => { wheel = e.detail.value; mod(); });
+fm1.addEventListener('pressure', (e) => { pressure = e.detail.value; mod(); });
+fm1.addEventListener('sustain', (e) => hardwareTarget()?.hwSustain?.(e.detail.on));
+fm1.addEventListener('param', (e) => {
+  if (fm1.followHw) hardwareTarget()?.hwParam?.(e.detail.key, e.detail.value, e.detail);
 });
 
 // ---------- Drawn keyboard ----------

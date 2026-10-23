@@ -20,6 +20,9 @@
 //               "where it lives" paths in ui/params.js.
 //   portMatch   regex for the USB MIDI port name, to pick it automatically
 //   audioMatch  regex for the USB audio input name, to listen to it
+//   bleName     the name it advertises over Bluetooth MIDI, if known
+//   bendRange   semitones each way the firmware bends by default, so the
+//               page's synth bends as far as the instrument does
 //   cc          overrides for ../hw/fm1.js's CC maps, as { VA: {...}, FX: {...} }
 //               (none known: the SMK-37+VA manual lists the same numbers)
 //   notes       short facts and open questions about the device, for the README
@@ -83,22 +86,25 @@ export const DEVICES = {
       'OCT+': 'OCTAVE+',
       'OCT-': 'OCTAVE−',
     },
-    // UNVERIFIED: nobody has reported the names the SMK-37+VA firmware gives
-    // its USB MIDI port and USB audio input yet. These are permissive guesses
-    // (the model name, the other boards the firmware runs on, and the generic
-    // names many USB MIDI devices use). If auto-matching misses, pick the
-    // port by hand in the connection panel, and please report the real names
-    // so these can be tightened.
+    // Seen on a Mac with an SMK-37 on SMK-37+VA: the USB MIDI port is named
+    // "SMK-37+VA" and the USB audio device "SMK-37+VA Audio" (2 channels in,
+    // 2 out, 44.1 kHz). The other names cover the boards the same firmware
+    // runs on, and the generic names many USB MIDI devices use; ports with
+    // the model's name are preferred over generic ones (see fm1.js).
     portMatch: /smk-?37|starrykey|mke-?p37|usb-midi|usb composite device/i,
     audioMatch: /smk-?37|starrykey/i,
+    // Advertised in Bluetooth Device mode, with the standard BLE MIDI service.
+    bleName: 'SMK-37+VA_BLE',
+    // GLOBE › Bend Up / Bend Down, 1–24, start at 12.
+    bendRange: 12,
     cc: {},
     notes: [
       'Checked against the SMK-37+VA version 102 manual (October 2026). The same firmware also runs on the SMK-37 Pro, Donner Starrykey-37 Play and EROK MKE-P37.',
       'Four faders with their own bank (FADER BANK), starting on the Mixer bank. Eleven banks: the FM-1’s ten plus MIDI CC.',
       'Sixteen pads in three banks (Sequencer, Notes, Presets), switched with KNOB BANK and FADER BANK together.',
-      'PITCH and MOD wheels; a sustain pedal jack read at power-on.',
-      'Unverified: USB MIDI port and audio device names, Elite-specific differences, how the wheels and sustain pedal interact with the Virtual Analog engine, pad aftertouch after version 101.',
-      'Unverified: Bluetooth MIDI. The SMK-37 has a BT button (Device or Host mode), but whether it offers standard BLE MIDI that the panel’s Connect over Bluetooth button can reach, and in which mode, hasn’t been tested.',
+      'PITCH and MOD wheels; a sustain pedal jack read at power-on. It sends pitch bend, the mod wheel as CC 1 and the pedal as CC 64; with GLOBE › MIDI › Send CC on, every panel change goes out as the CC it receives for it.',
+      'Tested from a Mac: USB MIDI port "SMK-37+VA", USB audio "SMK-37+VA Audio", and standard BLE MIDI advertised as "SMK-37+VA_BLE" in BT Device mode (read, write-without-response and notify; notes sent over it played).',
+      'Unverified: Elite-specific differences, how the wheels and sustain pedal interact with the Virtual Analog engine, pad aftertouch after version 101.',
     ],
   },
 };

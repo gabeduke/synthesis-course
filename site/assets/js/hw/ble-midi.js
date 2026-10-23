@@ -236,7 +236,9 @@ export class BleMidi extends EventTarget {
     this._flushing = false;
     this._manual = false;
     this._onValue = (e) => this._receive(e.target.value);
-    this._onGone = () => { logBle(`Link dropped (was ${this.state})`); this._disconnected(); };
+    // Chrome fires this during our own gatt.disconnect() too; only a drop we
+    // didn't ask for is worth calling one.
+    this._onGone = () => { logBle(this._manual ? 'Link closed' : `Link dropped (was ${this.state})`); this._disconnected(); };
     // Android drops Bluetooth links while the screen is off or the page is in
     // the background. Try once more when the page comes back.
     if (typeof document !== 'undefined') {

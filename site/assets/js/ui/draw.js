@@ -173,3 +173,96 @@ export function makeAnalyser(ctx, fftSize = 4096, smoothing = 0.55) {
   a.smoothingTimeConstant = smoothing;
   return a;
 }
+
+// A small oscilloscope inside a box, scaled to fill its height whatever the
+// level (the box's level bar shows how loud it really is). `agc` is an object
+// the caller keeps between frames so the scale moves smoothly.
+export function drawMiniWave(g, x, y, w, h, analyser, { color, span = 512, agc = {}, lineWidth = 1.4 } = {}) {
+  const data = bufFor(analyser, 'time');
+  analyser.getFloatTimeDomainData(data);
+  const n = Math.min(span, data.length >> 1);
+  const start = trigger(data, data.length - n);
+  let peak = 0;
+  for (let i = 0; i < data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+  agc.peak = Math.max(peak, (agc.peak || 0) * 0.94);
+  const gain = agc.peak > 0.002 ? (h * 0.44) / agc.peak : 0;
+  g.strokeStyle = color;
+  g.lineWidth = lineWidth;
+  g.lineJoin = 'round';
+  g.beginPath();
+  for (let i = 0; i < n; i++) {
+    const px = x + (i / (n - 1)) * w;
+    const py = y + h / 2 - data[start + i] * gain;
+    if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+  }
+  g.stroke();
+  return peak;
+}
+
+// Spectrogram: time runs from right to left, pitch from bottom to top on a
+// log scale, and loudness is the strength of the color. It keeps its own
+// scrolling picture, so make one per canvas and call draw() once a frame
+// with each source to paint, as { analyser, color }.
+const SONO_LO = 30;
+const SONO_HI = 16000;
+export class Sonogram {
+  constructor() {
+    this.img = document.createElement('canvas');
+    this.ig = this.img.getContext('2d');
+  }
+
+  draw(canvas, g, w, h, sources) {
+    const c = colors();
+    const W = canvas.width;
+    const H = canvas.height;
+    if (!W || !H) return; // hidden (focus-only view, just closed)
+    const dpr = W / Math.max(1, w);
+    const { img, ig } = this;
+    if (img.width !== W || img.height !== H) {
+      img.width = W;
+      img.height = H;
+      ig.fillStyle = c.surface2;
+      ig.fillRect(0, 0, W, H);
+    }
+    // One CSS pixel a frame: about ten seconds across a 600-pixel panel.
+    const dx = Math.max(1, Math.round(dpr));
+    ig.globalAlpha = 1;
+    ig.drawImage(img, -dx, 0);
+    ig.fillStyle = c.surface2;
+    ig.fillRect(W - dx, 0, dx, H);
+    const step = Math.max(1, Math.round(dpr * 1.5));
+    for (const { analyser, color } of sources) {
+      if (!analyser) continue;
+      const data = bufFor(analyser, 'freq');
+      analyser.getFloatFrequencyData(data);
+      const binHz = analyser.context.sampleRate / analyser.fftSize;
+      ig.fillStyle = color;
+      for (let py = 0; py < H; py += step) {
+        const fTop = SONO_LO * Math.pow(SONO_HI / SONO_LO, 1 - py / H);
+        const fBot = SONO_LO * Math.pow(SONO_HI / SONO_LO, 1 - (py + step) / H);
+        const i0 = Math.max(1, Math.floor(fBot / binHz));
+        const i1 = Math.max(i0, Math.min(data.length - 1, Math.ceil(fTop / binHz)));
+        let m = -Infinity;
+        for (let i = i0; i <= i1; i++) m = Math.max(m, data[i]);
+        const t = (m + 92) / 70;
+        if (!(t > 0.03)) continue;
+        ig.globalAlpha = Math.min(1, t) ** 1.6;
+        ig.fillRect(W - dx, py, dx, step);
+      }
+    }
+    ig.globalAlpha = 1;
+    g.drawImage(img, 0, 0, w, h);
+    // Pitch marks on the left edge.
+    g.fillStyle = c.ink3;
+    g.strokeStyle = c.grid;
+    g.font = '10px Archivo, sans-serif';
+    g.lineWidth = 1;
+    g.beginPath();
+    for (const [f, label] of [[100, '100'], [1000, '1k'], [10000, '10k']]) {
+      const y = Math.round(h * (1 - Math.log(f / SONO_LO) / Math.log(SONO_HI / SONO_LO))) + 0.5;
+      g.moveTo(0, y); g.lineTo(w, y);
+      if (y > 34) g.fillText(label, 6, y - 3); // none under the view's name
+    }
+    g.stroke();
+  }
+}

@@ -97,14 +97,27 @@
       <h2>Practice: one knob, one pass</h2>
       <p>Hold a chord below (or latch the arpeggiator on the <span class="dev-name">FM-1</span> and turn on Mirror to <span class="dev-name">FM-1</span>), then spend a full minute moving <em>only</em> Cutoff. Slow sweeps, sudden drops, tiny wobbles. Then do the same with Resonance, then with Filter envelope. Learning what one knob can do on its own is how you find the moves you’ll actually use.</p>
 
-      <synth-lab heading="Practice panel" intro="Hold a chord, then work one control at a time." controls="cutoff resonance filterEnv lfoToCutoff super detune" preset='{"waveform":"saw","super":50,"detune":35,"filterType":"lp24","cutoff":900,"resonance":40,"filterEnv":25,"filterDecay":45,"lfoToCutoff":0,"lfoSpeed":30,"attack":5,"sustain":90,"release":50,"fx":{"reverb":{"on":true,"type":"hall","decay":50,"mix":30}}}' views="spectrum wave" filter-curve chord="45 52 57 60"></synth-lab>
+      <synth-lab heading="Practice panel" intro="Hold a chord, then work one control at a time." controls="cutoff resonance filterEnv lfoToCutoff super detune" preset='{"waveform":"saw","super":50,"detune":35,"filterType":"lp24","cutoff":900,"resonance":40,"filterEnv":25,"filterDecay":45,"lfoToCutoff":0,"lfoSpeed":30,"attack":5,"sustain":90,"release":50,"fx":{"reverb":{"on":true,"type":"hall","decay":50,"mix":30}}}' views="spectrum sono wave" filter-curve chord="45 52 57 60"></synth-lab>
+
+      <p>The middle picture is a spectrogram: time runs from right to left and pitch from bottom to top, so a minute of one knob leaves a trail you can read back. A filter sweep is a ceiling rising and falling over the harmonics; resonance is a bright line riding along its edge.</p>
+
+      <aside class="on-device" data-device="smk37">
+        <h3>Practise on the SMK-37’s own knobs</h3>
+        <p>With the SMK-37 connected, the practice panel follows its knobs, so the minute above can be spent on the real controls while the page draws them:</p>
+        <ul>
+          <li>Switch on <span class="btn-name">GLOBE</span> › MIDI › Send CC. Every setting you change on the SMK-37 then moves here too: the slider glows purple, and the line under the panel names the setting and the number it came in on.</li>
+          <li>Or put the knobs on the MIDI CC bank: K5 to K8 then send CC 74, 71, 73 and 72, which the page reads as Cutoff, Resonance, Attack and Release.</li>
+          <li>The pitch wheel bends the page’s synth as far as the SMK-37 bends its own (12 semitones, the SMK-37’s starting Bend Up and Bend Down), the mod wheel adds vibrato from the panel’s LFO, and the sustain pedal holds notes.</li>
+          <li>Press <span class="btn-name">Focus</span> on the panel to fill the screen with it, scopes and spectrogram included, while you play.</li>
+        </ul>
+      </aside>
 
       <h2>Adding a controller</h2>
       <p data-device="fm1">The FM-1 listens to MIDI control messages, so a keyboard or controller with knobs can play it too. The FM-1+VA manual lists them, and a few are especially handy for performing:</p>
-      <p data-device="smk37">The SMK-37 listens to MIDI control messages too, so another keyboard or controller with knobs can play it. The numbers below are the FM-1+VA ones the page itself sends; the SMK-37+VA manual lists the same envelope numbers (CC 73, 75, 70 and 72), so check its MIDI chapter for the rest on your unit:</p>
+      <p data-device="smk37">The SMK-37 listens to MIDI control messages too, so another keyboard or controller with knobs can play it. The SMK-37+VA manual’s MIDI chapter lists the same numbers as the FM-1+VA’s for the Virtual Analog settings and the effects, which are the ones the page sends. A few worth knowing:</p>
       <ul>
         <li data-device="fm1"><strong>CC 85 to 88</strong> turn KNOB1 to KNOB4.</li>
-        <li data-device="smk37">On the FM-1, <strong>CC 85 to 88</strong> turn its four knobs. The SMK-37+VA manual this course was checked against doesn’t list numbers for turning K5 to K8 from outside, so look in its MIDI chapter.</li>
+        <li data-device="smk37"><strong>CC 85 to 88</strong> turn K5 to K8, as they turn the FM-1’s four knobs. Its buttons, and stepping K1 to K3, have numbers too (CC 89, 90 and 102 to 119); only <span class="btn-name">PATCH</span> has none.</li>
         <li>On a Virtual Analog preset, <strong>CC 74</strong> sets Cutoff and <strong>CC 71</strong> Resonance, the numbers many controllers already send from their first knobs.</li>
         <li>Notes, velocity and pitch bend work as usual, and the mod wheel and aftertouch push the LFO. Keep your controller on the <span class="dev-name">FM-1</span>’s MIDI channel, not its FX channel (2 by default), or some controls are read as effect settings.</li>
       </ul>

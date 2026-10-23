@@ -3,7 +3,7 @@
 //   <fm1-panel compact>  status lights + a button that opens the full panel
 //   <fm1-panel>          the full panel inline (used in "Start here")
 
-import { fm1 } from '../hw/fm1.js';
+import { fm1, describeMidi } from '../hw/fm1.js';
 import { bleErrorKind, getBleLog, clearBleLog, bleLogEvents } from '../hw/ble-midi.js';
 import { noteName, resume } from '../audio/core.js';
 import { el } from '../ui/controls.js';
@@ -31,7 +31,7 @@ function body(panel) {
   const bleState = el('span', { class: 'light' }, el('span', { text: 'Not connected' }));
   const bleAbout = el('p');
   const bleHint = el('p', { 'data-device': 'smk37', class: 'ble-hint' },
-    'On the SMK-37, switch Bluetooth on with the BT button first (check on your unit whether it needs to be in Device mode), and unpair it in the tablet’s Bluetooth settings if the list comes up empty.');
+    'On the SMK-37, press BT until GLOBE › BT Mode says Device; it then shows up in the list as SMK-37+VA_BLE. If the list comes up empty, unpair it in the computer’s or tablet’s Bluetooth settings, or disconnect it from any app that has it. On a Mac you can instead pair it in Audio MIDI Setup (Window › Show MIDI Studio, then the Bluetooth button): it then appears in the port lists above, and the page prefers the USB port while both are there.');
   const bleNote = el('p', { class: 'ble-note' });
   const usbNote = el('p', { text: 'Bluetooth is connected, so the page sends and listens over Bluetooth only. These USB ports take over again when it disconnects.' });
   const bleCan = fm1.supported.bluetooth;
@@ -78,11 +78,43 @@ function body(panel) {
   const keysPlay = el('input', { type: 'checkbox', id: `kp-${popoverCount}` });
   keysPlay.checked = fm1.keysPlayPage;
   const keysPlayLab = el('label', { class: 'switch', for: keysPlay.id, style: '--c: var(--hw)' }, [keysPlay, el('span', {}, [devName(), ' keys also play the page’s synth'])]);
+  const follow = el('input', { type: 'checkbox', id: `fh-${popoverCount}` });
+  follow.checked = fm1.followHw;
+  const followLab = el('label', { class: 'switch', for: follow.id, style: '--c: var(--hw)' }, [follow, el('span', {}, [devName(), ' knobs and wheels move the page'])]);
+  const followHint = el('p', { 'data-device': 'smk37', class: 'hw-hint' },
+    'Switch on GLOBE › MIDI › Send CC on the SMK-37 and every setting you change there moves here too; on the MIDI CC knob bank, K5 to K8 move Cutoff, Resonance, Attack and Release. The pitch and mod wheels and the sustain pedal always reach the page.');
+
+  // MIDI monitor: everything arriving from the instrument, decoded, newest at
+  // the bottom. Clock and active sensing would drown the rest, so they're counted.
+  const monPre = el('pre', { class: 'midi-mon', tabindex: '0', 'aria-label': 'Incoming MIDI messages' });
+  const monClear = el('button', { class: 'btn', type: 'button', text: 'Clear' });
+  const monitorBox = el('details', { class: 'midi-log' }, [el('summary', {}, ['MIDI from the ', devName()]), monPre, monClear]);
+  const monLines = [];
+  let monTicks = 0;
+  let monDirty = false;
+  const monShow = () => {
+    monDirty = false;
+    monPre.textContent = (monLines.join('\n') || 'Nothing yet. Play a key or turn a knob.') + (monTicks ? `\n(${monTicks} clock messages)` : '');
+    monPre.scrollTop = monPre.scrollHeight;
+  };
+  fm1.addEventListener('midi', (e) => {
+    const status = e.detail.data[0];
+    if (status === 0xf8 || status === 0xfe) { monTicks++; return; }
+    const t = new Date();
+    monLines.push(`${t.toLocaleTimeString([], { hour12: false })}.${String(t.getMilliseconds()).padStart(3, '0')}  ${describeMidi(e.detail.data, fm1.fxChannel)}`);
+    if (monLines.length > 60) monLines.shift();
+    if (monitorBox.open && !monDirty) { monDirty = true; requestAnimationFrame(monShow); }
+  });
+  monitorBox.addEventListener('toggle', monShow);
+  monClear.addEventListener('click', () => { monLines.length = 0; monTicks = 0; monShow(); });
   const testBtn = el('button', { class: 'btn', type: 'button' }, ['Play a test note on the ', devName()]);
   const lastKey = el('span', { class: 'msg', text: '' });
 
   const refresh = async () => {
     const s = fm1.status;
+    // The header's panel and an inline one can both be on the page.
+    keysPlay.checked = fm1.keysPlayPage;
+    follow.checked = fm1.followHw;
     midiState.toggleAttribute('data-on', s.midiIn || s.midiOut);
     midiState.firstChild.textContent = s.midiIn || s.midiOut
       ? `Connected${s.outputName ? `: ${s.outputName}` : ''}` : (fm1.access ? `No ${deviceLabel()} port selected` : 'Not connected');
@@ -186,6 +218,7 @@ function body(panel) {
   midiCh.addEventListener('change', setCh);
   fxCh.addEventListener('change', setCh);
   keysPlay.addEventListener('change', () => fm1.setKeysPlayPage(keysPlay.checked));
+  follow.addEventListener('change', () => fm1.setFollowHw(follow.checked));
   testBtn.addEventListener('click', () => {
     fm1.noteOn(60, 0.8);
     setTimeout(() => fm1.noteOff(60), 600);
@@ -227,7 +260,10 @@ function body(panel) {
       ]),
       chNote,
       keysPlayLab,
+      followLab,
+      followHint,
       el('div', { style: 'display:flex;gap:12px;align-items:center;flex-wrap:wrap' }, [testBtn, lastKey]),
+      monitorBox,
     ]),
     msg,
   ]);
@@ -266,7 +302,8 @@ class FM1Panel extends HTMLElement {
     };
     fm1.addEventListener('change', update);
     onDeviceChange(update);
-    fm1.addEventListener('noteon', () => {
+    fm1.addEventListener('midi', (e) => {
+      if (e.detail.data[0] >= 0xf8) return;
       midi.setAttribute('data-flash', '');
       clearTimeout(this._flash);
       this._flash = setTimeout(() => midi.removeAttribute('data-flash'), 120);

@@ -89,6 +89,8 @@
         <li>Play the drawn keys with a mouse or finger, or use your computer keyboard: <kbd>A</kbd> to <kbd>K</kbd> are the white keys, the row above them the black keys, and <kbd>Z</kbd> and <kbd>X</kbd> shift the octave. The keyboard plays whichever panel you clicked last.</li>
         <li><span class="btn-name">Hold a chord</span> latches a chord so both hands are free for the sliders.</li>
         <li>Hover over or tab to any slider and the line under the panel says where the same setting lives on the <span class="dev-name">FM-1</span>.</li>
+        <li>The strip along the top of each panel is its <strong>signal path</strong>: the sound after the oscillators, after the filter, after the amp and after the effects, each drawn to fit its box, with a bar under it for how loud it really is. The envelope and the LFO sit above it, with a line to each thing they’re turned up to move. Click a stage and its sliders light up.</li>
+        <li><span class="btn-name">Focus</span> fills the screen with a panel and adds a bigger scope, spectrum and spectrogram. <kbd>Esc</kbd> brings the lesson back.</li>
         <li>Color tells you what kind of thing a control is: <span class="sig-sound">blue</span> shapes the sound itself, <span class="sig-time">amber</span> is about time, <span class="sig-move">pink</span> is movement, <span class="sig-space">green</span> is effects, and <span class="sig-hw">purple</span> is always the <span class="dev-name">FM-1</span>’s real signal.</li>
       </ul>
       <p>The page’s synth is a model of the FM-1’s Virtual Analog engine, built from the same parameter list and ranges. It’s close enough to learn from, but it won’t sound identical. That’s exactly why it’s useful to connect the real thing.</p>
@@ -100,7 +102,7 @@
 
       <ul>
         <li><strong>MIDI</strong> lets the page play notes on the <span class="dev-name">FM-1</span> and change its settings. The browser will ask permission to use MIDI devices.</li>
-        <li><strong>Audio</strong> lets the page listen to <span data-device="fm1">the FM-1, which is also a USB audio interface.</span><span data-device="smk37">the SMK-37, if it shows up on your computer as a USB audio input; check on your unit, since the manual doesn’t say.</span> Browsers call every audio input a microphone, so the permission prompt will say microphone. The page only analyzes the sound to draw it; nothing is recorded or sent anywhere.</li>
+        <li><strong>Audio</strong> lets the page listen to <span data-device="fm1">the FM-1, which is also a USB audio interface.</span><span data-device="smk37">the SMK-37, which is also a USB audio interface: it shows up as “SMK-37+VA Audio”.</span> Browsers call every audio input a microphone, so the permission prompt will say microphone. The page only analyzes the sound to draw it; nothing is recorded or sent anywhere.</li>
       </ul>
       <p>Once MIDI is connected, every panel gains three things:</p>
       <ul>
@@ -108,16 +110,24 @@
         <li><strong>Mirror to <span class="dev-name">FM-1</span></strong> makes each slider you move set the same control on the hardware, live.</li>
         <li><span class="btn-name">Send settings to FM-1</span> copies the whole panel to the <span class="dev-name">FM-1</span> in one go.</li>
       </ul>
+      <p>It works the other way too. Notes coming from the <span class="dev-name">FM-1</span>, and pitch bend, the mod wheel and a sustain pedal from an instrument that has them, reach the panel you used last, and so does any setting it sends as a MIDI control: the panel’s slider moves, glows purple for a moment, and the line under the panel says what arrived. Switch on <span class="dev-name">FM-1</span> keys also play the page’s synth in the connection panel to hear its keys on the page as well.</p>
+      <p data-device="smk37">On the SMK-37, switch on <span class="btn-name">GLOBE</span> › MIDI › Send CC and every setting you change on its panel goes out as the control the firmware itself listens to, so turning Cutoff there turns Cutoff here. On the MIDI CC knob bank, K5 to K8 move Cutoff, Resonance, Attack and Release, and the faders send volume, pan, reverb and chorus. The connection panel’s MIDI from the SMK-37 list shows every message as it arrives, which is the quickest way to see what a knob sends.</p>
       <p>Those last two change the preset that’s selected on the <span class="dev-name">FM-1</span>, so pick a Virtual Analog preset first (113 to 128 from the pack). They never save: <span data-device="fm1">the firmware has no MIDI control for SAVE, and </span>this page never sends the kind of patch data that would overwrite a preset, so nothing changes for good until you press <span class="btn-name">SAVE</span> yourself.</p>
 
       <synth-lab heading="Check that it works" intro="Press Hold a chord. With MIDI connected, try Play on: Both." controls="waveform" preset='{"waveform":"saw","cutoff":5000,"release":30}'></synth-lab>
 
       <p data-device="fm1">If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; its name should include “FM-1”.</p>
-      <p data-device="smk37">If the page plays but the SMK-37 doesn’t, open the SMK-37 panel in the top-right corner, press <span class="btn-name">Play a test note on the FM-1</span>, and if nothing plays, choose the SMK-37’s port from the output list yourself. The page picks the port by guessing from its name, and the name the SMK-37+VA firmware gives its USB MIDI port hasn’t been confirmed yet. The same goes for its audio input: if a purple trace never appears, choose it from the list, if your unit has one.</p>
+      <p data-device="smk37">If the page plays but the SMK-37 doesn’t, open the SMK-37 panel in the top-right corner and press <span class="btn-name">Play a test note on the FM-1</span>. Over USB the SMK-37+VA’s MIDI port is called “SMK-37+VA” and its audio input “SMK-37+VA Audio”, and the page picks both by name; if another device is selected, choose them from the lists yourself.</p>
 
       <aside class="on-device" data-device="smk37">
         <h3>Connecting the SMK-37 over Bluetooth</h3>
-        <p>The connection panel also has <span class="btn-name">Connect over Bluetooth</span>, in browsers that can use Bluetooth (Chrome on Android, Windows, macOS and ChromeOS). It talks to the keyboard over standard Bluetooth MIDI directly, which helps on a tablet where the paired SMK-37 never shows up in the MIDI port list. Switch Bluetooth on with the BT button first, and check on your unit whether it needs to be in Device mode. This hasn’t been tried with an SMK-37 yet: if it doesn’t connect or behaves oddly, use USB, and please report what happened.</p>
+        <p>The connection panel also has <span class="btn-name">Connect over Bluetooth</span>, in browsers that can use Bluetooth (Chrome on Android, Windows, macOS and ChromeOS). It talks to the keyboard over standard Bluetooth MIDI directly, which helps on a tablet where the paired SMK-37 never shows up in the MIDI port list.</p>
+        <ol>
+          <li>Press BT on the SMK-37 until <span class="btn-name">GLOBE</span> › BT Mode reads Device. (Host is for the other direction: the SMK-37 connecting to a Bluetooth MIDI instrument.)</li>
+          <li>Press <span class="btn-name">Connect over Bluetooth</span> and choose <strong>SMK-37+VA_BLE</strong> from the list.</li>
+          <li>The light turns purple. From then on the page sends and listens over Bluetooth only, even with the USB cable still in, so nothing arrives twice.</li>
+        </ol>
+        <p>Tried from Chrome on a Mac with an SMK-37 on SMK-37+VA: the link came up in about two seconds and the page’s notes played on it. Its own keys coming back over Bluetooth haven’t been checked yet; the MIDI from the SMK-37 list in the connection panel will show them if they arrive. On a Mac you can also pair it once in Audio MIDI Setup (Window › Show MIDI Studio, then the Bluetooth button); it then appears in the MIDI port lists like a cable, and the page prefers the USB port while both are there.</p>
         <p>Bluetooth <em>headphones</em> are another matter: they add a noticeable delay, often 100–200 ms, between pressing a key and hearing the page’s synth. Wired headphones, or a low-latency mode if your headphones have one, play much better.</p>
       </aside>
 

@@ -33,9 +33,11 @@
       <h2>Cutoff: where the filter starts working</h2>
       <p>A <strong>low-pass filter</strong> lets low frequencies through and turns high ones down. <span class="sig-sound">Cutoff</span> is the frequency where it starts turning things down. Lower the cutoff and the upper harmonics of a saw disappear one by one: the sound goes from bright, to warm, to muffled, to a dull thud.</p>
 
-      <synth-lab heading="A low-pass filter on a saw" intro="Hold the chord and sweep Cutoff slowly. The dashed line is the filter." controls="cutoff resonance filterType" preset='{"waveform":"saw","filterType":"lp24","cutoff":1500,"resonance":0,"release":40}' views="spectrum wave" filter-curve chord="45 52 57"></synth-lab>
+      <synth-lab heading="A low-pass filter on a saw" intro="Hold the chord and sweep Cutoff slowly. The dashed line is the filter." controls="cutoff resonance filterType" preset='{"waveform":"saw","filterType":"lp24","cutoff":1500,"resonance":0,"release":40}' views="spectrum sono wave" filter-curve chord="45 52 57"></synth-lab>
 
       <p>Look at the spectrum. The dashed line is the filter’s shape: flat where it lets sound through, sloping down past the cutoff. The harmonics in blue sit under it and get pushed down as the slope passes over them. That picture is the whole idea of subtractive synthesis.</p>
+
+      <p>The middle picture is the same spectrum over time, a <strong>spectrogram</strong>: the newest moment is on the right, pitch goes up, and the brighter the color, the louder that frequency. Sweep Cutoff and you can watch the filter’s ceiling move over the harmonics. In the signal path along the top, compare the Oscillators box with the Filter box: that’s the same change, as a wave.</p>
 
       <h2>Resonance: a peak at the cutoff</h2>
       <p><span class="sig-sound">Resonance</span> boosts a narrow band of frequencies right at the cutoff. A little adds a vocal, focused quality. More gives the familiar squelchy, “wow” sound when cutoff moves. At high settings the filter starts to whistle or ring at the cutoff frequency even on its own.</p>

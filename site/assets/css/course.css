@@ -215,6 +215,7 @@ a:hover { text-decoration-thickness: 2px; }
   background: var(--rule);
 }
 .rail li { position: relative; }
+.rail li.part { padding: 18px 0 4px 36px; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 .rail a {
   display: grid;
   grid-template-columns: 24px 1fr;
@@ -909,10 +910,73 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 }
 
 /* Bluetooth connection log in the connection panel */
-.ble-log { margin-top: 8px; }
-.ble-log summary { cursor: pointer; font-size: 0.9em; opacity: 0.85; }
-.ble-log-text {
+.ble-log, .midi-log { margin-top: 8px; }
+.ble-log summary, .midi-log summary { cursor: pointer; font-size: 0.9em; opacity: 0.85; }
+.ble-log-text, .midi-mon {
   margin: 8px 0; padding: 8px; max-height: 12em; overflow: auto;
   font: 0.8em/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-wrap; border: 1px solid currentColor; border-radius: 6px; opacity: 0.9;
+}
+
+/* ---------- Signal path, focus and hardware feedback ---------- */
+
+/* The strip above the scopes: oscillators → filter → amp → effects, with the
+   envelope and LFO drawn above the stages they move. */
+.viz.flow { height: 118px; margin: 12px 18px 0; background: var(--surface-2); }
+
+.instrument-head .grow { flex: 1; }
+.focus-btn { padding: 4px 12px; font-size: 0.8rem; }
+
+/* Extra views appear only in focus mode. */
+.viz[data-extra] { display: none; }
+
+/* A control the instrument just moved glows in the hardware color; a control
+   a signal-path stage points at glows in its own. */
+.ctl { border-radius: var(--radius-sm); transition: box-shadow 0.25s, background-color 0.25s; }
+.ctl[data-hw-touch] { box-shadow: 0 0 0 6px color-mix(in srgb, var(--hw) 14%, transparent); background: color-mix(in srgb, var(--hw) 14%, transparent); }
+.ctl[data-hw-touch] output { color: var(--hw); font-weight: 600; }
+.ctl[data-hw-touch] input[type="range"] { --c: var(--hw); }
+.ctl[data-flash] { box-shadow: 0 0 0 6px color-mix(in srgb, var(--c) 16%, transparent); background: color-mix(in srgb, var(--c) 16%, transparent); }
+
+/* The instrument's pitch and mod wheels, once it uses them. */
+.wheels { display: inline-flex; gap: 4px; align-items: center; }
+.wheel {
+  position: relative; width: 8px; height: 22px; border-radius: 4px;
+  background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--rule);
+}
+.wheel i { position: absolute; left: 1px; right: 1px; height: 4px; border-radius: 2px; background: var(--hw); --v: 0; }
+.wheel.bend i { top: calc(50% - 2px - var(--v) * 9px); }
+.wheel.mod i { bottom: calc(1px + var(--v) * 16px); }
+.light.pedal { font-size: 0.74rem; }
+
+.midi-mon { max-height: 14em; }
+
+/* Focus: the panel fills the screen, with bigger scopes and keys. */
+html.has-focus { overflow: hidden; }
+synth-lab:fullscreen { background: var(--paper); overflow: auto; }
+.instrument[data-focus] {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--paper);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.instrument[data-focus]:focus { outline: none; }
+.instrument[data-focus] .instrument-head { padding-top: 16px; }
+.instrument[data-focus] .instrument-head h3 { font-size: 1.25rem; }
+.instrument[data-focus] .viz.flow { height: clamp(140px, 20vh, 200px) !important; }
+.instrument[data-focus] .viz-row { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.instrument[data-focus] .viz { height: clamp(170px, 30vh, 360px) !important; background: var(--surface); }
+.instrument[data-focus] .viz[data-extra] { display: block; }
+.instrument[data-focus] .keys { height: clamp(96px, 15vh, 150px); }
+.instrument[data-focus] .controls { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+
+@media (max-width: 560px) {
+  .viz.flow { margin-left: 12px; margin-right: 12px; height: 104px; }
+  .instrument[data-focus] .viz-row { grid-template-columns: 1fr; }
 }

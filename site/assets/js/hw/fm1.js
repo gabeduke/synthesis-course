@@ -33,6 +33,8 @@ import { BleMidi } from './ble-midi.js';
 
 const portMatch = () => device().portMatch;
 const audioMatch = () => device().audioMatch;
+const GENERIC_PORT = /usb-midi|usb composite device/i;
+const WIRELESS_PORT = /ble|bluetooth/i;
 
 // Preset settings, sent on the FM-1's MIDI channel. Values 0–127 cover each
 // setting's whole range; lists split 0–127 into equal bands.
@@ -84,6 +86,74 @@ export function ccValue(key, value) {
   }
 }
 
+// The other way: an incoming CC back into a course parameter, so turning a
+// control on the instrument can move the page. Returns { key, value } or null.
+// The SMK-37+VA sends these with GLOBE › MIDI › Send CC on (each panel change
+// goes out as the CC the firmware receives for it), and from K5–K8 on its MIDI
+// CC bank (CC 74, 71, 73 and 72: Cutoff, Resonance, Attack and Release).
+const LIST_VALUES = { waveform: ['sine', 'saw', 'tri', 'square'], filterType: ['lp12', 'lp24', 'bp', 'hp'] };
+const KEY_TRACK = [0, 33, 67, 100];
+// General MIDI numbers the SMK-37's faders send on its MIDI CC bank (CC 10,
+// pan, has nothing to move on the page).
+const GM_CC = { 7: ['level', 99], 91: ['fx.reverb.mix', 100], 93: ['fx.chorus.mix', 100] };
+
+export function valueFromCc(key, raw) {
+  const v = clamp(raw, 0, 127);
+  if (LIST_VALUES[key]) return LIST_VALUES[key][Math.min(3, Math.floor(v / 32))];
+  if (key === 'cutoff') return 20 * Math.pow(1000, v / 127);
+  if (key === 'keyTrack') return KEY_TRACK.reduce((a, b) => (Math.abs(b - v / 1.27) < Math.abs(a - v / 1.27) ? b : a));
+  if (key === 'lfoSpeed' || key === 'lfoPitch' || key === 'lfoDelay') return Math.round(v / 127 * 99);
+  return Math.round(v / 127 * 100);
+}
+
+export function paramFromCc(num, raw, channel, fxChannel) {
+  // The FX channel carries CC 0–23 for the effects, as raw 0–100 values.
+  if (channel === fxChannel && num < 24) {
+    for (const effect of Object.keys(FX_CC)) {
+      for (const field of Object.keys(FX_CC[effect])) {
+        if (fxCc(effect, field) !== num) continue;
+        let value = clamp(raw, 0, 100);
+        if (field === 'on') value = raw >= 64;
+        else if (field === 'type') value = REVERB_TYPES[Math.min(2, raw)];
+        return { key: `fx.${effect}.${field}`, value };
+      }
+    }
+    return null;
+  }
+  for (const key of Object.keys(VA_CC)) {
+    if (vaCc(key) === num && key !== 'filterShape') return { key, value: valueFromCc(key, raw) };
+  }
+  const gm = GM_CC[num];
+  return gm ? { key: gm[0], value: Math.round(clamp(raw, 0, 127) / 127 * gm[1]) } : null;
+}
+
+// Short readable text for one MIDI message, for the connection panel's monitor.
+const NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const note = (n) => `${NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
+export function describeMidi(data, fxChannel = 2) {
+  const [status, d1 = 0, d2 = 0] = data;
+  if (status >= 0xf0) return ({ 0xf8: 'Clock', 0xfa: 'Start', 0xfb: 'Continue', 0xfc: 'Stop', 0xfe: 'Active sensing' })[status] || `System ${status.toString(16).toUpperCase()}`;
+  const ch = (status & 15) + 1;
+  const type = status & 0xf0;
+  const at = `ch ${ch}`;
+  if (type === 0x90 && d2 > 0) return `Note on  ${note(d1)}  velocity ${d2}  (${at})`;
+  if (type === 0x80 || type === 0x90) return `Note off ${note(d1)}  (${at})`;
+  if (type === 0xe0) {
+    const v = ((d2 << 7) | d1) - 8192;
+    return `Pitch bend ${v > 0 ? '+' : ''}${v}  (${at})`;
+  }
+  if (type === 0xd0) return `Pressure ${d1}  (${at})`;
+  if (type === 0xc0) return `Program ${d1} (preset ${String(d1 + 1).padStart(3, '0')})  (${at})`;
+  if (type === 0xa0) return `Key pressure ${note(d1)} ${d2}  (${at})`;
+  if (type === 0xb0) {
+    const named = { 1: 'Mod wheel', 64: 'Sustain pedal', 10: 'Pan', 123: 'All notes off' }[d1];
+    const p = paramFromCc(d1, d2, ch, fxChannel);
+    const what = named || (p ? p.key.replace(/^fx\./, '').replace('.', ' ') : '');
+    return `CC ${d1} = ${d2}${what ? `  ${what}` : ''}  (${at})`;
+  }
+  return Array.from(data, (b) => b.toString(16).padStart(2, '0')).join(' ');
+}
+
 function storage(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
@@ -101,6 +171,8 @@ class FM1Link extends EventTarget {
     this.midiChannel = Number(storage('fm1.midiCh') || 1);
     this.fxChannel = Number(storage('fm1.fxCh') || 2);
     this.keysPlayPage = storage('fm1.keysPlayPage') === '1';
+    // Turning a control on the instrument moves the same control on the page.
+    this.followHw = storage('fm1.followHw') !== '0';
     this.stream = null;
     this.analyser = null;
     this.monitorGain = null;
@@ -236,8 +308,12 @@ class FM1Link extends EventTarget {
     const { inputs, outputs } = this.ports();
     const savedIn = storage('fm1.inId');
     const savedOut = storage('fm1.outId');
+    // Among ports that match, prefer the model's own name over a generic one
+    // ("USB-MIDI"), and a cable over Bluetooth: macOS lists an instrument
+    // paired in Audio MIDI Setup as a port of its own, and USB is quicker.
+    const rank = (p) => (GENERIC_PORT.test(p.name) ? 2 : 0) + (WIRELESS_PORT.test(p.name) ? 1 : 0);
     const pick = (list, saved) => list.find((p) => p.id === saved && p.state === 'connected')
-      || list.find((p) => portMatch().test(p.name) && p.state === 'connected') || null;
+      || list.filter((p) => portMatch().test(p.name) && p.state === 'connected').sort((a, b) => rank(a) - rank(b))[0] || null;
     this.selectInput(pick(inputs, savedIn)?.id ?? null, false);
     const out = pick(outputs, savedOut);
     if (out !== this.output && !this.bleActive) this.releaseAll();
@@ -276,12 +352,38 @@ class FM1Link extends EventTarget {
     this._emit('change');
   }
 
+  setFollowHw(on) {
+    this.followHw = !!on;
+    storage('fm1.followHw', on ? '1' : '0');
+    this._emit('change');
+  }
+
+  // Pitch bend range in semitones each way, for the page's synth: the
+  // instrument's own default when its profile gives one.
+  get bendRange() { return device().bendRange ?? 2; }
+
+  // Events: noteon, noteoff, cc (every Control Change, with its channel),
+  // param (a CC the page knows, as a course parameter), bend (−1…1), mod and
+  // pressure (0…1), sustain, program, and midi (every message, raw).
   _onMessage(data) {
     const [status, d1, d2] = data;
+    this._emit('midi', { data });
+    if (status >= 0xf0) return; // clock and other system messages
     const type = status & 0xf0;
+    const channel = (status & 0x0f) + 1;
     if (type === 0x90 && d2 > 0) { this.lastNote = d1; this._emit('noteon', { note: d1, velocity: d2 / 127 }); }
     else if (type === 0x80 || (type === 0x90 && d2 === 0)) this._emit('noteoff', { note: d1 });
-    else if (type === 0xb0) this._emit('cc', { cc: d1, value: d2 });
+    else if (type === 0xb0) {
+      this._emit('cc', { cc: d1, value: d2, channel });
+      if (d1 === 1) this._emit('mod', { value: d2 / 127 });
+      else if (d1 === 64) this._emit('sustain', { on: d2 >= 64 });
+      else {
+        const p = paramFromCc(d1, d2, channel, this.fxChannel);
+        if (p) this._emit('param', { ...p, cc: d1, channel });
+      }
+    } else if (type === 0xe0) this._emit('bend', { value: clamp((((d2 << 7) | d1) - 8192) / 8191, -1, 1) });
+    else if (type === 0xd0) this._emit('pressure', { value: d1 / 127 });
+    else if (type === 0xc0) this._emit('program', { program: d1 });
   }
 
   _send(bytes) {

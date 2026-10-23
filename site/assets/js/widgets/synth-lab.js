@@ -9,20 +9,41 @@
 //   chord     notes for the Hold button, e.g. "48 55 60 64"
 //   low       lowest key on the drawn keyboard (default 48)
 //   span      samples across the oscilloscope (default 1024)
+//   flow      "off" hides the signal-path strip above the scopes
+//
+// views also takes "sono", a spectrogram. Focus fills the screen with the
+// panel and adds the scope, spectrum and spectrogram if it doesn't have them.
+// With an instrument connected, its wheels, sustain pedal and knobs play the
+// panel you used last (ui/keyboard.js routes them to hwBend, hwMod,
+// hwSustain and hwParam below).
 
 import { audio, resume, clamp } from '../audio/core.js';
-import { VASynth, attackTime, decayTime, releaseTime } from '../audio/va-synth.js';
+import { VASynth, attackTime, decayTime, releaseTime, lfoHz } from '../audio/va-synth.js';
 import { fm1 } from '../hw/fm1.js';
 import { deviceLabel, devName, ctl, where as whereOn, onDeviceChange } from '../ui/device.js';
-import { GROUPS, PARAMS, getParam, toPartial, ccFor } from '../ui/params.js';
+import { GROUPS, PARAMS, getParam, toPartial, ccFor, formatValue } from '../ui/params.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
 import { share } from '../ui/pwa.js';
 import {
   onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, yForDb, rms, makeAnalyser,
+  drawMiniWave, Sonogram,
 } from '../ui/draw.js';
 
 const HISTORY = 240; // frames of level / LFO history (~4 s)
+const FOCUS_VIEWS = ['wave', 'spectrum', 'sono']; // added in focus mode
+
+// The signal path, left to right, and what moves it. Clicking a stage points
+// at its controls on the panel.
+const STAGES = {
+  osc: { name: 'Oscillators', about: 'the raw tone, before anything shapes it', keys: GROUPS.Oscillator },
+  filter: { name: 'Filter', about: 'takes part of the spectrum away; this is the sound after it', keys: GROUPS.Filter },
+  amp: { name: 'Amp', about: 'the envelope sets each note’s loudness, moment by moment', keys: [...GROUPS.Envelope, 'level'] },
+  fx: { name: 'Effects', about: 'distortion, chorus, delay and reverb, then out to your ears', keys: [...GROUPS.Distortion, ...GROUPS.Chorus, ...GROUPS.Delay, ...GROUPS.Reverb] },
+  hw: { name: '', about: 'the instrument’s real output, through its USB audio', keys: [] },
+  env: { name: 'Envelope', about: 'the shape of each note over time; it always drives the amp, and the filter if Filter envelope is up', keys: [...GROUPS.Envelope, 'filterEnv', 'filterDecay'] },
+  lfo: { name: 'LFO', about: 'a slow wave that moves pitch, cutoff or loudness', keys: [...GROUPS.LFO, 'lfoToCutoff'] },
+};
 
 class SynthLab extends HTMLElement {
   connectedCallback() {
@@ -43,6 +64,12 @@ class SynthLab extends HTMLElement {
     this.histPos = 0;
     this.lastOn = null;
     this.lastOff = null;
+    this.pedal = false;
+    this.pedalNotes = new Map(); // note -> where it came from
+    this.bendAmount = 0;
+    this.modAmount = 0;
+    this._hwPending = new Map();
+    this._agc = {};
     this._build();
     registerInstrument(this);
   }
@@ -55,6 +82,9 @@ class SynthLab extends HTMLElement {
     const { ctx, master } = audio();
     // Start from the panel's current settings (a shared patch, or the lesson's).
     this.synth = new VASynth(this._full());
+    this.synth.taps();
+    this.synth.setBend(this.bendAmount * fm1.bendRange);
+    this.synth.setMod(this.modAmount);
     this.analyser = makeAnalyser(ctx, 8192, 0.5);
     this.synth.output.connect(this.analyser).connect(master);
     this.lfoAnalyser = makeAnalyser(ctx, 256, 0);
@@ -70,6 +100,7 @@ class SynthLab extends HTMLElement {
     const toHw = this.target !== 'page' && source !== 'fm1';
     if (toPage) this.ensure().noteOn(note, vel);
     if (toHw) fm1.noteOn(note, vel);
+    this.pedalNotes.delete(note);
     this.held.add(note);
     this.kb.light(note, true);
     this.lastOn = performance.now();
@@ -77,6 +108,14 @@ class SynthLab extends HTMLElement {
   }
 
   noteOff(note, source) {
+    // The sustain pedal keeps a released key sounding until the pedal comes up.
+    if (this.pedal && source !== 'reset' && this.held.has(note)) {
+      this.pedalNotes.set(note, source);
+      this.held.delete(note);
+      this.kb.light(note, false);
+      if (!this.held.size) this.lastOff = performance.now();
+      return;
+    }
     const toPage = this.target !== 'fm1';
     const toHw = this.target !== 'page' && source !== 'fm1';
     if (toPage && this.synth) this.synth.noteOff(note);
@@ -94,16 +133,92 @@ class SynthLab extends HTMLElement {
     this.say(`Keyboard starts at C${this.baseNote / 12 - 1}.`);
   }
 
-  set(key, value) {
+  // source 'hw': the instrument itself sent this, so don't send it back.
+  set(key, value, source) {
     const partial = toPartial(key, value);
     if (partial.fx) {
       this.params.fx ||= {};
       for (const k of Object.keys(partial.fx)) this.params.fx[k] = { ...(this.params.fx[k] || {}), ...partial.fx[k] };
     } else Object.assign(this.params, partial);
     if (this.synth) this.synth.set(partial);
-    if (this.mirror) {
+    if (this.mirror && source !== 'hw') {
       if (key.startsWith('fx.')) { const [, fx, field] = key.split('.'); fm1.sendFx(fx, field, value); }
       else fm1.sendParam(key, value);
+    }
+  }
+
+  // ---------- Hardware wheels, pedal and knobs ----------
+  hwBend(x) {
+    this.bendAmount = x;
+    this.synth?.setBend(x * fm1.bendRange);
+    this._showWheels();
+  }
+
+  hwMod(x) {
+    this.modAmount = x;
+    this.synth?.setMod(x);
+    this._showWheels();
+  }
+
+  hwSustain(on) {
+    this.pedal = on;
+    this.pedalLight.toggleAttribute('data-on', on);
+    this.pedalLight.hidden = false;
+    if (on) return;
+    for (const [n, source] of [...this.pedalNotes]) if (!this.held.has(n)) this.noteOff(n, source);
+    this.pedalNotes.clear();
+  }
+
+  // A knob on the instrument moved a setting: follow it here, and light up
+  // the control so you can see which one it was.
+  hwParam(key, value, { cc } = {}) {
+    if (!PARAMS[key]) return;
+    this.set(key, value, 'hw');
+    this._hwPending.set(key, { value, cc });
+    if (!this._hwRaf) this._hwRaf = requestAnimationFrame(() => this._showHwParams());
+  }
+
+  _showHwParams() {
+    this._hwRaf = 0;
+    let last = null;
+    for (const [key, { value, cc }] of this._hwPending) {
+      last = { key, value, cc };
+      const c = this.ctls.get(key);
+      if (!c) continue;
+      c.update(value);
+      c.setAttribute('data-hw-touch', '');
+      clearTimeout(c._hwTouch);
+      c._hwTouch = setTimeout(() => c.removeAttribute('data-hw-touch'), 700);
+    }
+    this._hwPending.clear();
+    if (!last) return;
+    const { key, value, cc } = last;
+    const name = key.startsWith('fx.') ? `${key.split('.')[1][0].toUpperCase()}${key.split('.')[1].slice(1)} ${PARAMS[key].label.toLowerCase()}` : PARAMS[key].label;
+    this.where.replaceChildren(`From the ${deviceLabel()}: `, el('b', { text: `${name} ${formatValue(key, value)}` }), ` (CC ${cc})`,
+      this.ctls.has(key) ? '' : '. Not one of this panel’s sliders, but the sound follows it.');
+    this._flowPulse = { stage: Object.keys(STAGES).find((s) => STAGES[s].keys.includes(key)), at: performance.now() };
+  }
+
+  _showWheels() {
+    this.wheels.hidden = false;
+    this.bendThumb.style.setProperty('--v', String(this.bendAmount));
+    this.modThumb.style.setProperty('--v', String(this.modAmount));
+  }
+
+  // ---------- Focus ----------
+  async focus(on) {
+    on = on ?? !this.box.hasAttribute('data-focus');
+    this.box.toggleAttribute('data-focus', on);
+    document.documentElement.classList.toggle('has-focus', on);
+    this.focusBtn.setAttribute('aria-pressed', String(on));
+    this.focusBtn.textContent = on ? 'Exit focus' : 'Focus';
+    if (on) {
+      resume();
+      this.ensure();
+      try { if (this.requestFullscreen && !document.fullscreenElement) await this.requestFullscreen({ navigationUI: 'hide' }); } catch (_) { /* the overlay is enough */ }
+      this.box.focus({ preventScroll: true });
+    } else if (document.fullscreenElement === this) {
+      try { await document.exitFullscreen(); } catch (_) { /* ignore */ }
     }
   }
 
@@ -126,18 +241,53 @@ class SynthLab extends HTMLElement {
     const intro = this.getAttribute('intro');
     const box = el('section', { class: 'instrument', 'aria-label': heading });
 
-    box.append(el('div', { class: 'instrument-head' }, [el('h3', { text: heading }), intro ? el('p', { text: intro }) : null]));
+    this.box = box;
+    box.tabIndex = -1;
+    this.focusBtn = el('button', { class: 'btn focus-btn', type: 'button', 'aria-pressed': 'false', title: 'Fill the screen with this panel (Esc to leave)', text: 'Focus' });
+    this.focusBtn.addEventListener('click', () => this.focus());
+    box.addEventListener('keydown', (e) => { if (e.key === 'Escape' && box.hasAttribute('data-focus')) { e.preventDefault(); this.focus(false); } });
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && box.hasAttribute('data-focus') && this._wasFullscreen) this.focus(false);
+      this._wasFullscreen = document.fullscreenElement === this;
+    });
+    box.append(el('div', { class: 'instrument-head' }, [el('h3', { text: heading }), intro ? el('p', { text: intro }) : null, el('span', { class: 'grow' }), this.focusBtn]));
+
+    // Signal path
+    if (this.getAttribute('flow') !== 'off') {
+      this.flowCanvas = el('canvas', { role: 'img', 'aria-label': 'Signal path: oscillators, filter, amp and effects, and the envelope and LFO that move them. Click a stage to find its controls.' });
+      box.append(el('div', { class: 'viz flow' }, this.flowCanvas));
+      this._flowHits = [];
+      const hit = (e) => {
+        const r = this.flowCanvas.getBoundingClientRect();
+        const x = e.clientX - r.left; const y = e.clientY - r.top;
+        return this._flowHits.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+      };
+      this.flowCanvas.addEventListener('pointermove', (e) => {
+        const b = hit(e);
+        this.flowCanvas.style.cursor = b ? 'pointer' : '';
+        if (b?.id !== this._flowHover) {
+          this._flowHover = b?.id;
+          if (b) this.where.replaceChildren(el('b', { text: b.id === 'hw' ? deviceLabel() : STAGES[b.id].name }), `: ${STAGES[b.id].about}.`);
+        }
+      });
+      this.flowCanvas.addEventListener('pointerleave', () => { this._flowHover = null; });
+      this.flowCanvas.addEventListener('click', (e) => { const b = hit(e); if (b) this._pointAt(b.id); });
+    }
 
     // Visualizations
     const row = el('div', { class: 'viz-row' });
     this.canvases = {};
-    const labels = { wave: 'Waveform', spectrum: 'Spectrum (low to high frequencies)', env: 'Loudness over time', shape: 'Envelope shape', lfo: 'LFO over time' };
-    for (const v of this.views) {
+    const labels = { wave: 'Waveform', spectrum: 'Spectrum (low to high frequencies)', env: 'Loudness over time', shape: 'Envelope shape', lfo: 'LFO over time', sono: 'Spectrogram (time runs left, pitch up)' };
+    const all = [...this.views, ...FOCUS_VIEWS.filter((v) => !this.views.includes(v))];
+    for (const v of all) {
+      if (!labels[v]) continue;
       const c = el('canvas', { role: 'img', 'aria-label': labels[v] });
       const legend = el('div', { class: 'viz-legend' });
-      const viz = el('div', { class: 'viz', style: `height:${v === 'wave' || v === 'spectrum' ? 190 : 150}px` }, [c, el('div', { class: 'viz-label', text: labels[v] }), legend]);
+      const viz = el('div', { class: 'viz', 'data-view': v, style: `height:${v === 'wave' || v === 'spectrum' || v === 'sono' ? 190 : 150}px` }, [c, el('div', { class: 'viz-label', text: labels[v] }), legend]);
+      if (!this.views.includes(v)) viz.setAttribute('data-extra', '');
       row.append(viz);
       this.canvases[v] = { c, legend };
+      if (v === 'sono') this.sono = new Sonogram();
     }
     box.append(row);
 
@@ -178,9 +328,18 @@ class SynthLab extends HTMLElement {
       for (const n of this.chord) on ? this.noteOn(n, 0.75, 'hold') : this.noteOff(n, 'hold');
     });
     this.holdBtn = holdBtn;
+    // The instrument's wheels and pedal, shown once it uses them.
+    this.bendThumb = el('i');
+    this.modThumb = el('i');
+    this.wheels = el('span', { class: 'wheels', hidden: true, title: 'Pitch and mod wheels on the instrument' }, [
+      el('span', { class: 'wheel bend' }, [this.bendThumb]), el('span', { class: 'wheel mod' }, [this.modThumb]),
+    ]);
+    this.pedalLight = el('span', { class: 'light pedal', hidden: true }, el('span', { text: 'Pedal' }));
     const keysBar = el('div', { class: 'keys-bar' }, [
       el('span', { text: 'Play with the mouse, or click this panel and use keys A–K (Z and X shift octaves).' }),
       el('span', { class: 'grow' }),
+      this.wheels,
+      this.pedalLight,
       holdBtn,
     ]);
     box.append(el('div', { class: 'keys-wrap' }, [keysBar, this.kb.root]));
@@ -247,6 +406,7 @@ class SynthLab extends HTMLElement {
     for (const [v, { c, legend }] of Object.entries(this.canvases)) {
       onFrame(c, (now) => this._draw(v, c, legend, now));
     }
+    if (this.flowCanvas) onFrame(this.flowCanvas, (now) => this._drawFlow(now));
     this._loadSharedPatch();
   }
 
@@ -339,7 +499,8 @@ class SynthLab extends HTMLElement {
   say(text) { this.status.textContent = text; }
 
   _releaseAll() {
-    for (const n of [...this.held]) this.noteOff(n, 'reset');
+    for (const n of [...this.held, ...this.pedalNotes.keys()]) this.noteOff(n, 'reset');
+    this.pedalNotes.clear();
     this.holdBtn?.setAttribute('aria-pressed', 'false');
   }
 
@@ -406,6 +567,153 @@ class SynthLab extends HTMLElement {
     } else if (view === 'shape') {
       this._drawShape(g, w, h, c);
       this._legend(legend, [['Envelope', c.time]]);
+    } else if (view === 'sono') {
+      this.sono.draw(canvas, g, w, h, [{ analyser: hw, color: c.hw }, { analyser: this.analyser, color: c.sound }]);
+      this._legend(legend, items);
+    }
+  }
+
+  // Light up the controls for one stage of the signal path.
+  _pointAt(id) {
+    const stage = STAGES[id];
+    const found = stage.keys.map((k) => this.ctls.get(k)).filter(Boolean);
+    for (const c of found) {
+      c.setAttribute('data-flash', '');
+      clearTimeout(c._flash);
+      c._flash = setTimeout(() => c.removeAttribute('data-flash'), 1200);
+    }
+    if (found.length) {
+      const r = found[0].getBoundingClientRect();
+      if (r.top < 0 || r.bottom > innerHeight) found[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    const name = id === 'hw' ? deviceLabel() : stage.name;
+    this.where.replaceChildren(el('b', { text: name }), found.length
+      ? `: ${found.map((c) => c.querySelector('label, .ctl-name, .switch span')?.textContent).filter(Boolean).join(', ')}.`
+      : id === 'hw' ? `: ${stage.about}.` : ': none of its controls are on this panel; the sound uses the lesson’s settings.');
+  }
+
+  // ---------- Signal path ----------
+  // Four stages left to right, with the envelope and LFO above them and a line
+  // to each thing they move. Each stage shows the signal at that point, scaled
+  // to fit; the bar under it shows how loud it really is.
+  _drawFlow(now) {
+    const canvas = this.flowCanvas;
+    const { g, w, h } = fit(canvas);
+    const c = colors();
+    g.clearRect(0, 0, w, h);
+    const s = this.synth;
+    const p = s ? s.p : this._full();
+    const taps = s?._taps;
+    const hw = fm1.analyser;
+    const ids = ['osc', 'filter', 'amp', 'fx', ...(hw ? ['hw'] : [])];
+    const gap = w < 480 ? 14 : 22;
+    const top = 30;
+    const bh = h - top - 8;
+    const hwGap = hw ? gap : 0;
+    const bw = (w - 16 - gap * (ids.length - 1) - hwGap) / ids.length;
+    const fxOn = Object.entries(p.fx || {}).filter(([, f]) => f.on).map(([k]) => k);
+    const open = p.filterType !== 'hp' && p.filterType !== 'bp' && p.cutoff >= 19000 && !p.filterEnv && !p.lfoToCutoff;
+    const info = {
+      osc: { color: c.sound, tap: taps?.osc, sub: `${PARAMS.waveform.names[PARAMS.waveform.options.indexOf(p.waveform)]}${p.super ? ' ×7' : ''}` },
+      filter: { color: c.sound, tap: taps?.filter, sub: open ? 'open' : `${PARAMS.filterType.names[PARAMS.filterType.options.indexOf(p.filterType)]} ${formatValue('cutoff', p.cutoff)}`, dim: open },
+      amp: { color: c.time, tap: taps?.amp, sub: `A ${formatValue('attack', p.attack)} · R ${formatValue('release', p.release)}` },
+      fx: { color: c.space, tap: taps?.out, sub: fxOn.length ? fxOn.map((k) => k[0].toUpperCase() + k.slice(1)).join(' + ') : 'off', dim: !fxOn.length },
+      hw: { color: c.hw, tap: hw, sub: 'real output' },
+    };
+    const pulse = this._flowPulse && now - this._flowPulse.at < 700 ? this._flowPulse : null;
+    this._flowHits = [];
+    const boxes = {};
+    let x = 8;
+    g.font = '600 11px Archivo, sans-serif';
+    for (const id of ids) {
+      if (id === 'hw') x += hwGap;
+      const b = { x, y: top, w: bw, h: bh, id };
+      boxes[id] = b;
+      this._flowHits.push(b);
+      const it = info[id];
+      g.globalAlpha = it.dim ? 0.45 : 1;
+      g.fillStyle = c.surface;
+      g.strokeStyle = pulse?.stage === id || this._flowHover === id ? it.color : c.rule;
+      g.lineWidth = pulse?.stage === id ? 2 : 1;
+      g.setLineDash(id === 'hw' ? [4, 3] : []);
+      g.beginPath(); g.roundRect(b.x, b.y, b.w, b.h, 6); g.fill(); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = it.color;
+      g.fillText(id === 'hw' ? deviceLabel() : STAGES[id].name, b.x + 7, b.y + 14);
+      // The stage's main setting, when there's room beside its name.
+      const nameW = g.measureText(id === 'hw' ? deviceLabel() : STAGES[id].name).width;
+      g.font = '10px Archivo, sans-serif';
+      const subW = g.measureText(it.sub).width;
+      if (nameW + subW + 24 < b.w) {
+        g.fillStyle = c.ink3;
+        g.fillText(it.sub, b.x + b.w - 7 - subW, b.y + 14);
+      }
+      g.font = '600 11px Archivo, sans-serif';
+      let level = 0;
+      if (it.tap) {
+        this._agc[id] ||= {};
+        const peak = drawMiniWave(g, b.x + 6, b.y + 20, b.w - 12, b.h - 30, it.tap, { color: it.color, agc: this._agc[id], span: 384 });
+        level = peak;
+      } else {
+        g.strokeStyle = it.color; g.lineWidth = 1.2;
+        g.beginPath(); g.moveTo(b.x + 6, b.y + 20 + (b.h - 30) / 2); g.lineTo(b.x + b.w - 6, b.y + 20 + (b.h - 30) / 2); g.stroke();
+      }
+      // Level bar
+      g.fillStyle = c.rule2 || c.rule;
+      g.fillRect(b.x + 6, b.y + b.h - 7, b.w - 12, 3);
+      g.fillStyle = it.color;
+      g.fillRect(b.x + 6, b.y + b.h - 7, (b.w - 12) * clamp(level / 0.6, 0, 1), 3);
+      g.globalAlpha = 1;
+      // Arrow to the next stage, with the signal flowing along it while it sounds.
+      const next = ids[ids.indexOf(id) + 1];
+      if (next && next !== 'hw') {
+        const ax = b.x + b.w; const ay = b.y + b.h / 2;
+        g.strokeStyle = level > 0.002 ? it.color : c.rule;
+        g.lineWidth = 1.6;
+        g.setLineDash([4, 4]);
+        g.lineDashOffset = level > 0.002 ? -(now / 40) % 8 : 0;
+        g.beginPath(); g.moveTo(ax + 2, ay); g.lineTo(ax + gap - 4, ay); g.stroke();
+        g.setLineDash([]);
+        g.lineDashOffset = 0;
+        g.fillStyle = g.strokeStyle;
+        g.beginPath(); g.moveTo(ax + gap - 2, ay); g.lineTo(ax + gap - 7, ay - 4); g.lineTo(ax + gap - 7, ay + 4); g.fill();
+      }
+      x += bw + gap;
+    }
+
+    // Modulators: the envelope always drives the amp; the LFO only what it's turned up for.
+    const sounding = !!s?.voices.some((v) => !v.released);
+    const mods = [
+      { id: 'env', color: c.time, x: boxes.amp.x + boxes.amp.w / 2, targets: [['amp', 1], ['filter', p.filterEnv / 100]], active: sounding },
+      { id: 'lfo', color: c.move, x: boxes.osc.x + boxes.osc.w * 0.9, targets: [['osc', Math.max(p.lfoPitch / 99, this.modAmount)], ['filter', p.lfoToCutoff / 100], ['amp', p.lfoAmp / 99]], rate: lfoHz(p.lfoSpeed) },
+    ];
+    g.font = '600 10px Archivo, sans-serif';
+    for (const m of mods) {
+      const used = m.targets.filter(([, d]) => d > 0.005);
+      const label = STAGES[m.id].name;
+      const lw = g.measureText(label).width + 14;
+      const lx = clamp(m.x - lw / 2, 4, w - lw - 4);
+      g.globalAlpha = used.length ? 1 : 0.4;
+      g.strokeStyle = m.color; g.fillStyle = c.surface; g.lineWidth = 1;
+      g.beginPath(); g.roundRect(lx, 4, lw, 16, 8); g.fill(); g.stroke();
+      g.fillStyle = m.color;
+      g.fillText(label, lx + 7, 15.5);
+      this._flowHits.push({ x: lx, y: 4, w: lw, h: 16, id: m.id });
+      for (const [t, depth] of used) {
+        const b = boxes[t];
+        const tx = b.x + b.w * (m.id === 'env' ? 0.62 : 0.38);
+        g.strokeStyle = m.color;
+        g.lineWidth = 1 + depth * 2;
+        g.globalAlpha = m.id === 'env' ? (m.active ? 0.95 : 0.45) : 0.9;
+        if (m.id === 'lfo') { g.setLineDash([3, 4]); g.lineDashOffset = -(now / 1000) * m.rate * 14; }
+        g.beginPath();
+        g.moveTo(lx + lw / 2, 20);
+        g.bezierCurveTo(lx + lw / 2, 27, tx, 22, tx, b.y);
+        g.stroke();
+        g.setLineDash([]);
+        g.lineDashOffset = 0;
+      }
+      g.globalAlpha = 1;
     }
   }
 

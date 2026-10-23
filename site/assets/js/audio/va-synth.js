@@ -70,6 +70,16 @@ export class VASynth {
     this.lfoOut.connect(this.tremDepth).connect(this.trem.gain);
     this._buildLfo();
 
+    // A keyboard's wheels. Pitch bend moves every oscillator together (in
+    // cents); the mod wheel adds vibrato from the preset's LFO, which is what
+    // the firmware's default MIDI mapping for the wheel (Pitch) does.
+    this.bendSrc = ctx.createConstantSource();
+    this.bendSrc.offset.value = 0;
+    this.bendSrc.start();
+    this.modDepth = ctx.createGain();
+    this.modDepth.gain.value = 0;
+    this.lfoOut.connect(this.modDepth);
+
     this._driftTimer = setInterval(() => this._drift(), 90);
     this.set({});
   }
@@ -127,6 +137,40 @@ export class VASynth {
 
   get params() { return structuredClone(this.p); }
 
+  // Pitch bend in semitones (negative bends down).
+  setBend(semitones) {
+    this.bendSrc.offset.setTargetAtTime(semitones * 100, this.ctx.currentTime, 0.006);
+  }
+
+  // Mod wheel, 0–1: up to 60 cents of vibrato at the LFO's speed.
+  setMod(amount) {
+    this.modDepth.gain.setTargetAtTime(clamp(amount, 0, 1) * 60, this.ctx.currentTime, 0.03);
+  }
+
+  // Listening points along the signal path, for drawing it stage by stage:
+  // the oscillators' mix, after the filter, after the amp, and the output.
+  // Made on first use; voices started before then are connected too.
+  taps() {
+    if (this._taps) return this._taps;
+    const ctx = this.ctx;
+    const tap = () => { const a = ctx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0; return a; };
+    this._taps = { osc: tap(), filter: tap(), amp: tap(), out: tap() };
+    this._oscSum = ctx.createGain();
+    this._oscSum.connect(this._taps.osc);
+    this._filterSum = ctx.createGain();
+    this._filterSum.connect(this._taps.filter);
+    this.bus.connect(this._taps.amp);
+    this.output.connect(this._taps.out);
+    for (const v of this.voices) this._tapVoice(v);
+    return this._taps;
+  }
+
+  _tapVoice(v) {
+    if (!this._taps) return;
+    v.mix.connect(this._oscSum);
+    v.filters[1].connect(this._filterSum);
+  }
+
   // ---------- Voices ----------
   _superCents() {
     return Array.from({ length: 7 }, (_, i) => centsFromRatio(ratioFor(i, this.p.detune)));
@@ -183,6 +227,10 @@ export class VASynth {
     v.lfoCut.gain.value = 0;
     this.lfoOut.connect(v.lfoPitch);
     this.lfoOut.connect(v.lfoCut);
+    // Pitch bend and the mod wheel's vibrato, summed, for every oscillator.
+    v.wheels = ctx.createGain();
+    this.bendSrc.connect(v.wheels);
+    this.modDepth.connect(v.wheels);
 
     // One slow sweep per voice for PWM, shared by its seven oscillators.
     v.pwmLfo = ctx.createOscillator();
@@ -212,6 +260,7 @@ export class VASynth {
       osc.frequency.value = f;
       osc.detune.value = cents[i];
       v.lfoPitch.connect(osc.detune);
+      v.wheels.connect(osc.detune);
       // All seven copies start in step, so with Detune at 0 they stay in step
       // and sound like one oscillator, as the FM-1+VA's manual describes.
       osc.start(t);
@@ -222,6 +271,7 @@ export class VASynth {
     v.sub.type = 'square';
     v.sub.frequency.value = f / 2;
     v.lfoPitch.connect(v.sub.detune);
+    v.wheels.connect(v.sub.detune);
     v.subGain = ctx.createGain();
     v.subGain.gain.value = 0;
     v.sub.connect(v.subGain).connect(v.mix);
@@ -240,6 +290,7 @@ export class VASynth {
     v.vca.gain.value = 0;
     v.mix.connect(v.filters[0]).connect(v.filters[1]).connect(v.vca).connect(this.bus);
     for (const fl of v.filters) v.lfoCut.connect(fl.detune);
+    this._tapVoice(v);
 
     // Everything starts at its target value: no burst of extra oscillators,
     // sub or noise, and no filter sweep, before the settings take hold.
@@ -333,6 +384,8 @@ export class VASynth {
     for (const n of [...v.oscs, v.sub, v.noise, v.pwmLfo]) { try { n.stop(when); } catch (_) {} }
     v.oscs[0].onended = () => {
       try { this.lfoOut.disconnect(v.lfoPitch); this.lfoOut.disconnect(v.lfoCut); } catch (_) {}
+      try { this.bendSrc.disconnect(v.wheels); this.modDepth.disconnect(v.wheels); } catch (_) {}
+      if (this._taps) { try { v.mix.disconnect(this._oscSum); v.filters[1].disconnect(this._filterSum); } catch (_) {} }
       v.vca.disconnect();
       this.voices = this.voices.filter((x) => x !== v);
     };
@@ -464,6 +517,7 @@ export class VASynth {
     this.output.gain.setTargetAtTime(0, this.ctx.currentTime, fadeTime / 3);
     setTimeout(() => {
       try { this.lfoSrc.stop(); } catch (_) {}
+      try { this.bendSrc.stop(); } catch (_) {}
       this.fx?.disconnect();
       this.output.disconnect();
     }, fadeTime * 1000 + 150);

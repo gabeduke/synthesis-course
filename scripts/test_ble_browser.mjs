@@ -201,7 +201,7 @@ await check('connect, notes and CCs in, panel state, disconnect (keyboard-activa
   await page.evaluate(() => window.__bleNotify([0x80, 0x83, 0x80, 60, 0, 0x84, 0x90, 64, 90, 64, 0]));
   await page.waitForFunction(() => window.__ev.length >= 5);
   const ev = await page.evaluate(() => window.__ev);
-  eq(ev, [['noteon', { note: 60, velocity: 100 / 127 }], ['cc', { cc: 74, value: 64 }], ['noteoff', { note: 60 }], ['noteon', { note: 64, velocity: 90 / 127 }], ['noteoff', { note: 64 }]], 'events');
+  eq(ev, [['noteon', { note: 60, velocity: 100 / 127 }], ['cc', { cc: 74, value: 64, channel: 1 }], ['noteoff', { note: 60 }], ['noteon', { note: 64, velocity: 90 / 127 }], ['noteoff', { note: 64 }]], 'events');
   eq(await page.locator('synth-lab .keys [data-hw]').count(), 0, 'keys released');
 
   // Test note button writes a note on as a BLE packet.
@@ -430,6 +430,104 @@ await check('USB path unchanged, and USB + Bluetooth never double-send', async (
   await panel(page).getByRole('button', { name: /Play a test note/ }).click();
   eq(await page.evaluate(() => window.__usbSent[0]), [0x90, 60, 102], 'USB takes over again');
   eq(await page.evaluate(() => window.__ble.writes.length), 0, 'nothing over Bluetooth after disconnect');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('CC values survive the trip to the instrument and back', async () => {
+  const { page, ctx } = await open('/lessons/00-start.html?device=smk37');
+  const bad = await page.evaluate(async () => {
+    const { VA_CC, ccValue, valueFromCc, paramFromCc } = await import('/assets/js/hw/fm1.js');
+    const out = [];
+    for (const key of Object.keys(VA_CC)) {
+      if (key === 'filterShape') continue;
+      for (let raw = 0; raw < 128; raw += 7) {
+        const v = valueFromCc(key, raw);
+        const back = ccValue(key, v);
+        // Lists and Key Tracking come back as their band's middle; numbers within one step.
+        const ok = typeof v === 'string' || key === 'keyTrack' ? valueFromCc(key, back) === v : Math.abs(back - raw) <= 1;
+        if (!ok) out.push(`${key} ${raw} -> ${v} -> ${back}`);
+      }
+      const p = paramFromCc(VA_CC[key], 64, 1, 2);
+      if (p?.key !== key) out.push(`paramFromCc(${VA_CC[key]}) = ${p?.key}`);
+    }
+    const fx = paramFromCc(7, 55, 2, 2);
+    if (fx?.key !== 'fx.reverb.mix' || fx.value !== 55) out.push(`FX CC 7 = ${JSON.stringify(fx)}`);
+    const on = paramFromCc(16, 127, 2, 2);
+    if (on?.key !== 'fx.chorus.on' || on.value !== true) out.push(`FX CC 16 = ${JSON.stringify(on)}`);
+    const fader = paramFromCc(91, 127, 1, 2);
+    if (fader?.key !== 'fx.reverb.mix' || fader.value !== 100) out.push(`CC 91 = ${JSON.stringify(fader)}`);
+    if (paramFromCc(10, 64, 1, 2) !== null) out.push('CC 10 (pan) should move nothing');
+    return out;
+  });
+  eq(bad, [], 'round trips');
+  await ctx.close();
+});
+
+await check('the instrument’s knobs, wheels and pedal move the panel it plays', async () => {
+  const { page, ctx, errors } = await open('/lessons/03-filters.html?device=smk37', {}, { midi: true });
+  await page.evaluate(async () => { const { fm1 } = await import('/assets/js/hw/fm1.js'); await fm1.connectMidi(); fm1.setKeysPlayPage(true); });
+  const lab = page.locator('synth-lab').first();
+  await lab.locator('.keys').click({ position: { x: 20, y: 70 } }); // make it the active panel
+  await page.evaluate(() => { window.__usbSent.length = 0; window.__usbIn([0xb0, 74, 64]); });
+  await page.waitForFunction(() => document.querySelector('synth-lab .ctl[data-key="cutoff"][data-hw-touch]'));
+  const cutoff = await lab.evaluate((el) => el.params.cutoff);
+  assert(Math.abs(cutoff - 20 * Math.pow(1000, 64 / 127)) < 1, `cutoff ${cutoff}`);
+  assert(/From the SMK-37: Cutoff/.test(await lab.locator('.where').first().textContent()), 'where line');
+  eq(await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0xb0 && m[1] === 74)), [], 'not echoed');
+  // With Mirror on, a knob the instrument turned still isn't sent back to it.
+  await lab.locator('.instrument-foot input[type=checkbox]').check();
+  await page.evaluate(() => { window.__usbSent.length = 0; window.__usbIn([0xb0, 71, 100]); });
+  await page.waitForTimeout(50);
+  eq(await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0xb0 && m[1] === 71)), [], 'not mirrored back');
+  eq(await lab.evaluate((el) => el.params.resonance), 79, 'resonance');
+  // FX channel, wheels.
+  await page.evaluate(() => { window.__usbIn([0xb1, 7, 55]); window.__usbIn([0xe0, 0x7f, 0x7f]); window.__usbIn([0xb0, 1, 127]); });
+  eq(await lab.evaluate((el) => [el.params.fx.reverb.mix, Math.round(el.bendAmount * 100), el.modAmount]), [55, 100, 1], 'reverb mix, bend, mod');
+  assert(await lab.locator('.wheels').isVisible(), 'wheels shown');
+  // Sustain: a key let go while the pedal is down keeps sounding until it comes up.
+  await page.evaluate(() => { window.__usbIn([0xb0, 64, 127]); window.__usbIn([0x90, 60, 100]); window.__usbIn([0x80, 60, 0]); });
+  eq(await lab.evaluate((el) => [...el.pedalNotes.keys()]), [60], 'held by the pedal');
+  await page.evaluate(() => window.__usbIn([0xb0, 64, 0]));
+  eq(await lab.evaluate((el) => [el.pedalNotes.size, el.held.size]), [0, 0], 'released with the pedal');
+  // Follow off: knobs leave the page alone.
+  await page.evaluate(async () => { (await import('/assets/js/hw/fm1.js')).fm1.setFollowHw(false); window.__usbIn([0xb0, 74, 127]); });
+  assert(Math.abs((await lab.evaluate((el) => el.params.cutoff)) - cutoff) < 1, 'cutoff moved with follow off');
+  await page.evaluate(async () => (await import('/assets/js/hw/fm1.js')).fm1.setFollowHw(true));
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('MIDI monitor decodes what arrives', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', {}, { midi: true });
+  await panel(page).getByRole('button', { name: 'Connect MIDI' }).click();
+  await panel(page).locator('details', { hasText: 'MIDI from the' }).locator('summary').click();
+  await page.evaluate(() => { window.__usbIn([0x90, 60, 100]); window.__usbIn([0xb0, 74, 64]); window.__usbIn([0xe0, 0, 0x50]); window.__usbIn([0xf8]); });
+  await page.waitForTimeout(100);
+  const text = await panel(page).locator('.midi-mon').textContent();
+  for (const want of ['Note on  C4  velocity 100', 'CC 74 = 64  cutoff', 'Pitch bend +2048', '(1 clock messages)']) assert(text.includes(want), `missing “${want}” in:\n${text}`);
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('signal path points at controls; focus opens and Escape closes it', async () => {
+  const { page, ctx, errors } = await open('/lessons/03-filters.html');
+  // "Key tracking" shows only a spectrum, so Focus has views to add.
+  const lab = page.locator('synth-lab', { has: page.locator('h3', { hasText: 'Key tracking' }) });
+  await lab.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200); // the strip draws (and learns where its stages are) once on screen
+  const box = await lab.locator('.viz.flow canvas').boundingBox();
+  // The filter is the second of four stages.
+  await page.mouse.click(box.x + box.width * 0.375, box.y + box.height * 0.65);
+  assert(await lab.locator('.ctl[data-key="cutoff"][data-flash]').count(), 'cutoff not pointed at');
+  assert(/^Filter: /.test(await lab.locator('.where').first().textContent()), 'where line');
+  await lab.locator('.focus-btn').click();
+  assert(await lab.locator('.instrument[data-focus]').count(), 'not in focus');
+  assert(await lab.locator('.viz[data-view="sono"]').isVisible(), 'spectrogram hidden in focus');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  eq(await lab.locator('.instrument[data-focus]').count(), 0, 'still in focus');
+  assert(!(await lab.locator('.viz[data-view="sono"]').isVisible()), 'spectrogram shown outside focus');
   eq(errors, [], 'console errors');
   await ctx.close();
 });
