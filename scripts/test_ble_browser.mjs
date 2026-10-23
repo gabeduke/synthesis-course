@@ -230,6 +230,29 @@ await check('connect, notes and CCs in, panel state, disconnect (keyboard-activa
   await ctx.close();
 });
 
+await check('connection log records connects, drops and retries, and survives a page change', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', { failReconnectsUntil: 2 });
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline').textContent.includes('Bluetooth: SMK-37 BLE'));
+  await page.evaluate(() => window.__bleNotify([0x80, 0x80, 0x90, 60, 100]));
+  await page.evaluate(() => window.__bleDrop());
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Reconnected'));
+  const text = await panel(page).locator('.ble-log-text').textContent();
+  for (const want of ['-- page 00-start.html --', 'Picked SMK-37 BLE', 'Connected', 'First MIDI data on this link', 'Link dropped (was connected)', 'Retry 1 of 3', 'Retry 1 failed', 'Reconnected on retry 2']) {
+    assert(text.includes(want), `log is missing "${want}":\n${text}`);
+  }
+  // A fresh page load sees the same log (stored in the browser).
+  await page.goto(BASE + '/lessons/00-start.html?device=smk37&again=1');
+  await page.waitForFunction(() => customElements.get('fm1-panel'));
+  assert((await panel(page).locator('.ble-log-text').textContent()).includes('Reconnected on retry 2'), 'log not kept across pages');
+  // Clear empties it.
+  await panel(page).locator('.ble-log summary').click();
+  await panel(page).getByRole('button', { name: 'Clear log' }).click();
+  eq(await panel(page).locator('.ble-log-text').textContent(), 'Nothing yet.', 'cleared log');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
 await check('lost connection that cannot reconnect is reported', async () => {
   const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', { failReconnect: true });
   await bleBtn(page).click();

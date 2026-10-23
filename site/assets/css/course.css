@@ -907,3 +907,12 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 @media (max-width: 560px) {
   .site-header { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
 }
+
+/* Bluetooth connection log in the connection panel */
+.ble-log { margin-top: 8px; }
+.ble-log summary { cursor: pointer; font-size: 0.9em; opacity: 0.85; }
+.ble-log-text {
+  margin: 8px 0; padding: 8px; max-height: 12em; overflow: auto;
+  font: 0.8em/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap; border: 1px solid currentColor; border-radius: 6px; opacity: 0.9;
+}

@@ -108,6 +108,9 @@ with Chrome on Android.
   and once more when the page comes back to the foreground. If that fails, the
   button turns into "Reconnect Bluetooth": one tap tries the same instrument
   without the chooser, and a second tap opens the chooser.
+- The connection panel has a collapsed "Bluetooth log" (connects, drops,
+  retries and failures, with times; kept in the browser across lessons, with
+  Copy and Clear buttons) for working out why a link keeps dropping.
 - Browser support: Chrome on Android, and Chrome or Edge on Windows, macOS
   and ChromeOS (Web Bluetooth). Not Firefox or Safari, and not on iOS. It
   needs https or `localhost`, and a tap on the button each time a page loads,

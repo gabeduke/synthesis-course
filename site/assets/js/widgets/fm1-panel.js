@@ -4,7 +4,7 @@
 //   <fm1-panel>          the full panel inline (used in "Start here")
 
 import { fm1 } from '../hw/fm1.js';
-import { bleErrorKind } from '../hw/ble-midi.js';
+import { bleErrorKind, getBleLog, clearBleLog, bleLogEvents } from '../hw/ble-midi.js';
 import { noteName, resume } from '../audio/core.js';
 import { el } from '../ui/controls.js';
 import { device, deviceLabel, devName, ctl, onDeviceChange } from '../ui/device.js';
@@ -35,6 +35,25 @@ function body(panel) {
   const bleNote = el('p', { class: 'ble-note' });
   const usbNote = el('p', { text: 'Bluetooth is connected, so the page sends and listens over Bluetooth only. These USB ports take over again when it disconnects.' });
   const bleCan = fm1.supported.bluetooth;
+  // Connection log, newest at the bottom. Kept across lessons.
+  const logPre = el('pre', { class: 'ble-log-text', tabindex: '0', 'aria-label': 'Bluetooth connection log' });
+  const logCopy = el('button', { class: 'btn', type: 'button', text: 'Copy log' });
+  const logClear = el('button', { class: 'btn', type: 'button', text: 'Clear log' });
+  const bleLog = el('details', { class: 'ble-log' }, [
+    el('summary', { text: 'Bluetooth log' }),
+    logPre,
+    el('div', { style: 'display:flex;gap:12px;flex-wrap:wrap' }, [logCopy, logClear]),
+  ]);
+  const logText = () => getBleLog().map(([t, text]) => `${new Date(t).toLocaleTimeString([], { hour12: false })}  ${text}`).join('\n');
+  const showLog = () => { logPre.textContent = logText() || 'Nothing yet.'; logPre.scrollTop = logPre.scrollHeight; };
+  bleLogEvents.addEventListener('change', showLog);
+  showLog();
+  logClear.addEventListener('click', clearBleLog);
+  logCopy.addEventListener('click', () => {
+    try { navigator.clipboard.writeText(logText()).then(() => say('Copied the Bluetooth log.'), () => say('Couldn’t copy; select the text instead.', true)); }
+    catch (_) { say('Couldn’t copy; select the text instead.', true); }
+  });
+  bleLog.hidden = !bleCan;
   if (!bleCan) {
     bleNote.textContent = window.isSecureContext === false
       ? 'Bluetooth needs a secure page: open the course over https (or localhost) to connect over Bluetooth.'
@@ -196,7 +215,7 @@ function body(panel) {
     intro,
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports, usbNote]),
     el('hr'),
-    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, bleNote]),
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, bleNote, bleLog]),
     el('hr'),
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab]),
     el('hr'),

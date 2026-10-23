@@ -182,6 +182,35 @@ export function bleErrorKind(err) {
 
 const MAX_QUEUE = 512;
 
+// ---------- Connection log ----------
+// A short record of connects, drops and retries, kept in the browser so it
+// survives moving between lessons. Shown in the connection panel; it exists so
+// "it keeps dropping" can be looked at with times instead of guessed at.
+const LOG_KEY = 'course.bleLog';
+const LOG_MAX = 80;
+export const bleLogEvents = new EventTarget();
+let pageMarked = false;
+
+export function getBleLog() {
+  try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch (_) { return []; }
+}
+export function clearBleLog() {
+  try { localStorage.removeItem(LOG_KEY); } catch (_) { /* ignore */ }
+  pageMarked = false;
+  bleLogEvents.dispatchEvent(new Event('change'));
+}
+export function logBle(text) {
+  const entries = getBleLog();
+  if (!pageMarked && typeof location !== 'undefined') {
+    pageMarked = true;
+    entries.push([Date.now(), `-- page ${location.pathname.split('/').pop() || 'index'} --`]);
+  }
+  entries.push([Date.now(), text]);
+  try { localStorage.setItem(LOG_KEY, JSON.stringify(entries.slice(-LOG_MAX))); } catch (_) { /* ignore */ }
+  bleLogEvents.dispatchEvent(new Event('change'));
+}
+const why = (err) => `${err?.name || 'Error'}${err?.message ? `: ${err.message}` : ''}`;
+
 // One Bluetooth MIDI instrument. Events: 'change' whenever `state` changes,
 // with detail { state, reason } where reason is 'manual', 'lost' or
 // 'reconnected' for the disconnect path.
@@ -207,13 +236,13 @@ export class BleMidi extends EventTarget {
     this._flushing = false;
     this._manual = false;
     this._onValue = (e) => this._receive(e.target.value);
-    this._onGone = () => this._disconnected();
+    this._onGone = () => { logBle(`Link dropped (was ${this.state})`); this._disconnected(); };
     // Android drops Bluetooth links while the screen is off or the page is in
     // the background. Try once more when the page comes back.
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && this.state === 'disconnected'
-            && this._lost && this.device && !this._manual) this._retryLoop();
+            && this._lost && this.device && !this._manual) { logBle('Page visible again: retrying'); this._retryLoop(); }
       });
     }
   }
@@ -240,6 +269,7 @@ export class BleMidi extends EventTarget {
         optionalServices: [BLE_MIDI_SERVICE],
       });
     } catch (err) { err.blePhase = 'pick'; throw err; }
+    logBle(`Picked ${device.name || 'a device'}`);
     if (this.device && this.device !== device) this.disconnect();
     await this.open(device);
     return device;
@@ -256,15 +286,18 @@ export class BleMidi extends EventTarget {
       device.addEventListener('gattserverdisconnected', this._onGone);
     }
     this._set('connecting');
+    logBle(`Connecting to ${device.name || 'device'}`);
     try {
       await this._attachWithTimeout();
     } catch (err) {
+      logBle(`Connect failed (${why(err)})`);
       this._detachCharacteristic();
       this._manual = true; // our own clean-up, not a lost connection
       try { device.gatt?.connected && device.gatt.disconnect(); } catch (_) { /* ignore */ }
       this._set('idle');
       throw err;
     }
+    logBle('Connected');
     this._set('connected');
   }
 
@@ -273,6 +306,7 @@ export class BleMidi extends EventTarget {
     let timer;
     const timeout = new Promise((_, reject) => {
       timer = setTimeout(() => {
+        logBle(`Attempt timed out after ${Math.round(this.attemptTimeout / 1000)} s`);
         try { this.device?.gatt?.connected && this.device.gatt.disconnect(); } catch (_) { /* ignore */ }
         reject(Object.assign(new Error('Timed out connecting.'), { name: 'NetworkError', blePhase: 'gatt' }));
       }, this.attemptTimeout);
@@ -297,6 +331,7 @@ export class BleMidi extends EventTarget {
     } catch (err) { err.blePhase = err.name === 'NotFoundError' ? 'service' : 'gatt'; throw err; }
     this._detachCharacteristic();
     this._parser = createParserState();
+    this._gotData = false;
     ch.addEventListener('characteristicvaluechanged', this._onValue);
     this.characteristic = ch;
     try { await ch.startNotifications(); } catch (err) { err.blePhase = 'gatt'; throw err; }
@@ -310,6 +345,7 @@ export class BleMidi extends EventTarget {
 
   disconnect() {
     if (!this.device) return;
+    if (this.state !== 'idle') logBle('Disconnected by you');
     this._manual = true;
     this._run++;
     const gatt = this.device.gatt;
@@ -332,21 +368,27 @@ export class BleMidi extends EventTarget {
   async _retryLoop() {
     const run = ++this._run;
     this._set('reconnecting', 'lost');
+    let n = 0;
     for (const wait of this.retryDelays) {
+      n++;
+      logBle(`Retry ${n} of ${this.retryDelays.length} in ${wait / 1000} s`);
       await new Promise((r) => setTimeout(r, wait));
       if (run !== this._run || this._manual) return;
       try {
         await this._attachWithTimeout();
         if (run !== this._run || this._manual) return;
         this._lost = false;
+        logBle(`Reconnected on retry ${n}`);
         this._set('connected', 'reconnected');
         return;
-      } catch (_) {
+      } catch (err) {
+        logBle(`Retry ${n} failed (${why(err)})`);
         this._detachCharacteristic();
         try { this.device?.gatt?.connected && this.device.gatt.disconnect(); } catch (__) { /* ignore */ }
       }
     }
     if (run === this._run && !this._manual) {
+      logBle('Gave up retrying');
       this._lost = true;
       this._set('disconnected', 'lost');
     }
@@ -354,6 +396,7 @@ export class BleMidi extends EventTarget {
 
   _receive(view) {
     if (!view) return;
+    if (!this._gotData) { this._gotData = true; logBle('First MIDI data on this link'); }
     const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
     for (const { data } of parseBlePacket(bytes, this._parser)) {
       try {
