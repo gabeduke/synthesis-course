@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>The trapezoid and the joystick | Signal Path</title>
+  <meta name="description" content="The EMS envelope shaper on the AKS Mini: Attack, On, Decay and Off, looping it, Trapez against Signal, the joystick, the spring reverb and the motion sequencer.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="stylesheet" href="../assets/css/aks.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#e9edf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d2229" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Signal Path">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+        <main id="main">
+      <p class="lesson-number">Lesson 15</p>
+      <h1>The trapezoid and the joystick</h1>
+      <p class="lede">An ADSR waits for you: it holds its sustain level for as long as you hold the key. The EMS envelope shaper doesn’t wait for anyone. It’s four times in a row, and with one knob it stops being an envelope at all and becomes a slow, shaped oscillator. Add a joystick that moves two knobs at once and you have most of what made EMS instruments feel alive.</p>
+
+      <h2>Four times, no sustain</h2>
+      <p>The shape it draws is a trapezoid: up, flat, down, flat. Each side is a time.</p>
+      <ul>
+        <li><span class="sig-time">Attack</span>: how long it takes to rise, 3 ms to 1.5 s.</li>
+        <li><span class="sig-time">On</span>: how long it stays at the top, up to 2.5 s.</li>
+        <li><span class="sig-time">Decay</span>: how long it takes to fall, 1 ms to 15 s. On the original, this was the only time you could move from the matrix.</li>
+        <li><span class="sig-time">Off</span>: how long it waits at the bottom before it can start again.</li>
+      </ul>
+      <p>Compare lesson 4’s ADSR. There, Sustain is a <em>level</em> and lasts as long as the key; Release starts when you let go. Here, On is a <em>time</em>. A short On gives the same pluck whether you tap the key or lean on it. On the page, holding a key doesn’t stretch On; whether it does on the AKS Mini isn’t in the guide, so check on your unit.</p>
+
+      <aks-lab heading="The envelope shaper" intro="Play short and long notes. The shape is the same either way." controls="attack on decay off trapez" preset='{"mode":"unison","saw":7,"square":3,"shape":2,"detune":0.4,"cutoff":6.5,"response":2,"attack":2,"on":3,"decay":5,"off":10,"trapez":10,"signal":7,"reverb":2}' views="trap wave" chord="48"></aks-lab>
+
+      <h2>Off: the loop</h2>
+      <p>Turn <span class="sig-time">Off</span> to 6 or below and the envelope fires itself again after each Off gap, over and over: it loops. Past 6 it waits for a key, or for the button on the joystick. That one knob turns the envelope into a slow oscillator with a shape you design: a short Attack and a long Decay make soft pulses; equal Attack and Decay make a gentle tide; a long On and short Off make a stutter.</p>
+      <p>The page starts the loop at the next key or <span class="btn-name">Fire envelope</span>, and it keeps going after you let go. Press <span class="btn-name">Fire envelope</span> again to stop it, or turn Off past 6. Whether the AKS Mini’s loop keeps going with no key held, or needs one to start, is a reading of the guide; check on your unit.</p>
+
+      <aks-lab heading="A looping envelope" intro="Press Fire envelope, then change Off, Attack and Decay while it runs." controls="off attack on decay egInt" preset='{"mode":"poly","saw":8,"square":0,"cutoff":4.5,"response":5,"egInt":4,"attack":0.8,"on":0.5,"decay":4.5,"off":2,"trapez":10,"signal":7,"reverb":3}' views="trap spectrum" filter-curve chord="36 43 48"></aks-lab>
+
+      <h2>Trapez and Signal: shape or drone</h2>
+      <p>Two knobs decide how much of the envelope you hear. <span class="sig-sound">Signal</span> is how far the VCA can open. <span class="sig-time">Trapez</span> is how much of that the envelope controls:</p>
+      <ul>
+        <li><strong>Trapez up:</strong> the sound follows the envelope exactly, and stops when it’s down. This is the usual setting.</li>
+        <li><strong>Trapez down:</strong> the VCA stays open at Signal all the time. The oscillators never stop, so you get a drone, and the envelope only moves whatever else it’s sent to, like the filter.</li>
+        <li><strong>In between:</strong> the envelope pushes the level up from a floor. A looping envelope then makes a pulse that never quite goes silent.</li>
+      </ul>
+      <p>The dashed blue line in the envelope picture is the VCA. Watch it lift off the floor as Trapez comes down.</p>
+
+      <aks-lab heading="Trapez against Signal" intro="Press Fire envelope, then bring Trapez down to 0 and back. Signal sets the loudest it gets." controls="trapez signal egInt off" preset='{"mode":"poly","saw":6,"square":4,"shape":4,"detune":1,"cutoff":4,"response":4,"egInt":3,"attack":3,"on":2,"decay":6,"off":3,"trapez":6,"signal":6,"reverb":4}' views="trap wave" chord="36 43"></aks-lab>
+
+      <p>This is lesson 12’s drone, made the EMS way: rather than holding a note, you leave the VCA open and let the oscillators run. Because the AKS Mini’s oscillators keep their last pitch when you let go, a drone holds whatever you played last.</p>
+
+      <h2>EG int: the envelope on the filter</h2>
+      <p><span class="sig-time">EG int</span> sends the same envelope to the filter. With it, a pluck closes the filter as it fades, the way lesson 4’s filter envelope does. With a looping envelope it’s a rhythmic wah, and with Trapez down it’s a filter that pulses under a steady drone. Try it in the looping panel above.</p>
+
+      <h2>The joystick</h2>
+      <p>The joystick moves two knobs at once, one per direction, and it can reach any point on the square they make: bright and calm, dark and resonant, or anywhere between, with one hand. On the AKS Mini you choose what each direction moves; the guide says to hold <span class="btn-name">FUNC</span>, press one of two keys (one per axis) and turn the knob you want. It prints the same key number for both, so find the right two on your unit.</p>
+
+      <aks-lab heading="Joystick" intro="Hold a note and drag the dot. Choose what X and Y move below it; Spring back returns it to where you picked it up." controls="cutoff response lfoCutoff lfoRate" preset='{"mode":"unison","saw":8,"square":2,"detune":0.5,"cutoff":5,"response":5,"lfoWave":"sine","lfoRate":4,"lfoCutoff":0,"attack":0.5,"on":10,"decay":8,"off":10,"trapez":10,"signal":7,"reverb":3}' views="joystick spectrum" joystick="cutoff response" filter-curve chord="40"></aks-lab>
+
+      <p>Good pairs to try: Frequency and Response, the classic; LFO rate and Cutoff int, for a wobble you steer; Decay and Off on a looping envelope, for rhythm you can bend; Detune and Shape, for a sound that thickens as you push.</p>
+
+      <h2>The spring</h2>
+      <p>A spring reverb sends sound down a coiled spring and picks it up at the other end. Springs carry high frequencies faster than low ones, so each echo arrives as a short falling chirp: the “boing” you hear when you play anything percussive into one. The original had a real double spring; the AKS Mini’s reverb is a digital copy with one knob, from dry to wet. The page builds its spring from two of those chirping echoes, about 25 and 30 ms apart.</p>
+
+      <h2>The motion sequencer, briefly</h2>
+      <p>The AKS Mini has a 16-step sequencer with ten memories. Beyond notes, it can record knob movements step by step, so a filter sweep or a change of Shape plays back with the pattern; the guide says every knob except the joystick, Signal and Response can be recorded. It has a smoothing option that glides between recorded values, a “freestyle” mode for notes off the grid, a tempo from 10 to 600 BPM, and it can follow MIDI clock over USB or DIN, or a sync pulse on its 3.5 mm SYNC jack. The guide’s instructions for it are short, so the details are for your unit to show you.</p>
+      <p>The page can’t record motion on the AKS Mini, but it can help: with Mirror on, moving a control on a panel here sends its CC to the AKS Mini while the sequencer records.</p>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>A pulse without a sequencer:</strong> Off at 6 or below, short Attack and On, a Decay that matches your tempo.</li>
+          <li><strong>A drone with life in it:</strong> Trapez down, a slow looping envelope on the filter with EG int.</li>
+          <li><strong>Plucks that don’t care how long you hold:</strong> short On, Off past 6.</li>
+          <li><strong>A performance in one hand:</strong> the joystick on the two knobs you’d otherwise need both hands for.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the AKS Mini</h3>
+        <ol>
+          <li>Set Off past 6, Trapez up, and play short and long notes with a short On. Then lengthen On and play again.</li>
+          <li>Turn Off down to about 3. If the envelope starts looping by itself, note whether it needs a key to start and whether it stops when you let go.</li>
+          <li>With it looping, bring Trapez down slowly and listen to the gaps fill in. Then add EG int.</li>
+          <li>Assign the joystick: hold <span class="btn-name">FUNC</span>, press the first joystick key and turn Frequency; then the second key and turn Response. Play a note and move the stick.</li>
+          <li>Bring the reverb up and play a short, sharp note to hear the spring.</li>
+        </ol>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1969</dt>
+          <dd>The VCS3’s envelope shaper offers two outputs: the trapezoid itself as a control voltage, and the input sound passed through its own VCA. Its Off control, past a point, stops it recycling, and a button fires it by hand.</dd>
+          <dt>1969</dt>
+          <dd>The joystick, an unusual control for the time, lets one hand move two things smoothly. It becomes an EMS trademark, and returns years later on synths like Sequential’s Prophet VS and Korg’s Wavestation.</dd>
+          <dt>1972</dt>
+          <dd>The Synthi AKS’s KS sequencer stores 256 events, recorded from its touch keyboard. A year later Pink Floyd build “On the Run” around one of its sequences.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

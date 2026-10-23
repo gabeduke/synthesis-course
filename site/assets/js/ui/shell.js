@@ -40,7 +40,13 @@ function rail() {
   const seen = visited();
   const current = LESSONS.find((l) => isCurrent(l.file));
   const list = el('ol');
+  let part;
   for (const l of LESSONS) {
+    // A small heading where a new part (a track after the main course) starts.
+    if (l.part && l.part !== part) {
+      list.append(el('li', { class: 'part', text: l.part }));
+    }
+    part = l.part;
     const a = el('a', { href: href(l.file) }, [el('span', { class: 'node', text: String(l.n) }), el('span', { text: l.title })]);
     if (current === l) a.setAttribute('aria-current', 'page');
     if (seen.has(l.file)) a.setAttribute('data-visited', '');

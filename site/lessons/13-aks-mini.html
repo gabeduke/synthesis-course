@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>The AKS Mini | Signal Path</title>
+  <meta name="description" content="Behringer’s AKS Mini and its EMS ancestors: what it kept from the VCS3 and Synthi AKS, what it left out, its signal path, and playing it from the page over MIDI.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="stylesheet" href="../assets/css/aks.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#e9edf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d2229" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Signal Path">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+        <main id="main">
+      <p class="lesson-number">Lesson 13</p>
+      <h1>The AKS Mini</h1>
+      <p class="lede">Behringer’s AKS Mini is a small analog synthesizer with three oscillators, one filter, an envelope made of four times instead of four stages, a joystick and a spring reverb. Its name points back to one of the strangest and most loved instruments of the early 1970s. This lesson is about what it took from that ancestor, what it left behind, and how to play it from the page.</p>
+
+      <p>The first twelve lessons were about the <span class="fw-name">FM-1+VA</span>, a digital instrument where every note gets its own oscillators, filter and envelope. The AKS Mini works differently. It has one of everything after the oscillators, shared by every key you hold, and its oscillators are analog: they run all the time, drift a little as they warm up, and never quite sound the same twice. Most of what you’ve learned carries over. The differences are what this short track is for.</p>
+
+      <aside class="provisional">
+        <h3>What this track is built from</h3>
+        <p>When this was written, Behringer had published only a draft Quick Start Guide for the AKS Mini, marked version 0.0. Its control ranges, power-up menu and MIDI numbers are used here as given, but the guide has visible mistakes (it calls the envelope an “ADSR”, lists the same key for both joystick axes, and its voice-mode numbers overlap), so treat everything on the AKS Mini side as provisional until your own unit confirms it. Where the guide says nothing, the page makes a reasonable choice and says so, and the steps say “check on your unit”.</p>
+        <p>The page’s AKS Mini is a model built from that guide, for learning the layout. It isn’t a copy of the circuits, and it won’t sound the same.</p>
+      </aside>
+
+      <h2>A briefcase from 1972</h2>
+      <p>In 1969 a small London company, EMS, released the VCS3: a synthesizer in a wooden case the size of a shoebox. A year or two later it went into a briefcase as the Synthi A, and in 1972 the Synthi AKS added a flat touch keyboard and a sequencer in the lid. They were cheap enough, for the time, that bands could take one on the road, and they ended up on records by Pink Floyd, Roxy Music, The Who and many others.</p>
+      <p>Their sound came from a few unusual parts: a filter that could whistle on its own (EMS labelled it the filter/oscillator), an envelope shaper built around times rather than a held key, a ring modulator, a spring reverb, and a joystick that could move any two things at once. And they had no fixed signal path at all.</p>
+
+      <h3>The pin matrix</h3>
+      <p>Instead of cables, the VCS3 and Synthi had a 16 by 16 grid of holes. Each row is a source (an oscillator, the noise generator, the filter’s output, the envelope, the joystick); each column is a destination (the filter’s input, an oscillator’s pitch, the reverb, an output channel). Push a pin into a hole and that source feeds that destination. Pins are named by column and row: H3 sends oscillator 1 into the filter.</p>
+
+      <figure class="aks-figure">
+        <svg class="aks-matrix" viewBox="0 0 384 314" role="img" aria-label="A 16 by 16 grid: sources down the side, destinations across the top. Six pins make a simple voice: H3, D10, A12, C12, I6 and N11.">
+<defs><pattern id="aks-cell" width="18" height="18" patternUnits="userSpaceOnUse" x="92" y="22"><rect class="cell" x="1" y="1" width="16" height="16" rx="3"/></pattern></defs>
+<rect x="92" y="22" width="288" height="288" fill="url(#aks-cell)"/>
+<text class="lab" x="101" y="15" text-anchor="middle">A</text>
+<text class="lab" x="119" y="15" text-anchor="middle">B</text>
+<text class="lab" x="137" y="15" text-anchor="middle">C</text>
+<text class="lab" x="155" y="15" text-anchor="middle">D</text>
+<text class="lab" x="173" y="15" text-anchor="middle">E</text>
+<text class="lab" x="191" y="15" text-anchor="middle">F</text>
+<text class="lab" x="209" y="15" text-anchor="middle">G</text>
+<text class="lab" x="227" y="15" text-anchor="middle">H</text>
+<text class="lab" x="245" y="15" text-anchor="middle">I</text>
+<text class="lab" x="263" y="15" text-anchor="middle">J</text>
+<text class="lab" x="281" y="15" text-anchor="middle">K</text>
+<text class="lab" x="299" y="15" text-anchor="middle">L</text>
+<text class="lab" x="317" y="15" text-anchor="middle">M</text>
+<text class="lab" x="335" y="15" text-anchor="middle">N</text>
+<text class="lab" x="353" y="15" text-anchor="middle">O</text>
+<text class="lab" x="371" y="15" text-anchor="middle">P</text>
+<text class="lab" x="86" y="34.5" text-anchor="end">1 Out 1</text>
+<text class="lab" x="86" y="52.5" text-anchor="end">2 Out 2</text>
+<text class="lab" x="86" y="70.5" text-anchor="end">3 Osc 1</text>
+<text class="lab" x="86" y="88.5" text-anchor="end">4 Osc 2</text>
+<text class="lab" x="86" y="106.5" text-anchor="end">5 Osc 3 square</text>
+<text class="lab" x="86" y="124.5" text-anchor="end">6 Osc 3 triangle</text>
+<text class="lab" x="86" y="142.5" text-anchor="end">7 Noise</text>
+<text class="lab" x="86" y="160.5" text-anchor="end">8 Input 1</text>
+<text class="lab" x="86" y="178.5" text-anchor="end">9 Input 2</text>
+<text class="lab" x="86" y="196.5" text-anchor="end">10 Filter</text>
+<text class="lab" x="86" y="214.5" text-anchor="end">11 Trapezoid</text>
+<text class="lab" x="86" y="232.5" text-anchor="end">12 Envelope</text>
+<text class="lab" x="86" y="250.5" text-anchor="end">13 Ring mod</text>
+<text class="lab" x="86" y="268.5" text-anchor="end">14 Reverb</text>
+<text class="lab" x="86" y="286.5" text-anchor="end">15 Stick X</text>
+<text class="lab" x="86" y="304.5" text-anchor="end">16 Stick Y</text>
+<circle class="pin" cx="227" cy="67" r="5.5"/>
+<circle class="pin" cx="155" cy="193" r="5.5"/>
+<circle class="pin" cx="101" cy="229" r="5.5"/>
+<circle class="pin" cx="137" cy="229" r="5.5"/>
+<circle class="pin" cx="245" cy="121" r="5.5"/>
+<circle class="pin" cx="335" cy="211" r="5.5"/>
+</svg>
+        <figcaption>The Synthi AKS’s matrix, as laid out in EMS’s 1972 handbook. Six pins make a simple voice: oscillator 1 into the filter (H3), the filter into the envelope shaper (D10), the shaped sound to both outputs (A12, C12), oscillator 3’s slow triangle on oscillator 1’s pitch for vibrato (I6), and the trapezoid on the filter frequency (N11). The VCS3’s matrix is laid out differently; don’t mix the two diagrams.</figcaption>
+      </figure>
+
+      <p>The matrix is why those instruments sounded so wild: anything could modulate anything, including itself. It’s also the main thing the AKS Mini leaves out.</p>
+
+      <ul>
+        <li><strong>Kept:</strong> the trapezoid envelope shaper with its Attack, On, Decay and Off times; a filter with EMS’s name for resonance, Response; the joystick; a spring reverb (digital, on the Mini); a sequencer.</li>
+        <li><strong>Left out:</strong> the pin matrix, the noise generator, the input amplifiers for processing other sounds, the separate ring modulator on the panel, and the original’s two output channels with their own filters.</li>
+        <li><strong>Added:</strong> three oscillators that all play notes (the original’s third was mostly a slow one, for modulation), paraphonic chords, a separate LFO, MIDI, and a 27-key touch keyboard.</li>
+      </ul>
+
+      <h2>Its signal path</h2>
+      <p>With no matrix, the AKS Mini is wired one way, like the <span class="fw-name">FM-1+VA</span>’s Virtual Analog engine: oscillators into a filter, into an amplifier, into the reverb. The envelope and the LFO move things along the way, and the joystick can move any two knobs.</p>
+
+      <figure class="aks-figure">
+        <svg class="aks-path" viewBox="0 0 760 236" role="img" aria-label="Signal path: three VCOs feed one filter, then one VCA, then the spring reverb, then the headphone output. The LFO moves the VCOs’ pitch and the filter. The envelope shaper moves the filter and the VCA.">
+          <defs>
+            <marker id="aks-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="aks-arr-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow time" d="M0 0L10 5L0 10z"/></marker>
+            <marker id="aks-arr-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow move" d="M0 0L10 5L0 10z"/></marker>
+          </defs>
+          <rect class="box sound" x="10" y="14" width="120" height="30" rx="7"/><text class="name" x="70" y="34" text-anchor="middle">VCO 1</text>
+          <rect class="box sound" x="10" y="52" width="120" height="30" rx="7"/><text class="name" x="70" y="72" text-anchor="middle">VCO 2</text>
+          <rect class="box sound" x="10" y="90" width="120" height="30" rx="7"/><text class="name" x="70" y="110" text-anchor="middle">VCO 3</text>
+          <text class="sub" x="70" y="138" text-anchor="middle">saw + square, Shape</text>
+          <path class="wire" d="M130 29 H160 V67 M130 67 H190 M130 105 H160 V67" marker-end="url(#aks-arr)"/>
+          <rect class="box sound" x="194" y="44" width="130" height="46" rx="8"/><text class="name" x="259" y="66" text-anchor="middle">VCF</text><text class="sub" x="259" y="82" text-anchor="middle">low-pass, Response</text>
+          <path class="wire" d="M324 67 H362" marker-end="url(#aks-arr)"/>
+          <rect class="box time" x="366" y="44" width="130" height="46" rx="8"/><text class="name" x="431" y="66" text-anchor="middle">VCA</text><text class="sub" x="431" y="82" text-anchor="middle">Signal, Trapez</text>
+          <path class="wire" d="M496 67 H534" marker-end="url(#aks-arr)"/>
+          <rect class="box space" x="538" y="44" width="110" height="46" rx="8"/><text class="name" x="593" y="66" text-anchor="middle">Spring</text><text class="sub" x="593" y="82" text-anchor="middle">reverb mix</text>
+          <path class="wire" d="M648 67 H686" marker-end="url(#aks-arr)"/>
+          <text class="name" x="692" y="64">Out</text><text class="sub" x="692" y="80">phones</text>
+          <rect class="box move" x="10" y="176" width="120" height="46" rx="8"/><text class="name" x="70" y="198" text-anchor="middle">LFO</text><text class="sub" x="70" y="214" text-anchor="middle">sine saw square random</text>
+          <path class="mod move" d="M70 176 V146" marker-end="url(#aks-arr-m)"/>
+          <path class="mod move" d="M130 199 H230 V94" marker-end="url(#aks-arr-m)"/>
+          <rect class="box time" x="330" y="176" width="200" height="46" rx="8"/><text class="name" x="430" y="198" text-anchor="middle">Envelope shaper</text><text class="sub" x="430" y="214" text-anchor="middle">Attack, On, Decay, Off</text>
+          <path class="mod time" d="M330 199 H288 V94" marker-end="url(#aks-arr-t)"/>
+          <path class="mod time" d="M431 176 V94" marker-end="url(#aks-arr-t)"/>
+          <rect class="box move" x="580" y="176" width="150" height="46" rx="8"/><text class="name" x="655" y="198" text-anchor="middle">Joystick</text><text class="sub" x="655" y="214" text-anchor="middle">any two knobs</text>
+        </svg>
+        <figcaption>Solid lines carry sound; dashed lines are modulation. Blue is sound, amber is time, pink is movement and green is space, as everywhere in the course.</figcaption>
+      </figure>
+
+      <aks-lab heading="The whole panel" intro="Play a key or a chord. Each key fires the envelope, which runs its course however long you hold it." controls="VCO Voices VCF LFO Envelope Output" preset='{"saw":8,"square":3,"shape":2,"detune":0.6,"cutoff":6.2,"response":3,"egInt":2,"attack":1.5,"on":10,"decay":7,"off":10,"trapez":10,"signal":7,"reverb":3}' views="wave spectrum trap voices" filter-curve chord="48 55 60"></aks-lab>
+
+      <p>Three pictures are new. <span class="sig-time">Envelope shaper</span> draws the trapezoid with a dot where it is now; the dashed blue line under it is how far the VCA is open. <span class="sig-sound">Three VCOs</span> shows which note each oscillator is playing. Hold one key and all three play it; hold three and each takes one. Lesson 14 is about why that matters.</p>
+
+      <h2 id="connect">Connect it</h2>
+      <p>The AKS Mini’s USB-C socket carries MIDI as well as power, and it needs no driver. There’s also a 5-pin DIN MIDI input, but no MIDI output, so the page can play it and set its knobs but can’t read them back.</p>
+
+      <aks-panel></aks-panel>
+
+      <ul>
+        <li>The page looks for a MIDI port with “AKS” in its name. Nobody has reported the real name yet, so if it isn’t found, choose the port from the list yourself.</li>
+        <li>The channel has to match the one the AKS Mini receives on. According to the guide you set it by holding <span class="btn-name">MEMORY/WRITE</span> while switching on, then pressing one of the sixteen keys the guide numbers 32 to 47, for channels 1 to 16. Check on your unit.</li>
+        <li>Every AKS panel then gains <strong>Play on</strong>, <strong>Mirror to AKS Mini</strong> and <span class="btn-name">Send settings to AKS Mini</span>, which work as they do for the <span class="dev-name">FM-1</span>.</li>
+        <li>To draw the real thing, plug its headphone output into an audio interface and choose that input under Audio in the connection panel at the top right. Its trace is purple, labelled “Audio in”. Turn the AKS Mini’s volume down first: a headphone output into a line input can be loud.</li>
+      </ul>
+
+      <h3>Its MIDI numbers</h3>
+      <p>These are the Control Change numbers in the guide’s chart. The page sends them when you move a control with Mirror on. Response, Signal, the reverb and the LFO’s wave aren’t on the chart, so those stay on the panel.</p>
+      <table class="cc-table">
+        <thead><tr><th>CC</th><th>Control</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Modulation</td><td>The mod wheel of a keyboard plugged into the page.</td></tr>
+          <tr><td>32</td><td>Trapez</td><td>Envelope depth on the VCA.</td></tr>
+          <tr><td>33, 34</td><td>Square, Saw</td><td>The two oscillator levels.</td></tr>
+          <tr><td>35</td><td>Shape</td><td></td></tr>
+          <tr><td>39</td><td>Off</td><td>The guide calls it “EG Off”.</td></tr>
+          <tr><td>40</td><td>Voice mode</td><td>Poly, Unison, Octave, Fifth, and two ring-modulation modes the panel doesn’t show.</td></tr>
+          <tr><td>41</td><td>Octave</td><td>Six steps, 32′ to 1′.</td></tr>
+          <tr><td>42</td><td>Detune</td><td></td></tr>
+          <tr><td>43</td><td>EG to pitch</td><td>“VCO EG Mod”; no knob on the panel.</td></tr>
+          <tr><td>44, 45</td><td>Frequency, EG int</td><td>The filter.</td></tr>
+          <tr><td>46–48</td><td>LFO rate, Pitch int, Cutoff int</td><td></td></tr>
+          <tr><td>49–51</td><td>Attack, Decay, On</td><td>The guide labels 51 “Sustain”. The AKS Mini has no sustain stage, so On is the likely meaning.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Playing it from your <span class="dev-name">FM-1</span></h2>
+      <p>The AKS Mini’s own keys are small touch plates. If you have an <span class="dev-name">FM-1</span> connected too, the page can pass its keys on, so one instrument plays the other:</p>
+      <ol>
+        <li>Connect the <span class="dev-name">FM-1</span> from the panel at the top right, and the AKS Mini above.</li>
+        <li>In the top-right panel, switch on <strong><span class="dev-name">FM-1</span> keys also play the page’s synth</strong>.</li>
+        <li>Click an AKS panel on this page, so its keyboard is the one listening, and set <strong>Play on</strong> to AKS Mini (or Both, to hear the model alongside).</li>
+      </ol>
+      <p>The page is in the middle, so it can show you what’s happening: the keys light up, and the Three VCOs picture follows what you play. A pitch wheel, a mod wheel and a sustain pedal come along too, if your keyboard has them; the mod wheel goes out as CC 1.</p>
+
+      <aside class="on-device" data-device="smk37">
+        <h3>The SMK-37 as the AKS Mini’s keyboard</h3>
+        <p>Played this way, the SMK-37 makes its own sound as well as the AKS Mini’s. To use it only as a keyboard, set <span class="btn-name">GLOBE</span> › MIDI › Local Control to Off: its keys, arpeggiator and Note Engine then send MIDI without playing its own engine. Set it back to On when you’re done, or the SMK-37 will seem broken next time.</p>
+        <p>Without a computer: the SMK-37’s 3.5 mm MIDI port is an output and carries the same messages as USB, so a 3.5 mm-to-DIN adapter into the AKS Mini’s MIDI input connects them directly. There are two wiring standards for those adapters (usually called type A and type B); check which one the SMK-37 uses before buying one.</p>
+      </aside>
+
+      <aside class="on-fm1">
+        <h3>Before you start on the AKS Mini</h3>
+        <ol>
+          <li>Give it time to warm up. The guide asks for about fifteen minutes before tuning; analog oscillators drift until they settle.</li>
+          <li>The guide also describes a calibration routine for the oscillators at power-up. If notes are out of tune with each other after warming up, look for it there.</li>
+          <li>Set every knob to the middle, Attack and Decay low, Trapez and Signal up, Response down, and play one key. That’s your neutral starting point for the next two lessons.</li>
+        </ol>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1969</dt>
+          <dd>Peter Zinovieff, Tristram Cary and David Cockerell’s company EMS releases the VCS3 in London: three oscillators, noise, a ring modulator, a filter that doubles as an oscillator, an envelope shaper, a spring reverb, a joystick, and a pin matrix to connect them.</dd>
+          <dt>1971–72</dt>
+          <dd>The same circuits go into a briefcase as the Synthi A. The Synthi AKS adds the KS: a flat touch keyboard with a sequencer in the case’s lid.</dd>
+          <dt>1973</dt>
+          <dd>Pink Floyd build “On the Run”, on <em>The Dark Side of the Moon</em>, around a sequence played on a Synthi AKS. In early Roxy Music, Brian Eno uses EMS synths to treat the rest of the band’s sound.</dd>
+          <dt>2026</dt>
+          <dd>Behringer’s AKS Mini, first shown as a render in 2022, goes on pre-order: a 3-oscillator paraphonic synth with the EMS envelope shaper and joystick, and without the matrix.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

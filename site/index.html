@@ -56,9 +56,22 @@
     </main>
   </div>
   <script type="module">
-    import { LESSONS } from './assets/js/ui/lessons.js';
-    const list = document.getElementById('path-list');
+    import { LESSONS, PARTS } from './assets/js/ui/lessons.js';
+    let list = document.getElementById('path-list');
+    let part;
     for (const l of LESSONS) {
+      // A part after the main course gets its own heading, intro and list.
+      if (l.part && l.part !== part) {
+        const h = document.createElement('h3');
+        h.textContent = l.part;
+        const p = document.createElement('p');
+        p.textContent = PARTS[l.part]?.blurb || '';
+        const ol = document.createElement('ol');
+        ol.className = 'path-list';
+        list.after(h, p, ol);
+        list = ol;
+      }
+      part = l.part;
       const li = document.createElement('li');
       li.innerHTML = `<span class="n">${String(l.n).padStart(2, '0')}</span><div><a href="./${l.file}"></a><p></p></div>`;
       li.querySelector('a').textContent = l.title;

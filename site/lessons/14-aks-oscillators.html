@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" data-root="..">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Three VCOs, one filter | Signal Path</title>
+  <meta name="description" content="The AKS Mini’s oscillators, Shape, Detune and voice modes; why paraphonic chords behave differently; and its EMS-style filter with Response.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/course.css">
+  <link rel="stylesheet" href="../assets/css/aks.css">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#e9edf1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1d2229" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Signal Path">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <script>try{var t=localStorage.getItem('course.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
+  <script>try{var d=new URLSearchParams(location.search).get('device')||localStorage.getItem('course.device');if(/^[a-z0-9]+$/.test(d||'')&&d!=='fm1'){document.documentElement.dataset.device=d;var s=document.createElement('style');s.id='device-style';s.textContent='html[data-device="'+d+'"] body [data-device]:not([data-device~="'+d+'"]){display:none!important}';document.head.appendChild(s)}}catch(e){}</script>
+  <script type="module" src="../assets/js/main.js"></script>
+</head>
+<body>
+  <header id="site-header"></header>
+  <div class="page">
+    <nav id="rail"></nav>
+        <main id="main">
+      <p class="lesson-number">Lesson 14</p>
+      <h1>Three VCOs, one filter</h1>
+      <p class="lede">The AKS Mini has three oscillators and a single set of knobs for all of them. Those knobs set what the oscillators sound like; the voice mode decides which notes they play. After them comes one filter and one envelope, shared by everything, and that one fact explains most of how the AKS Mini behaves when you play chords.</p>
+
+      <h2>Saw and square, mixed</h2>
+      <p>Each oscillator makes a saw and a square at once. <span class="sig-sound">Saw</span> and <span class="sig-sound">Square</span> are two level knobs, so you mix them rather than choose one, and the mix applies to all three oscillators. Lesson 2 covered why they sound as they do: the saw has every harmonic, the square only the odd ones, so the saw is bright and buzzy and the square hollow.</p>
+
+      <aks-lab heading="Saw and square" intro="Play a note, then bring Square up under the saw, then take the saw away." controls="saw square shape" preset='{"saw":8,"square":0,"shape":0,"cutoff":10,"response":0,"trapez":10,"attack":0.5,"on":6,"decay":4,"signal":7}' views="wave spectrum" chord="48"></aks-lab>
+
+      <h2>Shape</h2>
+      <p><span class="sig-sound">Shape</span> changes both waves at once. On the square it’s pulse width: from a thin 10% pulse, through an even square at the middle, to 90%. Lesson 2’s PWM is this knob turned by an LFO. On the saw, the guide says it “reverses saw into ramp”: the slow rise and sudden drop turn into a sudden rise and slow fall. The page passes through a triangle on the way, which is a guess; listen to how yours gets from one to the other.</p>
+      <p>A 10% pulse and a 90% pulse sound the same. One is the other upside down, and your ears can’t tell which way up a wave is. Turn Shape across the whole range with only Square up and you’ll hear the sound get fuller towards the middle and thinner again past it.</p>
+
+      <h2>Detune and octave</h2>
+      <p><span class="sig-sound">Detune</span> pulls the oscillators apart, up to a whole tone. On the page it moves oscillator 2 up and oscillator 3 down by the same amount, and oscillator 1 stays put. A few cents gives slow beating, the same effect as lesson 6’s Detune with three voices instead of seven. A semitone or a tone gives a cluster, which can sound like a chord built into every note.</p>
+      <p><span class="sig-sound">Octave</span> moves all three up or down, three octaves each way on the panel. Over MIDI the guide lists six steps, named the old organ way: 32′ is the lowest and 1′ the highest, and 8′ is normal pitch.</p>
+
+      <aks-lab heading="Three oscillators in unison" intro="Unison mode puts all three on the key you play. Move Detune slowly from the middle." controls="detune oct saw square" preset='{"mode":"unison","saw":8,"square":0,"detune":0,"cutoff":7,"response":1,"trapez":10,"attack":0.5,"on":6,"decay":5,"signal":7}' views="wave spectrum" chord="45"></aks-lab>
+
+      <h2>Paraphonic: shared by every key</h2>
+      <p>The Virtual Analog engine in lessons 2 to 10 is <strong>polyphonic</strong>. Every key gets its own oscillators, filter and envelope: play a chord one note at a time and each note starts its own attack and fades at its own pace.</p>
+      <p>The AKS Mini is <strong>paraphonic</strong>. It can play three different pitches, one per oscillator, but they all go through the same filter and the same envelope. That changes how chords behave:</p>
+      <ul>
+        <li><strong>One envelope for the chord.</strong> Hold two keys, then add a third, and the envelope starts again for all three: the notes you were already holding swell or pluck again. With the power-up option the guide calls retrigger, only the first key after all keys are up starts it (the page calls it First key).</li>
+        <li><strong>One filter for the chord.</strong> A filter sweep moves every note together. There’s no per-note brightness from velocity or key tracking.</li>
+        <li><strong>Three keys at most.</strong> Hold a fourth and one key goes silent. <strong>Note priority</strong> picks which: the last three keys you pressed, the lowest three or the highest three. The guide also lists a “nearest” option, which isn’t modelled here.</li>
+      </ul>
+
+      <aks-lab heading="Paraphony" intro="Hold C, then add E, then G, then B. Watch the envelope restart and the fourth key drop out." controls="Voices trigger attack decay" preset='{"mode":"poly","saw":7,"square":3,"shape":3,"cutoff":6,"response":2,"egInt":3,"attack":7,"on":6,"decay":7,"off":10,"trapez":10,"signal":7,"reverb":2}' views="voices trap" chord="48 52 55"></aks-lab>
+
+      <p>The Three VCOs picture shows the oscillators sharing out the keys. With one key held, all three play it, so a single note is as full as a chord. Hold more than three and the key that loses is struck through in pink. One thing the page can’t know yet: what the AKS Mini does with two keys held. The page doubles the first key on the spare oscillator. Check on your unit, and listen for whether the first note of a two-note chord is louder.</p>
+
+      <h3>Unison, Octave and Fifth</h3>
+      <p>The other voice modes play one key at a time, by note priority, and use all three oscillators on it. <strong>Unison</strong> puts all three on the key, which with a little Detune is the fattest sound the AKS Mini makes. <strong>Octave</strong> and <strong>Fifth</strong> add the key an octave or a fifth above it. The guide names these modes but not which oscillator moves; the page moves oscillator 2. Its MIDI chart also lists two ring-modulation modes that don’t appear anywhere on the panel; whether they exist is one more thing to check on your unit.</p>
+
+      <h2>The filter</h2>
+      <p>EMS’s filter was famous for misbehaving well. EMS rated it at 18 dB per octave. Measurements of the VCS3 circuit by Tim Stinchcombe show a four-pole diode ladder: gentler than that just past the cutoff, and steeper further away. The AKS Mini’s spec sheet lists a 12 and a 24 dB low-pass, without saying how you choose between them, so the page gives you both.</p>
+      <p><span class="sig-sound">Response</span> is EMS’s word for resonance. Turn it up and a peak rides on the cutoff, as in lesson 3. Turn it all the way and the original stopped filtering and started oscillating: a clean sine at the cutoff frequency, which is why EMS labelled it the filter/oscillator. The guide doesn’t say whether the AKS Mini’s filter does this. The page’s does, near the top of the knob.</p>
+
+      <aks-lab heading="Frequency and Response" intro="Hold the note and sweep Frequency. Then take Saw and Square down to 0, Response to 10, and sweep again." controls="cutoff response slope egInt saw square" preset='{"mode":"unison","saw":8,"square":2,"detune":0.4,"cutoff":5,"response":6,"slope":"24","egInt":0,"trapez":10,"attack":0.3,"on":10,"decay":6,"signal":7}' views="spectrum wave" filter-curve chord="36"></aks-lab>
+
+      <p>With both oscillators down and Response up, you’re playing the filter as an oscillator. Frequency is now its pitch, and EG int turns the envelope into a pitch sweep: the basis of countless EMS laser zaps and bird calls. Response has no MIDI number, so it stays a hands-on knob.</p>
+
+      <section class="use-it">
+        <h3>When to reach for it</h3>
+        <ul>
+          <li><strong>A thick mono lead or bass:</strong> Unison, a little Detune, Saw up, Square under it.</li>
+          <li><strong>Moving chords:</strong> Poly with a slow Attack. Each new key re-swells the whole chord, which works as a rhythm if you play with it rather than against it.</li>
+          <li><strong>A fixed interval:</strong> Fifth mode turns a one-finger line into parallel fifths, an organ or early-synth sound.</li>
+          <li><strong>A whistle, a zap or a bird:</strong> oscillators off, Response up, and the envelope or the joystick on Frequency.</li>
+        </ul>
+      </section>
+
+      <aside class="on-fm1">
+        <h3>On the AKS Mini</h3>
+        <ol>
+          <li>Start neutral: Saw up, Square down, Shape at 0, Detune in the middle, Frequency open, Response low.</li>
+          <li>Hold one key and bring Square up, then take Saw down. Then sweep Shape with only Square up and listen for the fullest point.</li>
+          <li>Find the voice mode setting (CC 40 in the guide; the guide doesn’t say where it is on the panel) and switch to Unison. Turn Detune slowly away from the middle and count the beats.</li>
+          <li>Back in Poly, set a slow Attack, hold two keys and add a third. Then hold four keys and find which one drops. Note priority is in the power-up menu: hold <span class="btn-name">FUNC</span> while switching on.</li>
+          <li>Take Saw and Square down, Response to the top, and sweep Frequency. If you hear a sine, your filter self-oscillates.</li>
+        </ol>
+      </aside>
+
+      <section class="history">
+        <h2>Where it comes from</h2>
+        <dl>
+          <dt>1969</dt>
+          <dd>The VCS3’s filter/oscillator uses a ladder of diodes rather than Moog’s patented ladder of transistors. Its slightly unruly character becomes part of the EMS sound.</dd>
+          <dt>1975–83</dt>
+          <dd>Paraphonic keyboards spread: string machines, and synths like Korg’s Mono/Poly, share one filter and envelope across several pitches because a full voice per key is expensive.</dd>
+          <dt>2010s–20s</dt>
+          <dd>Paraphony returns on small analog synths, for the same reason: three oscillators cost far less than three complete voices.</dd>
+        </dl>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

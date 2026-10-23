@@ -9,6 +9,7 @@ import './widgets/basics.js';
 import './widgets/space-lab.js';
 import './widgets/fm-lab.js';
 import './widgets/chip-lab.js';
+import './widgets/aks-lab.js';
 import './widgets/history-timeline.js';
 
 // Every widget above is defined (and the ones already in the page built), so

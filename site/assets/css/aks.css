@@ -1,0 +1,94 @@
+/* The AKS Mini lessons: the <aks-lab> panel, its MIDI port row, the joystick,
+   and the lesson figures. Colors come from course.css's tokens, so light and
+   dark both follow the theme. */
+
+main > aks-lab, main > aks-panel, main > .aks-figure { grid-column: wide; }
+@media (max-width: 960px) {
+  main > aks-lab, main > aks-panel, main > .aks-figure { grid-column: content; }
+}
+
+/* Panel section names read like the silk-screen on a hardware panel. */
+.instrument.aks .group-name { text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.7rem; }
+.instrument.aks .instrument-head .grow { flex: 1; }
+.aks-power { font-size: 0.78rem; color: var(--ink-2); }
+.instrument.aks [data-error], .aks-panel [data-error] { color: var(--move); }
+
+/* ---------- MIDI port row ---------- */
+
+.aks-port {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 18px;
+  font-family: var(--font-display);
+}
+.aks-foot .aks-port { padding: 0; width: 100%; }
+.aks-port .light { flex: 1 1 14em; min-width: 0; }
+.aks-port-field { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--ink-3); }
+.aks-port select, .aks-port input[type="number"], .aks-joy-opts select {
+  font: inherit;
+  font-size: 0.84rem;
+  padding: 5px 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  min-width: 0;
+}
+.aks-port select { max-width: 16em; }
+.aks-port-ch input { width: 4.2em; }
+.aks-panel .where { padding-top: 0; }
+.aks-panel .msg { margin: 0; font-size: 0.82rem; color: var(--ink-2); font-family: var(--font-display); }
+
+/* ---------- Joystick ---------- */
+
+.aks-joy { display: grid; gap: 8px; align-content: start; }
+.aks-joy .viz { margin: 0; }
+.aks-joy canvas { touch-action: none; cursor: grab; }
+.aks-joy .viz[data-grab] canvas { cursor: grabbing; }
+.aks-joy-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-family: var(--font-display); }
+
+/* ---------- Lesson figures ---------- */
+
+.aks-figure { margin: 2em 0; }
+.aks-path { width: 100%; height: auto; font-family: var(--font-display); }
+.aks-path .box { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; }
+.aks-path .box.sound { stroke: var(--sound); }
+.aks-path .box.time { stroke: var(--time); }
+.aks-path .box.move { stroke: var(--move); }
+.aks-path .box.space { stroke: var(--space); }
+.aks-path .name { fill: var(--ink); font-size: 15px; font-weight: 650; }
+.aks-path .sub { fill: var(--ink-3); font-size: 11.5px; }
+.aks-path .wire { stroke: var(--ink-2); stroke-width: 2; fill: none; }
+.aks-path .mod { stroke-width: 1.6; fill: none; stroke-dasharray: 5 4; }
+.aks-path .mod.time { stroke: var(--time); }
+.aks-path .mod.move { stroke: var(--move); }
+.aks-path .arrow { fill: var(--ink-2); }
+.aks-path .arrow.time { fill: var(--time); }
+.aks-path .arrow.move { fill: var(--move); }
+
+/* The original Synthi's pin matrix, drawn small. */
+.aks-matrix { width: 100%; max-width: 420px; height: auto; font-family: var(--font-display); }
+.aks-matrix .cell { fill: var(--surface-2); stroke: var(--rule-2); }
+.aks-matrix .pin { fill: var(--move); }
+.aks-matrix .lab { fill: var(--ink-3); font-size: 9px; }
+
+table.cc-table { border-collapse: collapse; width: 100%; font-family: var(--font-display); font-size: 0.9rem; margin: 1em 0 1.4em; }
+.cc-table th, .cc-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--rule-2); vertical-align: top; }
+.cc-table th { font-weight: 650; color: var(--ink-2); font-size: 0.8rem; }
+.cc-table td:first-child { font-variant-numeric: tabular-nums; width: 4.5em; color: var(--hw); font-weight: 600; }
+
+.provisional {
+  margin: 2em 0;
+  padding: 16px 20px 6px;
+  border: 1px dashed color-mix(in srgb, var(--time) 60%, var(--rule));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--time) 6%, var(--surface));
+}
+.provisional h3 { margin-top: 0; font-size: 1.05rem; color: var(--time); }
+
+@media (max-width: 560px) {
+  .aks-port { padding-left: 12px; padding-right: 12px; }
+  .aks-foot .aks-port { padding: 0; }
+}
