@@ -243,6 +243,7 @@ export class BleMidi extends EventTarget {
       await this._attach();
     } catch (err) {
       this._detachCharacteristic();
+      this._manual = true; // our own clean-up, not a lost connection
       try { device.gatt?.connected && device.gatt.disconnect(); } catch (_) { /* ignore */ }
       this._set('idle');
       throw err;
@@ -284,7 +285,9 @@ export class BleMidi extends EventTarget {
   async _disconnected() {
     this._detachCharacteristic();
     if (this._manual) { if (this.state !== 'idle') this._set('idle', 'manual'); return; }
-    if (this.state === 'reconnecting') return;
+    // Only a live connection can be lost: a drop while connecting is reported
+    // by open() itself, and one during the retry by the retry.
+    if (this.state !== 'connected') return;
     // One quiet retry: reconnecting to a device the user already picked needs
     // no new gesture. If that fails, report it and stop.
     if (!this._retried && this.device) {
@@ -322,9 +325,16 @@ export class BleMidi extends EventTarget {
     this._queue.push(Array.from(bytes));
     if (!this._flushing) {
       this._flushing = true;
+      this._drained = new Promise((resolve) => { this._resolveDrained = resolve; });
       queueMicrotask(() => this._flush());
     }
     return true;
+  }
+
+  // Resolves once everything queued has been written (or after `ms`).
+  drain(ms = 500) {
+    if (!this._flushing) return Promise.resolve();
+    return Promise.race([this._drained, new Promise((r) => setTimeout(r, ms))]);
   }
 
   async _flush() {
@@ -346,6 +356,7 @@ export class BleMidi extends EventTarget {
       }
     } finally {
       this._flushing = false;
+      this._resolveDrained?.();
     }
   }
 }

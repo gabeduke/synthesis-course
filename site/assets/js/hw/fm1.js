@@ -18,9 +18,18 @@
 // port and audio input to pick automatically; the CC maps below are the
 // FM-1+VA ones, with any per-device overrides from the profile applied when
 // a message is sent. Ports can always be chosen by hand in <fm1-panel>.
+//
+// Bluetooth: the link can also reach the instrument over Bluetooth MIDI
+// (hw/ble-midi.js), for when the operating system doesn't list it as a MIDI
+// port. While Bluetooth is connected it is the link: everything the page sends
+// goes over Bluetooth only, and only Bluetooth's incoming notes are heard, so
+// an instrument plugged in by USB as well never gets (or gives) everything
+// twice. The USB ports stay selected and take over again when Bluetooth
+// disconnects.
 
 import { audio, clamp } from '../audio/core.js';
 import { device, onDeviceChange } from '../ui/device.js';
+import { BleMidi } from './ble-midi.js';
 
 const portMatch = () => device().portMatch;
 const audioMatch = () => device().audioMatch;
@@ -96,7 +105,12 @@ class FM1Link extends EventTarget {
     this.analyser = null;
     this.monitorGain = null;
     this.lastNote = null;
-    this.supported = { midi: 'requestMIDIAccess' in navigator, audio: !!navigator.mediaDevices?.getUserMedia };
+    this.supported = {
+      midi: 'requestMIDIAccess' in navigator,
+      audio: !!navigator.mediaDevices?.getUserMedia,
+      bluetooth: BleMidi.supported,
+    };
+    this.ble = null;
     this._pending = new Map();
     this._timers = new Map();
     this.sounding = new Set(); // "channel:note" pairs we've sent note-ons for
@@ -108,10 +122,17 @@ class FM1Link extends EventTarget {
     onDeviceChange(() => { if (this.access && !this.output) { this._pickPorts(); this._emit('change'); } });
   }
 
+  // True while a Bluetooth MIDI connection is up (it then outranks USB).
+  get bleActive() { return !!this.ble?.connected; }
+  // True when there is somewhere to send to: Bluetooth or a USB output port.
+  get canSend() { return this.bleActive || !!this.output; }
+
   get status() {
+    const ble = this.bleActive ? `Bluetooth: ${this.ble.name}` : undefined;
     return {
-      midiIn: !!this.input, midiOut: !!this.output, audio: !!this.stream,
-      inputName: this.input?.name, outputName: this.output?.name,
+      midiIn: this.bleActive || !!this.input, midiOut: this.canSend, audio: !!this.stream,
+      inputName: ble ?? this.input?.name, outputName: ble ?? this.output?.name,
+      bluetooth: this.ble?.state || 'idle', bluetoothName: this.ble?.device ? this.ble.name : undefined,
       audioName: this.stream?.getAudioTracks()[0]?.label,
     };
   }
@@ -133,6 +154,59 @@ class FM1Link extends EventTarget {
         if (s.state === 'granted') await this.connectAudio(storage('fm1.audioId'));
       }
     } catch (_) { /* ignore */ }
+    // Bluetooth normally needs a tap on every page load. Where the browser
+    // can hand back devices picked before (getDevices, not yet on by default
+    // in Chrome), quietly reconnect to the last one.
+    try {
+      const id = storage('fm1.bleId');
+      if (id && this.supported.bluetooth && navigator.bluetooth.getDevices && !this.ble?.device) {
+        const dev = (await navigator.bluetooth.getDevices()).find((d) => d.id === id);
+        if (dev) {
+          const ble = this._bleLink();
+          const timer = setTimeout(() => { if (ble.state === 'connecting') ble.disconnect(); }, 10000);
+          try { await ble.open(dev); } finally { clearTimeout(timer); }
+        }
+      }
+    } catch (_) { /* not reachable now: the button still works */ }
+  }
+
+  // ---------- Bluetooth MIDI ----------
+  _bleLink() {
+    if (this.ble) return this.ble;
+    this.ble = new BleMidi({ onMessage: (data) => this._onMessage(data) });
+    let was = 'idle';
+    this.ble.addEventListener('change', (e) => {
+      const { state, reason } = e.detail;
+      // Notes started over USB end over USB before Bluetooth takes over;
+      // notes started over Bluetooth are let go of when it goes away (and
+      // USB, if it's the same instrument, gets All Notes Off too).
+      if (state === 'connecting' && was !== 'connected') this.releaseAll();
+      if (was === 'connected' && state !== 'connected') this.releaseAll();
+      if (state === 'connected' && this.ble.id) storage('fm1.bleId', this.ble.id);
+      was = state;
+      this._emit('bluetooth', { state, reason, name: this.ble.name });
+      this._emit('change');
+    });
+    return this.ble;
+  }
+
+  // Open the browser's Bluetooth chooser. Call straight from a click handler:
+  // Web Bluetooth only opens its chooser during a user gesture.
+  connectBluetooth() {
+    if (!this.supported.bluetooth) return Promise.reject(Object.assign(new Error('No Web Bluetooth'), { name: 'NotSupportedError' }));
+    return this._bleLink().connect();
+  }
+
+  // Let go of any notes over Bluetooth, wait for that to be written, then
+  // disconnect. Forgets the device for the quiet reconnect on page load.
+  async disconnectBluetooth() {
+    storage('fm1.bleId', '');
+    if (!this.ble) return;
+    if (this.bleActive) {
+      this.releaseAll();
+      await this.ble.drain();
+    }
+    this.ble.disconnect();
   }
 
   // ---------- MIDI ----------
@@ -160,20 +234,22 @@ class FM1Link extends EventTarget {
       || list.find((p) => portMatch().test(p.name) && p.state === 'connected') || null;
     this.selectInput(pick(inputs, savedIn)?.id ?? null, false);
     const out = pick(outputs, savedOut);
-    if (out !== this.output) this.releaseAll();
+    if (out !== this.output && !this.bleActive) this.releaseAll();
     this.output = out;
   }
 
   selectInput(id, remember = true) {
     if (this.input) this.input.onmidimessage = null;
     this.input = id ? this.ports().inputs.find((p) => p.id === id) || null : null;
-    if (this.input) this.input.onmidimessage = (e) => this._onMessage(e.data);
+    // While Bluetooth is the link, USB input is ignored so an instrument on
+    // both doesn't play every note twice.
+    if (this.input) this.input.onmidimessage = (e) => { if (!this.bleActive) this._onMessage(e.data); };
     if (remember && id) storage('fm1.inId', id);
     this._emit('change');
   }
 
   selectOutput(id) {
-    this.releaseAll();
+    if (!this.bleActive) this.releaseAll();
     this.output = id ? this.ports().outputs.find((p) => p.id === id) || null : null;
     if (id) storage('fm1.outId', id);
     this._emit('change');
@@ -203,6 +279,7 @@ class FM1Link extends EventTarget {
   }
 
   _send(bytes) {
+    if (this.bleActive) { this.ble.send(bytes); return; }
     if (!this.output) return;
     // A port can vanish mid-send (cable pulled); don't let that break the page.
     try { this.output.send(bytes); } catch (_) { /* port went away */ }
@@ -222,7 +299,7 @@ class FM1Link extends EventTarget {
 
   // Note-offs for everything we started, then All Notes Off for good measure.
   releaseAll() {
-    if (!this.output) { this.sounding.clear(); return; }
+    if (!this.canSend) { this.sounding.clear(); return; }
     for (const key of this.sounding) {
       const [ch, note] = key.split(':').map(Number);
       this._send([0x80 | (ch - 1), note, 0]);
@@ -254,7 +331,7 @@ class FM1Link extends EventTarget {
 
   // Set one course parameter on the FM-1. Returns false if it has no CC.
   sendParam(key, value, throttled = true) {
-    if (!this.output) return false;
+    if (!this.canSend) return false;
     const num = vaCc(key);
     if (num === undefined) return false;
     (throttled ? this.ccThrottled : this.cc).call(this, num, ccValue(key, value));
@@ -262,7 +339,7 @@ class FM1Link extends EventTarget {
   }
 
   sendFx(effect, key, value) {
-    if (!this.output) return false;
+    if (!this.canSend) return false;
     const num = fxCc(effect, key);
     if (num === undefined) return false;
     let raw = value;
@@ -274,7 +351,7 @@ class FM1Link extends EventTarget {
 
   // Send a whole patch. Returns how many settings went out.
   sendPatch(params) {
-    if (!this.output) return 0;
+    if (!this.canSend) return 0;
     let n = 0;
     for (const key of Object.keys(VA_CC)) {
       const num = vaCc(key);

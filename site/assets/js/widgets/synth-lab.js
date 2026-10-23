@@ -225,7 +225,7 @@ class SynthLab extends HTMLElement {
     this.append(box);
 
     const syncHw = () => {
-      const out = !!fm1.output;
+      const out = fm1.canSend;
       sendBtn.disabled = !out;
       mirror.disabled = !out;
       segBtns[1].disabled = !out;
@@ -331,7 +331,7 @@ class SynthLab extends HTMLElement {
   }
 
   _send(message) {
-    if (!fm1.output) return;
+    if (!fm1.canSend) return;
     const n = fm1.sendPatch(this._full());
     this.say(message || `Sent ${n} settings to the ${deviceLabel()}. Pick a Virtual Analog preset first (113–128 with the VA pack). Press ${ctl('SAVE')} on the ${deviceLabel()} to keep them.`);
   }

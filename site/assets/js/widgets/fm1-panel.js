@@ -1,9 +1,10 @@
-// <fm1-panel> — connect the instrument over USB. Named for the FM-1, but its
+// <fm1-panel> — connect the instrument over USB or Bluetooth MIDI. Named for the FM-1, but its
 // labels follow the selected device (ui/device.js). Two forms:
 //   <fm1-panel compact>  status lights + a button that opens the full panel
 //   <fm1-panel>          the full panel inline (used in "Start here")
 
 import { fm1 } from '../hw/fm1.js';
+import { bleErrorKind } from '../hw/ble-midi.js';
 import { noteName, resume } from '../audio/core.js';
 import { el } from '../ui/controls.js';
 import { device, deviceLabel, devName, ctl, onDeviceChange } from '../ui/device.js';
@@ -23,6 +24,27 @@ function body(panel) {
     el('label', {}, [el('span', {}, ['From ', devName(), ' (input)']), inSel]),
     el('label', {}, [el('span', {}, ['To ', devName(), ' (output)']), outSel]),
   ]);
+
+  // Bluetooth MIDI. Web Bluetooth only exists in secure contexts, and only
+  // in Chromium browsers; elsewhere the row is a one-line note instead.
+  const bleBtn = el('button', { class: 'btn hw', type: 'button', text: 'Connect over Bluetooth' });
+  const bleState = el('span', { class: 'light' }, el('span', { text: 'Not connected' }));
+  const bleAbout = el('p');
+  const bleHint = el('p', { 'data-device': 'smk37', class: 'ble-hint' },
+    'On the SMK-37, switch Bluetooth on with the BT button first (check on your unit whether it needs to be in Device mode), and unpair it in the tablet’s Bluetooth settings if the list comes up empty.');
+  const bleNote = el('p', { class: 'ble-note' });
+  const usbNote = el('p', { text: 'Bluetooth is connected, so the page sends and listens over Bluetooth only. These USB ports take over again when it disconnects.' });
+  const bleCan = fm1.supported.bluetooth;
+  if (!bleCan) {
+    bleNote.textContent = window.isSecureContext === false
+      ? 'Bluetooth needs a secure page: open the course over https (or localhost) to connect over Bluetooth.'
+      : 'This browser can’t connect over Bluetooth; try Chrome on Android, Windows, macOS or ChromeOS.';
+  }
+  bleBtn.hidden = !bleCan;
+  bleAbout.hidden = !bleCan;
+  bleHint.hidden = !bleCan;
+  bleNote.hidden = bleCan;
+  bleState.hidden = !bleCan;
 
   // Audio
   const audioBtn = el('button', { class: 'btn hw', type: 'button', text: 'Listen to its audio' });
@@ -67,6 +89,16 @@ function body(panel) {
       devSel.value = current || '';
     }
     testBtn.disabled = !s.midiOut;
+
+    const b = s.bluetooth;
+    bleState.toggleAttribute('data-on', b === 'connected');
+    bleState.firstChild.textContent = b === 'connected' ? `Bluetooth: ${s.bluetoothName}`
+      : b === 'connecting' ? 'Connecting…' : b === 'reconnecting' ? 'Reconnecting…'
+        : b === 'disconnected' ? 'Disconnected' : 'Not connected';
+    const busy = b === 'connecting' || b === 'reconnecting';
+    bleBtn.textContent = b === 'connected' ? 'Disconnect Bluetooth' : busy ? 'Connecting…' : 'Connect over Bluetooth';
+    bleBtn.disabled = busy;
+    usbNote.hidden = !(b === 'connected' && (fm1.input || fm1.output));
   };
 
   midiBtn.addEventListener('click', async () => {
@@ -76,6 +108,33 @@ function body(panel) {
         ? `Found the ${deviceLabel()}. Turning a slider with “Mirror to ${deviceLabel()}” on now moves its sound.`
         : `MIDI is on, but no ${deviceLabel()} port was found. Plug it in, or pick its port below.`);
     } catch (err) { say(err.message || 'MIDI permission was refused.', true); }
+  });
+  // Keep this handler free of awaits before connectBluetooth(): the chooser
+  // only opens while the click still counts as a user gesture.
+  bleBtn.addEventListener('click', () => {
+    if (fm1.bleActive) {
+      bleBtn.disabled = true;
+      fm1.disconnectBluetooth().then(() => say(`Disconnected the ${deviceLabel()} from Bluetooth.`));
+      return;
+    }
+    say('');
+    fm1.connectBluetooth().then(() => {
+      say(`Connected to ${fm1.ble.name} over Bluetooth. The page now plays the ${deviceLabel()} and moves its settings without a cable.`);
+    }, (err) => {
+      const name = fm1.ble?.device?.name;
+      switch (bleErrorKind(err)) {
+        case 'cancelled': say('No Bluetooth device chosen.'); break;
+        case 'no-service': say(`${name ? `“${name}”` : 'This device'} doesn’t offer standard Bluetooth MIDI.`, true); break;
+        case 'insecure': say('The browser blocked Bluetooth here. It needs a secure (https) page and a tap on the button.', true); break;
+        default: say(`Couldn’t connect to ${name ? `“${name}”` : `the ${deviceLabel()}`} over Bluetooth. Check it’s switched on, nearby and not connected to another app, then try again.`, true);
+      }
+    });
+  });
+  fm1.addEventListener('bluetooth', (e) => {
+    const { state, reason, name } = e.detail;
+    if (state === 'reconnecting') say(`Lost the Bluetooth connection to ${name}. Reconnecting…`);
+    else if (state === 'connected' && reason === 'reconnected') say(`Reconnected to ${name} over Bluetooth.`);
+    else if (state === 'disconnected') say(`${name} disconnected from Bluetooth. Press Connect over Bluetooth to try again.`, true);
   });
   inSel.addEventListener('change', () => fm1.selectInput(inSel.value || null));
   outSel.addEventListener('change', () => fm1.selectOutput(outSel.value || null));
@@ -115,6 +174,7 @@ function body(panel) {
     const d = deviceLabel();
     heading.textContent = `Connect ${device().article || 'a'} ${d}`;
     intro.textContent = `Plug it in with a ${device().cable || 'USB'} data cable. MIDI lets the page play the ${d} and set its Virtual Analog controls; audio lets the page draw what the ${d} is really doing. Both are optional.`;
+    bleAbout.textContent = `No cable needed: if the ${d} has Bluetooth MIDI, the page can connect to it directly. While Bluetooth is connected the page uses it instead of USB.`;
     chNote.textContent = d === 'FM-1'
       ? 'These match GLO › MIDI on the FM-1. The defaults (All and 2) work without changes.'
       : `These match ${ctl('GLO')} › MIDI on the ${d}. If notes play but settings don’t move, check the channels there.`;
@@ -125,7 +185,9 @@ function body(panel) {
   const node = el('div', { class: 'fm1-body' }, [
     heading,
     intro,
-    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports]),
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports, usbNote]),
+    el('hr'),
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, bleNote]),
     el('hr'),
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab]),
     el('hr'),
