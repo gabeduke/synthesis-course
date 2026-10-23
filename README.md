@@ -213,8 +213,14 @@ server: GitHub Pages serves the `site/` folder as is.
 - `site/assets/js/hw/devices.js` and `site/assets/js/ui/device.js` — device
   profiles and the translation layer (see above).
 - `site/assets/js/ui/focus.js` — the Focus button every playable panel gets
-  (`enableFocusAll()` from `main.js`); pictures grow in proportion, and the
-  element gets a `focuschange` event.
+  (`enableFocusAll()` from `main.js`); the pictures share the height the
+  controls and keys leave, a row of views is tiled to keep each one wide, text
+  and line weights in the canvases scale with the screen, and the element gets
+  a `focuschange` event.
+- `site/assets/js/ui/draw.js` — the drawing every widget shares: the scope
+  (with a trigger that holds chords steady), the spectrum and its axes, the
+  filter response, the spectrogram, histories, the signal-path strip, and
+  cached layers for grids and axes (redrawn only on resize or a theme change).
 - `site/assets/js/widgets/` — the custom elements used in lessons:
   `<synth-lab>`, `<voice-stack>`, `<beat-lab>`, `<harmonics-lab>`,
   `<space-lab>`, `<fm-lab>`, `<chip-lab>`, `<fm1-panel>`, `<history-timeline>`,

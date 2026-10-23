@@ -2,10 +2,12 @@
 // another (the carrier). When the wobble is fast enough you stop hearing it as
 // vibrato and start hearing it as new tones: sidebands at carrier ± n × modulator.
 
-import { audio, resume, midiToHz, clamp, noteName } from '../audio/core.js';
+import { audio, resume, midiToHz, noteName } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
-import { onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, makeAnalyser } from '../ui/draw.js';
+import {
+  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, makeAnalyser, specBox, headBand, idle, quietFor, font, alpha, lineScale,
+} from '../ui/draw.js';
 import { fm1 } from '../hw/fm1.js';
 
 class FMLab extends HTMLElement {
@@ -42,7 +44,7 @@ class FMLab extends HTMLElement {
       el('div', { class: 'viz', style: 'height:190px' }, [this.wave, el('div', { class: 'viz-label', text: 'Waveform' })]),
       el('div', { class: 'viz', style: 'height:190px' }, [this.diagram, el('div', { class: 'viz-label', text: 'Algorithm' })]),
     ]));
-    box.append(el('div', { class: 'viz', style: 'height:200px' }, [this.spec, el('div', { class: 'viz-label', text: 'Spectrum. Ticks mark where FM puts sidebands' }), this.legend]));
+    box.append(el('div', { class: 'viz', style: 'height:200px' }, [this.spec, el('div', { class: 'viz-label' }, ['Spectrum', el('span', { class: 'more', text: '. Ticks mark where FM puts sidebands' })]), this.legend]));
 
     const ctl = el('div', { class: 'controls' });
     const on = (k, v) => { this.p[k.split('.').pop()] = v; this._live(); };
@@ -73,7 +75,7 @@ class FMLab extends HTMLElement {
     box.append(el('div', { class: 'keys-wrap' }, [el('div', { class: 'keys-bar' }, [el('span', { text: 'Play with the mouse or keys A–K.' }), el('span', { class: 'grow' }), hold]), this.kb.root]));
     this.append(box);
 
-    onFrame(this.wave, () => this.drawWave());
+    onFrame(this.wave, (now) => this.drawWave(now));
     onFrame(this.spec, () => this.drawSpec());
     onFrame(this.diagram, () => this.drawDiagram());
   }
@@ -147,67 +149,94 @@ class FMLab extends HTMLElement {
     }
   }
 
-  drawWave() {
+  drawWave(now) {
     const c = colors();
     const { g, w, h } = fit(this.wave);
     g.clearRect(0, 0, w, h);
     grid(g, w, h, 8, 4);
-    if (fm1.analyser) drawWave(g, w, h, fm1.analyser, { color: c.hw, span: 900, lineWidth: 1.4 });
-    if (this.analyser) drawWave(g, w, h, this.analyser, { color: c.sound, span: 900, gain: 1.8 });
+    let peak = 0;
+    if (fm1.analyser) peak = drawWave(g, w, h, fm1.analyser, { color: c.hw, span: 900, lineWidth: 1.4 });
+    if (this.analyser) peak = Math.max(peak, drawWave(g, w, h, this.analyser, { color: c.sound, span: 900, gain: 1.8 }));
+    if (quietFor(this._quiet ||= {}, peak > 1e-4, now)) idle(g, w, h, 'Play a key, or press Hold a note', { y: h * 0.32 });
   }
 
   drawSpec() {
     const c = colors();
-    const { g, w, h } = fit(this.spec);
+    const { g, w, h, k } = fit(this.spec);
     g.clearRect(0, 0, w, h);
     freqGrid(g, w, h);
     const f = midiToHz(this.lastNote);
     if (this.p.modRate === 0) {
+      // Where the sidebands land: a tick under the header, and a faint line
+      // down to the floor, so each peak can be matched to its tick.
+      const box = specBox(g);
       const fm = f * this._ratio();
-      g.strokeStyle = c.move;
-      g.fillStyle = c.move;
-      g.lineWidth = 1;
+      const t0 = box.top + 2 * k; const t1 = t0 + 9 * k;
       for (let n = -8; n <= 8; n++) {
         const s = Math.abs(f + n * fm);
         if (s < 20 || s > 20000) continue;
-        const x = xForFreq(s, w);
-        g.globalAlpha = n === 0 ? 0.9 : 0.45;
-        g.beginPath(); g.moveTo(x, 18); g.lineTo(x, 30); g.stroke();
+        const x = Math.round(xForFreq(s, w)) + 0.5;
+        g.strokeStyle = alpha(c.move, n === 0 ? 0.3 : 0.16);
+        g.lineWidth = 1;
+        g.beginPath(); g.moveTo(x, t1); g.lineTo(x, h - box.bottom); g.stroke();
+        g.strokeStyle = c.move;
+        g.globalAlpha = n === 0 ? 1 : 0.6;
+        g.lineWidth = (n === 0 ? 2.2 : 1.6) * lineScale(k);
+        g.lineCap = 'round';
+        g.beginPath(); g.moveTo(x, t0); g.lineTo(x, t1); g.stroke();
+        g.lineCap = 'butt';
       }
       g.globalAlpha = 1;
     }
-    if (fm1.analyser) drawSpectrum(g, w, h, fm1.analyser, { color: c.hw, fill: false, lineWidth: 1.2 });
+    if (fm1.analyser) drawSpectrum(g, w, h, fm1.analyser, { color: c.hw, fill: false, lineWidth: 1.3 });
     if (this.analyser) drawSpectrum(g, w, h, this.analyser, { color: c.sound });
     const txt = this.p.modRate > 0 ? 'Slow modulator: you hear vibrato, not new tones'
       : `Carrier ${noteName(this.lastNote)} (${f.toFixed(0)} Hz), modulator ${(f * this._ratio()).toFixed(0)} Hz`;
     if (this.legend.textContent !== txt) this.legend.textContent = txt;
   }
 
+  // The algorithm: the modulator's output wobbles the carrier's pitch, and
+  // the carrier is what you hear.
   drawDiagram() {
     const c = colors();
-    const { g, w, h } = fit(this.diagram);
+    const { g, w, h, k } = fit(this.diagram);
     g.clearRect(0, 0, w, h);
-    const bw = 110; const bh = 40;
+    const lk = lineScale(k);
+    const bw = 132 * k; const bh = 44 * k;
     const cx = w / 2;
     const box = (y, label, sub, col) => {
-      g.strokeStyle = col; g.lineWidth = 2;
-      g.beginPath(); g.roundRect(cx - bw / 2, y, bw, bh, 8); g.stroke();
-      g.fillStyle = c.ink; g.font = '600 13px Archivo, sans-serif'; g.textAlign = 'center';
-      g.fillText(label, cx, y + 17);
-      g.fillStyle = c.ink2; g.font = '11px Archivo, sans-serif';
-      g.fillText(sub, cx, y + 32);
+      g.beginPath(); g.roundRect(cx - bw / 2, y, bw, bh, 9 * k);
+      g.fillStyle = c.surface; g.fill();
+      g.fillStyle = alpha(col, c.dark ? 0.16 : 0.09); g.fill();
+      g.strokeStyle = col; g.lineWidth = 1.6 * lk; g.stroke();
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = c.ink; g.font = font(13 * k, 600);
+      g.fillText(label, cx, y + bh * 0.36);
+      g.fillStyle = c.ink2; g.font = font(11 * k);
+      g.fillText(sub, cx, y + bh * 0.72);
     };
-    const y1 = h * 0.16; const y2 = h * 0.6;
+    const arrow = (x, ya, yb, col, lw) => {
+      g.strokeStyle = col; g.fillStyle = col; g.lineWidth = lw;
+      g.beginPath(); g.moveTo(x, ya); g.lineTo(x, yb - 7 * k); g.stroke();
+      g.beginPath(); g.moveTo(x - 5 * k, yb - 8 * k); g.lineTo(x, yb - 1); g.lineTo(x + 5 * k, yb - 8 * k); g.closePath(); g.fill();
+    };
+    // The two boxes and their arrows, centred under the view's name.
+    const head = headBand(g);
+    const avail = h - head - 8 * k;
+    const out = 24 * k;
+    const link = Math.min(72 * k, Math.max(30 * k, avail - 2 * bh - out - 24 * k));
+    const y1 = head + Math.max(4 * k, (avail - (2 * bh + link + out)) / 2);
+    const y2 = y1 + bh + link;
     const f = midiToHz(this.lastNote);
+    // How hard the modulator pushes: the line thickens with the index.
+    arrow(cx, y1 + bh, y2, c.move, (1.5 + Math.min(1, this.p.index / 6) * 2.5) * lk);
+    arrow(cx, y2 + bh, y2 + bh + out, c.sound, 1.6 * lk);
     box(y1, 'Modulator', this.p.modRate > 0 ? 'slow' : `${this._ratio().toFixed(2)} × pitch`, c.move);
     box(y2, 'Carrier', `${f.toFixed(0)} Hz, you hear this`, c.sound);
-    g.strokeStyle = c.move; g.lineWidth = 2;
-    g.beginPath(); g.moveTo(cx, y1 + bh); g.lineTo(cx, y2 - 6); g.stroke();
-    g.beginPath(); g.moveTo(cx - 5, y2 - 11); g.lineTo(cx, y2 - 3); g.lineTo(cx + 5, y2 - 11); g.stroke();
-    g.fillStyle = c.ink2; g.font = '11px Archivo, sans-serif'; g.textAlign = 'left';
-    g.fillText(`index ${this.p.index.toFixed(2)}`, cx + 10, (y1 + bh + y2) / 2 + 4);
-    g.textAlign = 'start';
-    void clamp;
+    g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillStyle = c.ink2; g.font = font(11 * k);
+    g.fillText(`index ${this.p.index.toFixed(2)}`, cx + 10 * k, (y1 + bh + y2) / 2);
+    g.textAlign = 'start'; g.textBaseline = 'alphabetic';
   }
 }
 

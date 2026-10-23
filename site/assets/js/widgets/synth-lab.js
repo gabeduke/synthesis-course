@@ -27,10 +27,16 @@ import { Keyboard, registerInstrument } from '../ui/keyboard.js';
 import { share } from '../ui/pwa.js';
 import { enableFocus } from '../ui/focus.js';
 import {
-  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, yForDb, rms, makeAnalyser,
-  Sonogram, drawFlow, flowPointer,
+  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, freqForX, rms, makeAnalyser,
+  Sonogram, drawFlow, flowPointer, flat, idle, quietFor, setLegend, drawHistory, drawResponse, font, alpha, dot,
+  backgroundOf, lineScale, kOf, headBand,
 } from '../ui/draw.js';
 
+// A view's name and its explanation, which a narrow view leaves out (course.css).
+const splitLabel = (text) => {
+  const i = text.indexOf(' (');
+  return i < 0 ? [text] : [text.slice(0, i), el('span', { class: 'more', text: text.slice(i) })];
+};
 const HISTORY = 240; // frames of level / LFO history (~4 s)
 const FOCUS_VIEWS = ['wave', 'spectrum', 'sono']; // added in focus mode
 
@@ -250,7 +256,7 @@ class SynthLab extends HTMLElement {
       if (!labels[v]) continue;
       const c = el('canvas', { role: 'img', 'aria-label': labels[v] });
       const legend = el('div', { class: 'viz-legend' });
-      const viz = el('div', { class: 'viz', 'data-view': v, style: `height:${v === 'wave' || v === 'spectrum' || v === 'sono' ? 190 : 150}px` }, [c, el('div', { class: 'viz-label', text: labels[v] }), legend]);
+      const viz = el('div', { class: 'viz', 'data-view': v, style: `height:${v === 'wave' || v === 'spectrum' || v === 'sono' ? 190 : 150}px` }, [c, el('div', { class: 'viz-label' }, splitLabel(labels[v])), legend]);
       if (!this.views.includes(v)) viz.setAttribute('data-extra', '');
       row.append(viz);
       this.canvases[v] = { c, legend };
@@ -496,49 +502,49 @@ class SynthLab extends HTMLElement {
     }
   }
 
-  _legend(legend, items) {
-    const key = items.map((i) => i[0]).join('|');
-    if (legend.dataset.key === key) return;
-    legend.dataset.key = key;
-    legend.replaceChildren(...items.map(([label, color]) => el('span', {}, [Object.assign(el('i'), { style: `background:${color}` }), label])));
-  }
+  _legend(legend, items) { setLegend(legend, items); }
 
   _draw(view, canvas, legend, now) {
-    const { g, w, h } = fit(canvas);
+    const { g, w, h, k } = fit(canvas);
     const c = colors();
     g.clearRect(0, 0, w, h);
     this._record(now);
     const hw = fm1.analyser;
     const items = [['This page', c.sound]];
     if (hw) items.push([deviceLabel(), c.hw]);
+    // Until something sounds, the sound pictures say how to start it.
+    const hint = quietFor(this._quiet ||= {}, this.levelHist[this.histPos] > 1e-4 || this.hwLevelHist[this.histPos] > 1e-4, now)
+      ? 'Play a key, or press Hold a chord' : '';
+    const top = headBand(g);
 
     if (view === 'wave') {
       grid(g, w, h, 8, 4);
       if (hw) drawWave(g, w, h, hw, { color: c.hw, span: this.span, lineWidth: 1.6 });
       if (this.analyser) drawWave(g, w, h, this.analyser, { color: c.sound, span: this.span });
-      else { g.strokeStyle = c.sound; g.lineWidth = 2; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke(); }
+      else flat(g, w, h, c.sound);
+      idle(g, w, h, hint, { y: h * 0.32 });
       this._legend(legend, items);
     } else if (view === 'spectrum') {
       freqGrid(g, w, h);
-      if (hw) drawSpectrum(g, w, h, hw, { color: c.hw, fill: false, lineWidth: 1.2 });
+      if (hw) drawSpectrum(g, w, h, hw, { color: c.hw, fill: false, lineWidth: 1.3 });
       if (this.analyser) drawSpectrum(g, w, h, this.analyser, { color: c.sound });
-      if (this.hasAttribute('filter-curve')) { this._drawFilterCurve(g, w, h, c); items.push(['Filter', c.ink]); }
+      if (this.hasAttribute('filter-curve')) { this._drawFilterCurve(g, w, h, c); items.push(['Filter', c.ink, 'dash']); }
+      idle(g, w, h, hint, { y: h * 0.62 });
       this._legend(legend, items);
     } else if (view === 'env') {
-      grid(g, w, h, 8, 3);
-      this._drawHistory(g, w, h, this.hwLevelHist, c.hw, 4, 1.4, hw);
-      this._drawHistory(g, w, h, this.levelHist, c.time, 4, 2, true);
+      grid(g, w, h, 8, 3, { top, bottom: 6 });
+      if (hw) drawHistory(g, w, h, this.hwLevelHist, this.histPos + 1, { color: c.hw, gain: 4, lineWidth: 1.4, fill: false, top, bottom: 6 });
+      drawHistory(g, w, h, this.levelHist, this.histPos + 1, { color: c.time, gain: 4, lineWidth: 2, top, bottom: 6 });
       this._legend(legend, hw ? [['This page', c.time], [deviceLabel(), c.hw]] : [['This page', c.time]]);
     } else if (view === 'lfo') {
-      grid(g, w, h, 8, 2);
-      g.strokeStyle = c.rule; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
-      this._drawHistory(g, w, h, this.lfoHist, c.move, 1, 2, true, true);
+      grid(g, w, h, 8, 2, { top, bottom: 6 });
+      drawHistory(g, w, h, this.lfoHist, this.histPos + 1, { color: c.move, bipolar: true, lineWidth: 2, top, bottom: 6 });
       this._legend(legend, [['LFO', c.move]]);
     } else if (view === 'shape') {
       this._drawShape(g, w, h, c);
       this._legend(legend, [['Envelope', c.time]]);
     } else if (view === 'sono') {
-      this.sono.draw(canvas, g, w, h, [{ analyser: hw, color: c.hw }, { analyser: this.analyser, color: c.sound }]);
+      this.sono.draw(canvas, g, w, h, [{ analyser: hw, color: c.hw }, { analyser: this.analyser, color: c.sound }], { hint });
       this._legend(legend, items);
     }
   }
@@ -591,20 +597,6 @@ class SynthLab extends HTMLElement {
     this._flowHits = drawFlow(g, w, h, now, { stages, mods, state: this._flowState, hover: this._flowHover, pulse });
   }
 
-  _drawHistory(g, w, h, hist, color, gain, lw, show, bipolar = false) {
-    if (!show) return;
-    g.strokeStyle = color;
-    g.lineWidth = lw;
-    g.beginPath();
-    for (let i = 0; i < HISTORY; i++) {
-      const v = hist[(this.histPos + 1 + i) % HISTORY];
-      const x = (i / (HISTORY - 1)) * w;
-      const y = bipolar ? h / 2 - v * h * 0.42 : h - 6 - Math.min(1, v * gain) * (h - 14);
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.stroke();
-  }
-
   _drawFilterCurve(g, w, h, c) {
     const s = this.synth;
     const p = s ? s.p : { ...this._defaults(), ...this.params };
@@ -625,69 +617,76 @@ class SynthLab extends HTMLElement {
     f2.type = ft === 'lp24' ? 'lowpass' : 'allpass';
     f2.frequency.value = cutoff;
     f2.Q.value = ft === 'lp24' ? resDb : 0.0001;
-    const N = 240;
+    const N = Math.max(120, Math.min(320, Math.round(w / 2.5)));
     const freqs = new Float32Array(N);
     for (let i = 0; i < N; i++) freqs[i] = freqForX((i / (N - 1)) * w, w);
     const m1 = new Float32Array(N); const m2 = new Float32Array(N); const ph = new Float32Array(N);
     f1.getFrequencyResponse(freqs, m1, ph);
     f2.getFrequencyResponse(freqs, m2, ph);
-    g.strokeStyle = c.ink;
-    g.lineWidth = 1.5;
-    g.setLineDash([5, 4]);
-    g.beginPath();
-    for (let i = 0; i < N; i++) {
-      const db = 20 * Math.log10(Math.max(1e-6, m1[i] * m2[i]));
-      // Draw the curve on its own scale: 0 dB sits near the top.
-      const y = clamp(h * 0.18 - db * (h / 90), 0, h);
-      const x = xForFreq(freqs[i], w);
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.stroke();
-    g.setLineDash([]);
-    const x = xForFreq(cutoff, w);
-    g.fillStyle = c.ink;
-    g.beginPath(); g.arc(x, clamp(h * 0.18, 4, h), 3.5, 0, Math.PI * 2); g.fill();
+    const at = new Float32Array([cutoff]); const a1 = new Float32Array(1); const a2 = new Float32Array(1);
+    f1.getFrequencyResponse(at, a1, new Float32Array(1));
+    f2.getFrequencyResponse(at, a2, new Float32Array(1));
+    drawResponse(g, w, h, freqs, (i) => m1[i] * m2[i], cutoff, a1[0] * a2[0]);
   }
 
+  // The envelope you've set: Attack, Decay, a stretch of Sustain, Release,
+  // with a dot where the note you're holding has got to.
   _drawShape(g, w, h, c) {
     const p = this.synth ? this.synth.p : { ...this._defaults(), ...this.params };
+    const k = kOf(g);
+    const lk = lineScale(k);
     const a = attackTime(p.attack); const d = decayTime(p.decay); const r = releaseTime(p.release);
     const s = p.sustain / 100;
     const hold = Math.max(0.4, (a + d) * 0.6);
     const total = a + d + hold + r;
-    const X = (t) => 10 + (t / total) * (w - 20);
-    const Y = (v) => h - 12 - v * (h - 28);
-    grid(g, w, h, 8, 3);
-    // Shape
-    g.strokeStyle = c.time; g.lineWidth = 2.2; g.lineJoin = 'round';
+    const top = headBand(g) + Math.round(4 * k); const bottom = Math.round(22 * k);
+    const X = (t) => 12 * k + (t / total) * (w - 24 * k);
+    const Y = (v) => h - bottom - v * (h - bottom - top);
+    grid(g, w, h, 8, 3, { top, bottom });
+    const level = (t) => (t < a ? t / a : t < a + d ? s + (1 - s) * Math.exp(-4 * (t - a) / d)
+      : t < a + d + hold ? s : s * Math.exp(-5 * (t - a - d - hold) / r));
+    // Where each stage starts and ends.
+    const marks = [0, a, a + d, a + d + hold, total];
+    g.strokeStyle = c.axis; g.lineWidth = 1; g.setLineDash([2 * k, 3 * k]);
     g.beginPath();
-    g.moveTo(X(0), Y(0));
-    g.lineTo(X(a), Y(1));
-    for (let i = 1; i <= 24; i++) { const t = (i / 24) * d; g.lineTo(X(a + t), Y(s + (1 - s) * Math.exp(-4 * t / d))); }
-    g.lineTo(X(a + d + hold), Y(s));
-    for (let i = 1; i <= 24; i++) { const t = (i / 24) * r; g.lineTo(X(a + d + hold + t), Y(s * Math.exp(-5 * t / r))); }
-    g.stroke();
-    // Stage labels
-    g.fillStyle = c.ink3; g.font = '11px Archivo, sans-serif';
-    g.fillText('A', X(a / 2) - 3, h - 2);
-    g.fillText('D', X(a + d / 2) - 3, h - 2);
-    g.fillText('S', X(a + d + hold / 2) - 3, h - 2);
-    g.fillText('R', X(a + d + hold + r / 2) - 3, h - 2);
+    for (const t of marks.slice(1, -1)) { const x = Math.round(X(t)) + 0.5; g.moveTo(x, top); g.lineTo(x, h - bottom); }
+    g.stroke(); g.setLineDash([]);
+    g.strokeStyle = c.axis; g.beginPath(); g.moveTo(0, Math.round(Y(0)) + 0.5); g.lineTo(w, Math.round(Y(0)) + 0.5); g.stroke();
+    // The shape, over a soft fill.
+    const line = new Path2D();
+    line.moveTo(X(0), Y(0));
+    const N = Math.max(60, Math.round(w / 3));
+    for (let i = 1; i <= N; i++) { const t = (i / N) * total; line.lineTo(X(t), Y(level(t))); }
+    const area = new Path2D(line);
+    area.lineTo(X(total), Y(0)); area.closePath();
+    const grad = g.createLinearGradient(0, top, 0, h - bottom);
+    grad.addColorStop(0, alpha(c.time, c.dark ? 0.3 : 0.22)); grad.addColorStop(1, alpha(c.time, 0.03));
+    g.fillStyle = grad; g.fill(area);
+    g.strokeStyle = c.time; g.lineWidth = 2.2 * lk; g.lineJoin = 'round'; g.stroke(line);
+    // Stage names, with their times where there's room.
+    g.font = font(10.5 * k); g.textAlign = 'center'; g.textBaseline = 'middle';
+    const names = [['Attack', 'A', formatValue('attack', p.attack)], ['Decay', 'D', formatValue('decay', p.decay)],
+      ['Sustain', 'S', formatValue('sustain', p.sustain)], ['Release', 'R', formatValue('release', p.release)]];
+    let after = -Infinity; // right edge of the last label drawn
+    names.forEach(([long, short, val], i) => {
+      const x0 = X(marks[i]); const x1 = X(marks[i + 1]);
+      const room = x1 - x0 - 6 * k;
+      const text = [`${long} ${val}`, `${short} ${val}`].find((t) => g.measureText(t).width <= room) ?? short;
+      const half = g.measureText(text).width / 2;
+      const cx = Math.max((x0 + x1) / 2, after + 5 * k + half);
+      if (cx + half > w) return;
+      g.fillStyle = c.ink3;
+      g.fillText(text, cx, h - bottom / 2);
+      after = cx + half;
+    });
+    g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     // Playhead for the note you're holding.
     if (this.lastOn != null) {
       const now = performance.now();
       let t;
       if (this.lastOff == null) t = Math.min((now - this.lastOn) / 1000, a + d + hold * 0.5);
       else t = a + d + hold + Math.min((now - this.lastOff) / 1000, r);
-      if (this.lastOff == null || (now - this.lastOff) / 1000 < r + 0.3) {
-        g.fillStyle = c.time;
-        g.beginPath();
-        let v;
-        if (t < a) v = t / a; else if (t < a + d) v = s + (1 - s) * Math.exp(-4 * (t - a) / d);
-        else if (t < a + d + hold) v = s; else v = s * Math.exp(-5 * (t - a - d - hold) / r);
-        g.arc(X(t), Y(v), 5, 0, Math.PI * 2);
-        g.fill();
-      }
+      if (this.lastOff == null || (now - this.lastOff) / 1000 < r + 0.3) dot(g, X(t), Y(level(t)), 5 * lk, c.time, backgroundOf(g.canvas));
     }
   }
 }

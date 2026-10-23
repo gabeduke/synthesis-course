@@ -9,7 +9,7 @@ import { audio, resume, midiToHz } from '../audio/core.js';
 import { VASynth } from '../audio/va-synth.js';
 import { OFFSETS, CENTER, mixLevels, detuneCurve, normalize } from '../audio/supersaw.js';
 import { el, makeControl } from '../ui/controls.js';
-import { onFrame, fit, colors, grid } from '../ui/draw.js';
+import { onFrame, fit, colors, grid, alpha, lineScale, drawHistory, headBand } from '../ui/draw.js';
 import { registerInstrument } from '../ui/keyboard.js';
 import { prefersReducedMotion } from '../audio/core.js';
 
@@ -35,7 +35,8 @@ export function stackState(waveform, superV, detuneV, note = 45) {
 }
 
 // Draw `cycles` cycles of the centre oscillator with every copy at time t.
-export function drawStack(g, x0, y0, w, h, state, t, phases, { lanes = true, overlay = false, cycles = 2, c, sumColor, sumWidth = 2.5 }) {
+export function drawStack(g, x0, y0, w, h, state, t, phases, { lanes = true, overlay = false, cycles = 2, c, sumColor, sumWidth = 2.5, k = 1 }) {
+  const lk = lineScale(k);
   const { oscs, fn } = state;
   const laneH = lanes ? (h * 0.6) / 7 : 0;
   const sumTop = lanes ? y0 + h * 0.64 : y0;
@@ -43,19 +44,27 @@ export function drawStack(g, x0, y0, w, h, state, t, phases, { lanes = true, ove
   const N = Math.max(200, Math.floor(w));
 
   if (lanes) {
+    // A faint baseline for each lane, and a rule between the lanes and the sum.
+    g.strokeStyle = c.grid; g.lineWidth = 1;
+    g.beginPath();
+    for (let i = 0; i < oscs.length; i++) { const y = Math.round(y0 + laneH * (i + 0.5)) + 0.5; g.moveTo(x0, y); g.lineTo(x0 + w, y); }
+    g.stroke();
+    g.strokeStyle = c.axis;
+    g.beginPath(); g.moveTo(x0, Math.round(y0 + h * 0.62) + 0.5); g.lineTo(x0 + w, Math.round(y0 + h * 0.62) + 0.5); g.stroke();
     oscs.forEach((o, i) => {
       const mid = y0 + laneH * (i + 0.5);
-      const amp = laneH * 0.46;
+      const amp = laneH * 0.42;
       g.globalAlpha = i === CENTER ? 1 : 0.25 + 0.75 * Math.min(1, o.gain * 2.5);
       g.strokeStyle = i === CENTER ? c.ink : c.sound;
-      g.lineWidth = i === CENTER ? 1.6 : 1.3;
+      g.lineWidth = (i === CENTER ? 1.7 : 1.4) * lk;
+      g.lineJoin = 'round';
       g.beginPath();
-      for (let k = 0; k <= N; k++) {
-        const x = (k / N) * cycles;
+      for (let j = 0; j <= N; j++) {
+        const x = (j / N) * cycles;
         const ph = x * o.ratio + phases[i] + o.slip * t;
         const y = mid - fn(ph) * amp * (o.gain > 0.001 || i === CENTER ? 1 : 0);
-        const px = x0 + (k / N) * w;
-        if (k === 0) g.moveTo(px, y); else g.lineTo(px, y);
+        const px = x0 + (j / N) * w;
+        if (j === 0) g.moveTo(px, y); else g.lineTo(px, y);
       }
       g.stroke();
     });
@@ -68,13 +77,13 @@ export function drawStack(g, x0, y0, w, h, state, t, phases, { lanes = true, ove
       if (i !== CENTER && o.gain < 0.001) return;
       g.globalAlpha = i === CENTER ? 0.55 : 0.32;
       g.strokeStyle = i === CENTER ? c.ink : c.sound;
-      g.lineWidth = 1.2;
+      g.lineWidth = 1.2 * lk;
       g.beginPath();
-      for (let k = 0; k <= N; k++) {
-        const x = (k / N) * cycles;
+      for (let j = 0; j <= N; j++) {
+        const x = (j / N) * cycles;
         const y = y0 + h / 2 - fn(x * o.ratio + phases[i] + o.slip * t) * amp * 0.9;
-        const px = x0 + (k / N) * w;
-        if (k === 0) g.moveTo(px, y); else g.lineTo(px, y);
+        const px = x0 + (j / N) * w;
+        if (j === 0) g.moveTo(px, y); else g.lineTo(px, y);
       }
       g.stroke();
     });
@@ -84,23 +93,28 @@ export function drawStack(g, x0, y0, w, h, state, t, phases, { lanes = true, ove
   // The sum: what you actually hear.
   const vals = new Float32Array(N + 1);
   let peak = 0.0001;
-  for (let k = 0; k <= N; k++) {
-    const x = (k / N) * cycles;
+  for (let j = 0; j <= N; j++) {
+    const x = (j / N) * cycles;
     let s = 0;
     oscs.forEach((o, i) => { s += o.gain * fn(x * o.ratio + phases[i] + o.slip * t); });
-    vals[k] = s;
+    vals[j] = s;
     peak = Math.max(peak, Math.abs(s));
   }
   const scale = (sumH * 0.44) / 1.6;
-  g.strokeStyle = sumColor || c.sound;
-  g.lineWidth = sumWidth;
+  const col = sumColor || c.sound;
   g.lineJoin = 'round';
   g.beginPath();
-  for (let k = 0; k <= N; k++) {
-    const px = x0 + (k / N) * w;
-    const y = sumTop + sumH / 2 - vals[k] * scale;
-    if (k === 0) g.moveTo(px, y); else g.lineTo(px, y);
+  for (let j = 0; j <= N; j++) {
+    const px = x0 + (j / N) * w;
+    const y = sumTop + sumH / 2 - vals[j] * scale;
+    if (j === 0) g.moveTo(px, y); else g.lineTo(px, y);
   }
+  // The sum is what you hear: a soft wash under a strong line.
+  g.strokeStyle = alpha(col, c.dark ? 0.18 : 0.1);
+  g.lineWidth = sumWidth * lk * 3;
+  g.stroke();
+  g.strokeStyle = col;
+  g.lineWidth = sumWidth * lk;
   g.stroke();
   return { sumTop, sumH, peak };
 }
@@ -203,10 +217,11 @@ class VoiceStack extends HTMLElement {
     if (!this.paused) this.frozenAt = t;
     const state = stackState(this.p.waveform, this.p.super, this.p.detune, this.note);
 
-    const { g, w, h } = fit(this.canvas);
+    const { g, w, h, k } = fit(this.canvas);
     g.clearRect(0, 0, w, h);
     grid(g, w, h, 6, 1);
-    const { peak } = drawStack(g, 12, 26, w - 24, h - 34, state, t, this.phases, { c });
+    const top = headBand(g) + 2 * k;
+    const { peak } = drawStack(g, 12 * k, top, w - 24 * k, h - top - 8 * k, state, t, this.phases, { c, k });
 
     const spread = state.oscs.map((o) => 1200 * Math.log2(o.ratio));
     const maxCents = Math.max(...spread.map(Math.abs));
@@ -222,16 +237,9 @@ class VoiceStack extends HTMLElement {
     this.levelPos = (this.levelPos + 1) % this.levels.length;
     const b = fit(this.beat);
     b.g.clearRect(0, 0, b.w, b.h);
-    b.g.strokeStyle = c.sound;
-    b.g.lineWidth = 2;
-    b.g.beginPath();
-    for (let i = 0; i < this.levels.length; i++) {
-      const v = this.levels[(this.levelPos + i) % this.levels.length];
-      const x = (i / (this.levels.length - 1)) * b.w;
-      const y = b.h - 8 - Math.min(1, v / 1.6) * (b.h - 22);
-      if (i === 0) b.g.moveTo(x, y); else b.g.lineTo(x, y);
-    }
-    b.g.stroke();
+    const bt = headBand(b.g) - 2;
+    grid(b.g, b.w, b.h, 6, 1, { top: bt, bottom: 6 });
+    drawHistory(b.g, b.w, b.h, this.levels, this.levelPos, { color: c.sound, gain: 1 / 1.6, lineWidth: 2, top: bt, bottom: 6 });
   }
 }
 

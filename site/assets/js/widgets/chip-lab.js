@@ -5,7 +5,7 @@
 import { audio, resume, midiToHz, noteName } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
-import { onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, makeAnalyser } from '../ui/draw.js';
+import { onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, makeAnalyser, idle, quietFor } from '../ui/draw.js';
 import { fm1 } from '../hw/fm1.js';
 
 // A few of the FM-1+VA's 31 built-in arpeggios, in semitones from the key.
@@ -133,7 +133,7 @@ class ChipLab extends HTMLElement {
     demo.addEventListener('click', () => this.demo());
     box.append(el('div', { class: 'keys-wrap' }, [el('div', { class: 'keys-bar' }, [el('span', { text: 'Hold one key: with an arpeggio on, it plays a whole chord.' }), el('span', { class: 'grow' }), demo]), this.kb.root]));
     this.append(box);
-    onFrame(this.wave, () => this.drawWave());
+    onFrame(this.wave, (now) => this.drawWave(now));
     onFrame(this.spec, () => this.drawSpec());
   }
 
@@ -296,13 +296,15 @@ class ChipLab extends HTMLElement {
     this.demoRunning = false;
   }
 
-  drawWave() {
+  drawWave(now) {
     const c = colors();
     const { g, w, h } = fit(this.wave);
     g.clearRect(0, 0, w, h);
     grid(g, w, h, 8, 4);
-    if (fm1.analyser) drawWave(g, w, h, fm1.analyser, { color: c.hw, span: 700, lineWidth: 1.4 });
-    if (this.analyser) drawWave(g, w, h, this.analyser, { color: c.sound, span: 700, gain: 3 });
+    let peak = 0;
+    if (fm1.analyser) peak = drawWave(g, w, h, fm1.analyser, { color: c.hw, span: 700, lineWidth: 1.4 });
+    if (this.analyser) peak = Math.max(peak, drawWave(g, w, h, this.analyser, { color: c.sound, span: 700, gain: 3 }));
+    if (quietFor(this._quiet ||= {}, peak > 1e-4, now)) idle(g, w, h, 'Play a key, or a chord progression', { y: h * 0.3 });
     const txt = this.voice ? `${this.p.wave} · ${noteName(this.voice.note)}${this.p.arp !== 'Off' ? ` · ${this.p.arp} arpeggio` : ''}` : this.p.wave;
     if (this.legend.textContent !== txt) this.legend.textContent = txt;
   }

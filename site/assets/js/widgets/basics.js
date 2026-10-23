@@ -3,7 +3,7 @@
 
 import { audio, resume, prefersReducedMotion } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
-import { onFrame, fit, colors, grid, makeAnalyser, drawSpectrum, freqGrid } from '../ui/draw.js';
+import { onFrame, fit, colors, grid, makeAnalyser, drawSpectrum, freqGrid, font, alpha, lineScale } from '../ui/draw.js';
 
 // ---------- Beating ----------
 class BeatLab extends HTMLElement {
@@ -64,9 +64,9 @@ class BeatLab extends HTMLElement {
 
   draw() {
     const c = colors();
-    const { g, w, h } = fit(this.wave);
+    const { g, w, h, k } = fit(this.wave);
     g.clearRect(0, 0, w, h);
-    grid(g, w, h, 10, 4);
+    grid(g, w, h, 10, 4, { axis: false });
     const beat = Math.abs(this.f2 - this.f1);
     const txt = beat < 0.05 ? 'Same pitch: no beating' : `Beats: ${beat.toFixed(1)} per second`;
     if (this.readout.textContent !== txt) this.readout.textContent = txt;
@@ -75,23 +75,36 @@ class BeatLab extends HTMLElement {
     // dense to see, but the swell and fade of the beating is plain.
     const top = h * 0.12; const mid = h * 0.56; const amp = h * 0.36;
     const t0 = prefersReducedMotion() ? 0 : (performance.now() - this.t0) / 1000;
-    g.fillStyle = c.sound;
-    g.globalAlpha = 0.85;
+    // Each pixel's band spans at least one whole cycle, so it reads as one
+    // smooth shape rather than a comb of slices.
     const samplesPerPx = 40;
-    for (let x = 0; x < w; x++) {
+    const span = Math.max(1 / w, 1.05 / Math.min(this.f1, this.f2));
+    const step = 1;
+    const n = Math.ceil(w / step) + 1;
+    const his = new Float32Array(n); const los = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
       let lo = 2; let hi = -2;
-      for (let k = 0; k < samplesPerPx; k++) {
-        const t = t0 + (x + k / samplesPerPx) / w;
+      for (let j = 0; j < samplesPerPx; j++) {
+        const t = t0 + (i * step) / w + (j / samplesPerPx) * span;
         const s = 0.5 * (Math.sin(2 * Math.PI * this.f1 * t) + Math.sin(2 * Math.PI * this.f2 * t));
         lo = Math.min(lo, s); hi = Math.max(hi, s);
       }
-      g.fillRect(x, mid - hi * amp, 1, Math.max(1, (hi - lo) * amp));
+      his[i] = hi; los[i] = lo;
     }
-    g.globalAlpha = 1;
+    const band = new Path2D();
+    for (let i = 0; i < n; i++) band[i ? 'lineTo' : 'moveTo'](Math.min(w, i * step), mid - his[i] * amp);
+    for (let i = n - 1; i >= 0; i--) band.lineTo(Math.min(w, i * step), mid - los[i] * amp);
+    band.closePath();
+    const grad = g.createLinearGradient(0, mid - amp, 0, mid + amp);
+    grad.addColorStop(0, alpha(c.sound, 0.85)); grad.addColorStop(0.5, alpha(c.sound, 0.55)); grad.addColorStop(1, alpha(c.sound, 0.85));
+    g.fillStyle = grad;
+    g.fill(band);
+    g.strokeStyle = c.sound; g.lineWidth = 1; g.lineJoin = 'round';
+    g.stroke(band);
     // The envelope the ear hears as a slow pulse: |cos(π·Δf·t)|.
     g.strokeStyle = c.time;
-    g.lineWidth = 1.5;
-    g.setLineDash([4, 4]);
+    g.lineWidth = 1.6 * lineScale(k);
+    g.setLineDash([4 * k, 4 * k]);
     g.beginPath();
     for (let x = 0; x <= w; x += 2) {
       const t = t0 + x / w;
@@ -101,10 +114,15 @@ class BeatLab extends HTMLElement {
     }
     g.stroke();
     g.setLineDash([]);
+    g.strokeStyle = c.axis; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, Math.round(mid) + 0.5); g.lineTo(w, Math.round(mid) + 0.5); g.stroke();
     g.fillStyle = c.ink3;
-    g.font = '11px Archivo, sans-serif';
-    g.fillText('0 s', 6, h - 6);
-    g.fillText('1 s', w - 22, h - 6);
+    g.font = font(10.5 * k);
+    g.textBaseline = 'bottom';
+    g.fillText('0 s', 6 * k, h - 5 * k);
+    g.textAlign = 'right';
+    g.fillText('1 s', w - 6 * k, h - 5 * k);
+    g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     void top;
   }
 }
@@ -240,39 +258,47 @@ class HarmonicsLab extends HTMLElement {
     const { g, w, h } = fit(this.bars);
     g.clearRect(0, 0, w, h);
     const bw = w / N_HARM;
+    // A baseline, then each bar with a rounded top, the fundamental in ink.
+    g.strokeStyle = c.axis; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, h - 9.5); g.lineTo(w, h - 9.5); g.stroke();
     for (let i = 0; i < N_HARM; i++) {
       const v = this.amps[i];
-      const bh = v * (h - 34);
-      g.fillStyle = i === 0 ? c.ink : c.sound;
-      g.globalAlpha = v > 0 ? 0.9 : 0.15;
-      g.fillRect(i * bw + bw * 0.18, h - 10 - Math.max(2, bh), bw * 0.64, Math.max(2, bh));
+      const bh = Math.max(2, v * (h - 34));
+      const x = i * bw + bw * 0.18; const width = bw * 0.64;
+      const r = Math.min(4, width / 2, bh);
+      g.fillStyle = v > 0 ? (i === 0 ? c.ink : c.sound) : alpha(c.ink3, 0.35);
+      g.globalAlpha = v > 0 ? 0.92 : 1;
+      g.beginPath(); g.roundRect(x, h - 10 - bh, width, bh, [r, r, 0, 0]); g.fill();
     }
     g.globalAlpha = 1;
   }
 
   drawWave() {
     const c = colors();
-    const { g, w, h } = fit(this.wave);
+    const { g, w, h, k } = fit(this.wave);
     g.clearRect(0, 0, w, h);
     grid(g, w, h, 4, 4);
     const N = Math.floor(w);
     const vals = new Float32Array(N + 1);
     let peak = 0.0001;
-    for (let k = 0; k <= N; k++) {
-      const x = (k / N) * 2; // two cycles
+    for (let j = 0; j <= N; j++) {
+      const x = (j / N) * 2; // two cycles
       let s = 0;
       for (let i = 0; i < N_HARM; i++) s += this.amps[i] * signFor(this.shape, i + 1) * Math.sin(2 * Math.PI * (i + 1) * x);
-      vals[k] = s;
+      vals[j] = s;
       peak = Math.max(peak, Math.abs(s));
     }
-    g.strokeStyle = c.sound;
-    g.lineWidth = 2.2;
     g.lineJoin = 'round';
     g.beginPath();
-    for (let k = 0; k <= N; k++) {
-      const y = h / 2 - (vals[k] / peak) * h * 0.38;
-      if (k === 0) g.moveTo((k / N) * w, y); else g.lineTo((k / N) * w, y);
+    for (let j = 0; j <= N; j++) {
+      const y = h / 2 - (vals[j] / peak) * h * 0.38;
+      if (j === 0) g.moveTo((j / N) * w, y); else g.lineTo((j / N) * w, y);
     }
+    g.strokeStyle = alpha(c.sound, c.dark ? 0.18 : 0.1);
+    g.lineWidth = 6.6 * lineScale(k);
+    g.stroke();
+    g.strokeStyle = c.sound;
+    g.lineWidth = 2.2 * lineScale(k);
     g.stroke();
   }
 

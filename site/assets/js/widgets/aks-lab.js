@@ -27,7 +27,8 @@ import { fm1 } from '../hw/fm1.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
 import {
-  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, makeAnalyser, drawFlow, flowPointer,
+  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, freqForX, makeAnalyser, drawFlow, flowPointer,
+  flat, idle, quietFor, setLegend, drawResponse, font, alpha, dot, haloText, backgroundOf, lineScale, kOf, headBand,
 } from '../ui/draw.js';
 import { enableFocus } from '../ui/focus.js';
 
@@ -532,12 +533,7 @@ class AksLab extends HTMLElement {
   }
 
   // ---------- Drawing ----------
-  _legend(legend, items) {
-    const key = items.map((i) => i[0]).join('|');
-    if (legend.dataset.key === key) return;
-    legend.dataset.key = key;
-    legend.replaceChildren(...items.map(([label, color]) => el('span', {}, [Object.assign(el('i'), { style: `background:${color}` }), label])));
-  }
+  _legend(legend, items) { setLegend(legend, items); }
 
   _lfoNow() {
     if (!this.lfoAnalyser) return 0;
@@ -546,28 +542,32 @@ class AksLab extends HTMLElement {
     return d[d.length - 1];
   }
 
-  _draw(view, canvas, legend) {
+  _draw(view, canvas, legend, now) {
     const { g, w, h } = fit(canvas);
     const c = colors();
     g.clearRect(0, 0, w, h);
     const hw = fm1.analyser;
+    const items = [['This page', c.sound]];
+    if (hw) items.push(['Audio in', c.hw]);
+    // Quiet enough to draw flat (the VCA closed) counts as quiet.
+    const hint = (peak) => (quietFor(this._quiet ||= {}, peak > 0.003, now) ? 'Play a key, or press Fire envelope' : '');
     if (view === 'wave') {
       grid(g, w, h, 8, 4);
-      if (hw) drawWave(g, w, h, hw, { color: c.hw, lineWidth: 1.6 });
-      if (this.analyser) drawWave(g, w, h, this.analyser, { color: c.sound });
-      else { g.strokeStyle = c.sound; g.lineWidth = 2; g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke(); }
-      this._legend(legend, hw ? [['This page', c.sound], ['Audio in', c.hw]] : [['This page', c.sound]]);
+      let peak = 0;
+      if (hw) peak = drawWave(g, w, h, hw, { color: c.hw, lineWidth: 1.6 });
+      if (this.analyser) peak = Math.max(peak, drawWave(g, w, h, this.analyser, { color: c.sound }));
+      else flat(g, w, h, c.sound);
+      idle(g, w, h, hint(peak), { y: h * 0.32 });
+      this._legend(legend, items);
     } else if (view === 'spectrum') {
       freqGrid(g, w, h);
-      if (hw) drawSpectrum(g, w, h, hw, { color: c.hw, fill: false, lineWidth: 1.2 });
+      if (hw) drawSpectrum(g, w, h, hw, { color: c.hw, fill: false, lineWidth: 1.3 });
       if (this.analyser) drawSpectrum(g, w, h, this.analyser, { color: c.sound });
-      const items = [['This page', c.sound]];
-      if (hw) items.push(['Audio in', c.hw]);
-      if (this.hasAttribute('filter-curve')) { this._drawFilterCurve(g, w, h, c); items.push(['Filter', c.ink]); }
+      if (this.hasAttribute('filter-curve')) { this._drawFilterCurve(g, w, h); items.push(['Filter', c.ink, 'dash']); }
       this._legend(legend, items);
     } else if (view === 'trap') {
       this._drawTrap(g, w, h, c);
-      this._legend(legend, [['Envelope', c.time], ['VCA', c.sound]]);
+      this._legend(legend, [['Envelope', c.time], ['VCA', c.sound, 'dash']]);
     } else if (view === 'voices') {
       this._drawVoices(g, w, h, c);
       this._legend(legend, [[(AKS_PARAMS.mode.names[AKS_PARAMS.mode.options.indexOf(this.full().mode)] || 'Poly') + ' mode', c.sound]]);
@@ -576,7 +576,7 @@ class AksLab extends HTMLElement {
     }
   }
 
-  _drawFilterCurve(g, w, h, c) {
+  _drawFilterCurve(g, w, h) {
     const p = this.full();
     const [f1, f2] = this.curveFilters || [];
     if (!f1) return;
@@ -587,22 +587,16 @@ class AksLab extends HTMLElement {
     const q = -3 + 30 * Math.pow(p.response / 10, 1.5);
     f1.type = 'lowpass'; f1.frequency.value = cutoff; f1.Q.value = p.slope === '12' ? q : -3;
     f2.type = p.slope === '12' ? 'allpass' : 'lowpass'; f2.frequency.value = cutoff; f2.Q.value = p.slope === '12' ? 0.0001 : q;
-    const N = 200;
+    const N = Math.max(120, Math.min(320, Math.round(w / 2.5)));
     const freqs = new Float32Array(N);
     for (let i = 0; i < N; i++) freqs[i] = freqForX((i / (N - 1)) * w, w);
     const m1 = new Float32Array(N); const m2 = new Float32Array(N); const ph = new Float32Array(N);
     f1.getFrequencyResponse(freqs, m1, ph);
     f2.getFrequencyResponse(freqs, m2, ph);
-    g.strokeStyle = c.ink; g.lineWidth = 1.5; g.setLineDash([5, 4]);
-    g.beginPath();
-    for (let i = 0; i < N; i++) {
-      const db = 20 * Math.log10(Math.max(1e-6, m1[i] * m2[i]));
-      const y = clamp(h * 0.18 - db * (h / 90), 0, h);
-      const x = xForFreq(freqs[i], w);
-      if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
-    }
-    g.stroke();
-    g.setLineDash([]);
+    const at = new Float32Array([cutoff]); const a1 = new Float32Array(1); const a2 = new Float32Array(1);
+    f1.getFrequencyResponse(at, a1, new Float32Array(1));
+    f2.getFrequencyResponse(at, a2, new Float32Array(1));
+    drawResponse(g, w, h, freqs, (i) => m1[i] * m2[i], cutoff, a1[0] * a2[0]);
   }
 
   // The trapezoid: Attack, On, Decay, then Off. Two cycles when it loops, one
@@ -612,42 +606,66 @@ class AksLab extends HTMLElement {
     const p = this.full();
     const t = trapezoidTimes(p);
     const looping = loops(p);
+    const k = kOf(g);
+    const lk = lineScale(k);
     const offShown = looping ? t.off : Math.max(0.25, (t.a + t.on + t.d) * 0.35);
     const cycle = t.a + t.on + t.d + offShown;
     const total = looping ? cycle * 2 : cycle;
-    const X = (s) => 10 + (s / total) * (w - 20);
-    const Y = (v) => h - 18 - v * (h - 60);
-    grid(g, w, h, 8, 3);
-    const shapeAt = (s) => {
-      const k = looping ? s % cycle : s;
-      return trapezoidAt(k, t).level;
-    };
-    const N = 300;
-    const line = (color, f, width, dash) => {
-      g.strokeStyle = color; g.lineWidth = width; g.lineJoin = 'round';
-      g.setLineDash(dash || []);
-      g.beginPath();
+    const head = headBand(g);
+    const top = head + Math.round(20 * k); const bottom = Math.round(22 * k);
+    const meter = this.synth?.cycle ? 14 * k : 0; // room for the level bar at the right
+    const X = (s) => 12 * k + (s / total) * (w - 24 * k - meter);
+    const Y = (v) => h - bottom - v * (h - bottom - top);
+    grid(g, w, h, 8, 3, { top, bottom });
+    const shapeAt = (s) => trapezoidAt(looping ? s % cycle : s, t).level;
+    const N = Math.max(120, Math.round(w / 2.5));
+    const path = (f) => {
+      const line = new Path2D();
       for (let i = 0; i <= N; i++) {
         const s = (i / N) * total;
-        const y = Y(f(shapeAt(s)));
-        if (i === 0) g.moveTo(X(s), y); else g.lineTo(X(s), y);
+        if (i === 0) line.moveTo(X(s), Y(f(shapeAt(s)))); else line.lineTo(X(s), Y(f(shapeAt(s))));
       }
-      g.stroke();
-      g.setLineDash([]);
+      return line;
     };
-    line(c.sound, (v) => vcaGain(v, p), 1.4, [4, 3]);
-    line(c.time, (v) => v, 2.2);
-    // Stage names under the first cycle.
-    g.fillStyle = c.ink3; g.font = '11px Archivo, sans-serif';
-    const label = (text, s0, s1) => { if (X(s1) - X(s0) > 18) g.fillText(text, (X(s0) + X(s1)) / 2 - g.measureText(text).width / 2, h - 3); };
-    label('Attack', 0, t.a);
-    label('On', t.a, t.a + t.on);
-    label('Decay', t.a + t.on, t.a + t.on + t.d);
-    label(looping ? 'Off' : 'waits', t.a + t.on + t.d, cycle);
+    // Stage boundaries for the first cycle, and the floor.
+    const marks = [0, t.a, t.a + t.on, t.a + t.on + t.d, cycle];
+    g.strokeStyle = c.axis; g.lineWidth = 1;
+    g.setLineDash([2 * k, 3 * k]);
+    g.beginPath();
+    for (const s of marks.slice(1, looping ? 5 : 4)) { const x = Math.round(X(s)) + 0.5; g.moveTo(x, top); g.lineTo(x, h - bottom); }
+    g.stroke(); g.setLineDash([]);
+    g.beginPath(); g.moveTo(0, Math.round(Y(0)) + 0.5); g.lineTo(w, Math.round(Y(0)) + 0.5); g.stroke();
+    // What the VCA lets through (dashed), then the envelope over a soft fill.
+    const vca = path((v) => vcaGain(v, p));
+    g.strokeStyle = c.sound; g.lineWidth = 1.5 * lk; g.lineJoin = 'round';
+    g.setLineDash([5 * k, 4 * k]); g.stroke(vca); g.setLineDash([]);
+    const env = path((v) => v);
+    const area = new Path2D(env);
+    area.lineTo(X(total), Y(0)); area.lineTo(X(0), Y(0)); area.closePath();
+    const grad = g.createLinearGradient(0, top, 0, h - bottom);
+    grad.addColorStop(0, alpha(c.time, c.dark ? 0.28 : 0.2)); grad.addColorStop(1, alpha(c.time, 0.03));
+    g.fillStyle = grad; g.fill(area);
+    g.strokeStyle = c.time; g.lineWidth = 2.2 * lk; g.stroke(env);
     if (!looping) {
-      g.strokeStyle = c.time; g.setLineDash([3, 4]); g.lineWidth = 1.2;
+      g.strokeStyle = c.time; g.setLineDash([3 * k, 4 * k]); g.lineWidth = 1.4 * lk;
       g.beginPath(); g.moveTo(X(t.a + t.on + t.d), Y(0)); g.lineTo(X(cycle), Y(0)); g.stroke(); g.setLineDash([]);
     }
+    // Stage names under the first cycle, never on top of each other.
+    g.font = font(10.5 * k); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = c.ink3;
+    let after = -Infinity;
+    [['Attack', 0, 1], ['On', 1, 2], ['Decay', 2, 3], [looping ? 'Off' : 'waits', 3, 4]].forEach(([text, i0, i1]) => {
+      const x0 = X(marks[i0]); const x1 = X(marks[i1]);
+      const half = g.measureText(text).width / 2;
+      if (x1 - x0 < half * 0.8) return;
+      const cx = Math.max((x0 + x1) / 2, after + 6 * k + half);
+      if (cx + half > w - meter) return;
+      g.fillText(text, cx, h - bottom / 2);
+      after = cx + half;
+    });
+    // How it fires, in the header band under the view's name.
+    g.textAlign = 'left';
+    g.fillText(looping ? 'Loops by itself (Off ≤ 6)' : 'Fires on each key', 10 * k, head + 6 * k);
+    g.textAlign = 'start'; g.textBaseline = 'alphabetic';
     // Playhead: where the running envelope is.
     if (this.synth?.cycle) {
       const now = this.synth.ctx.currentTime;
@@ -662,81 +680,92 @@ class AksLab extends HTMLElement {
       else if (e.stage === 'decay') s = t.a + t.on + (e.dt - rise - on) / Math.max(d, 1e-6) * t.d;
       else s = t.a + t.on + t.d + Math.min(offShown, e.dt - rise - on - d);
       if (e.stage !== 'off' || e.dt - rise - on - d < offShown + 0.4 || this.synth.cycling) {
-        g.fillStyle = c.time;
-        g.beginPath(); g.arc(X(s), Y(e.level), 5, 0, Math.PI * 2); g.fill();
+        dot(g, X(s), Y(e.level), 5 * lk, c.time, backgroundOf(g.canvas));
       }
       // A level bar at the right edge.
+      const bw = 5 * k; const bx = w - 6 * k - bw;
+      g.fillStyle = alpha(c.time, 0.18);
+      g.beginPath(); g.roundRect(bx, Y(1), bw, Y(0) - Y(1), bw / 2); g.fill();
       g.fillStyle = c.time;
-      g.globalAlpha = 0.25;
-      g.fillRect(w - 6, Y(1), 4, Y(0) - Y(1));
-      g.globalAlpha = 1;
-      g.fillRect(w - 6, Y(e.level), 4, Y(0) - Y(e.level));
+      if (e.level > 0.005) { g.beginPath(); g.roundRect(bx, Y(e.level), bw, Math.max(bw, Y(0) - Y(e.level)), bw / 2); g.fill(); }
     }
-    g.fillStyle = c.ink3;
-    g.fillText(looping ? 'Loops by itself (Off ≤ 6)' : 'Fires on each key', 10, 34);
   }
 
   // Three lanes, one per VCO, each with the note it's playing. Keys held but
   // not sounding (more keys than VCOs) are listed struck through.
   _drawVoices(g, w, h, c) {
     const p = this.full();
+    const k = kOf(g);
+    const lk = lineScale(k);
     const notes = this.synth ? this.synth.notes : (allocate([...this.held], p.mode, p.priority) || [48, 48, 48]);
     const env = this.synth ? this.synth.envAt().level : 0;
-    const lane = (h - 50) / 3;
-    const top = 26;
+    const top = headBand(g); const foot = Math.round(24 * k);
+    const lane = (h - top - foot) / 3;
     const playing = this.synth ? this.synth.held : [...this.held];
     const sounding = new Set(p.mode === 'poly' ? pickNotes(playing, p.priority, 3) : pickNotes(playing, p.priority, 1));
     const now = performance.now() / 1000;
-    g.font = '600 12px Archivo, sans-serif';
+    const open = Math.min(1, vcaGain(env, p) * 3);
+    const live = vcaGain(env, p) > 0.001;
+    const textW = 104 * k;
     notes.forEach((n, i) => {
       const y = top + i * lane;
-      const live = vcaGain(env, p) > 0.001;
+      const bx = 8 * k; const by = y + 3 * k; const bw = w - 16 * k; const bh = lane - 6 * k;
       g.fillStyle = c.surface;
-      g.globalAlpha = 1;
-      g.fillRect(8, y + 3, w - 16, lane - 6);
       g.strokeStyle = c.rule; g.lineWidth = 1;
-      g.strokeRect(8.5, y + 3.5, w - 17, lane - 7);
+      g.beginPath(); g.roundRect(bx + 0.5, by + 0.5, bw - 1, bh - 1, 6 * k); g.fill(); g.stroke();
       // A small moving wave at the VCO's pitch, brighter while the VCA is open.
       const f = midiToHz(n + 12 * (p.oct || 0));
       const cyclesShown = clamp(f / 110, 1, 10);
-      g.strokeStyle = c.sound;
-      g.globalAlpha = live ? 0.35 + 0.65 * Math.min(1, vcaGain(env, p) * 3) : 0.25;
-      g.lineWidth = 1.6;
-      g.beginPath();
-      const x0 = 120; const x1 = w - 16;
-      for (let x = x0; x <= x1; x += 2) {
+      const x0 = bx + textW; const x1 = bx + bw - 10 * k;
+      const mid = by + bh / 2; const amp = bh / 2 - 8 * k;
+      g.strokeStyle = c.grid;
+      g.beginPath(); g.moveTo(x0, Math.round(mid) + 0.5); g.lineTo(x1, Math.round(mid) + 0.5); g.stroke();
+      const line = new Path2D();
+      const step = 2;
+      for (let x = x0; x <= x1; x += step) {
         const ph = ((x - x0) / (x1 - x0)) * cyclesShown + now * 0.5 * (i + 1);
-        const v = Math.sin(2 * Math.PI * ph);
-        const yy = y + lane / 2 - v * (lane / 2 - 9);
-        if (x === x0) g.moveTo(x, yy); else g.lineTo(x, yy);
+        const yy = mid - Math.sin(2 * Math.PI * ph) * amp;
+        if (x === x0) line.moveTo(x, yy); else line.lineTo(x, yy);
       }
-      g.stroke();
+      g.globalAlpha = live ? 0.35 + 0.65 * open : 0.25;
+      g.strokeStyle = c.sound; g.lineWidth = 1.6 * lk; g.lineJoin = 'round';
+      if (live) { g.save(); g.globalAlpha *= 0.5; g.strokeStyle = alpha(c.sound, c.dark ? 0.35 : 0.2); g.lineWidth = 4.5 * lk; g.stroke(line); g.restore(); }
+      g.stroke(line);
       g.globalAlpha = 1;
+      g.textBaseline = 'middle';
+      g.font = font(11.5 * k, 600);
       g.fillStyle = c.ink;
-      g.fillText(`VCO ${i + 1}`, 18, y + lane / 2 - 2);
-      g.fillStyle = c.sound;
-      g.fillText(`${noteName(n + 12 * (p.oct || 0))}  ${Math.round(f)} Hz`, 18, y + lane / 2 + 13);
+      g.fillText(`VCO ${i + 1}`, bx + 10 * k, mid - 8 * k);
+      g.font = font(11 * k);
+      g.fillStyle = c.ink2;
+      g.fillText(`${noteName(n + 12 * (p.oct || 0))} · ${Math.round(f)} Hz`, bx + 10 * k, mid + 8 * k);
+      g.textBaseline = 'alphabetic';
     });
     // Held keys, with the ones left out by note priority struck through.
-    g.font = '11px Archivo, sans-serif';
-    let x = 10;
+    g.font = font(11 * k);
+    g.textBaseline = 'middle';
+    const ty = h - foot / 2;
+    let x = 10 * k;
     g.fillStyle = c.ink3;
-    g.fillText('Held:', x, h - 8);
+    g.fillText('Held:', x, ty);
     x += g.measureText('Held: ').width;
-    if (!playing.length) { g.fillText('none (the VCOs keep their last notes)', x, h - 8); return; }
+    if (!playing.length) { g.fillText('none (the VCOs keep their last notes)', x, ty); g.textBaseline = 'alphabetic'; return; }
     for (const n of playing) {
       const name = noteName(n);
       const width = g.measureText(name).width;
       g.fillStyle = sounding.has(n) ? c.ink : c.ink3;
-      g.fillText(name, x, h - 8);
-      if (!sounding.has(n)) { g.strokeStyle = c.move; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x - 1, h - 12); g.lineTo(x + width + 1, h - 12); g.stroke(); }
-      x += width + 8;
+      g.fillText(name, x, ty);
+      if (!sounding.has(n)) { g.strokeStyle = c.move; g.lineWidth = 1.4 * lk; g.beginPath(); g.moveTo(x - 1, ty); g.lineTo(x + width + 1, ty); g.stroke(); }
+      x += width + 8 * k;
     }
+    g.textBaseline = 'alphabetic';
   }
 
   _drawJoystick(g, w, h, c) {
     const p = this.full();
-    grid(g, w, h, 6, 6);
+    const k = kOf(g);
+    const lk = lineScale(k);
+    grid(g, w, h, 6, 6, { ticks: false });
     const nx = this._joyNorm ? this._joyNorm(this.axes.x) : 0.5;
     const ny = this._joyNorm ? this._joyNorm(this.axes.y) : 0.5;
     const px = 10 + nx * (w - 20);
@@ -744,25 +773,31 @@ class AksLab extends HTMLElement {
     this.trail.push([px, py]);
     if (this.trail.length > 40) this.trail.shift();
     g.strokeStyle = c.move;
+    g.lineCap = 'round';
     for (let i = 1; i < this.trail.length; i++) {
       g.globalAlpha = (i / this.trail.length) * 0.5;
-      g.lineWidth = 2;
+      g.lineWidth = 2.4 * lk * (0.4 + 0.6 * (i / this.trail.length));
       g.beginPath(); g.moveTo(...this.trail[i - 1]); g.lineTo(...this.trail[i]); g.stroke();
     }
+    g.lineCap = 'butt';
     g.globalAlpha = 1;
-    g.strokeStyle = c.rule; g.lineWidth = 1; g.setLineDash([3, 3]);
-    g.beginPath(); g.moveTo(px, 0); g.lineTo(px, h); g.moveTo(0, py); g.lineTo(w, py); g.stroke();
+    g.strokeStyle = alpha(c.move, 0.45); g.lineWidth = 1; g.setLineDash([3 * k, 3 * k]);
+    g.beginPath(); g.moveTo(Math.round(px) + 0.5, 0); g.lineTo(Math.round(px) + 0.5, h); g.moveTo(0, Math.round(py) + 0.5); g.lineTo(w, Math.round(py) + 0.5); g.stroke();
     g.setLineDash([]);
-    g.fillStyle = c.move;
-    g.beginPath(); g.arc(px, py, 9, 0, Math.PI * 2); g.fill();
-    g.fillStyle = c.surface;
-    g.beginPath(); g.arc(px, py, 3.5, 0, Math.PI * 2); g.fill();
-    g.fillStyle = c.ink3; g.font = '11px Archivo, sans-serif';
+    const bg = backgroundOf(g.canvas);
+    g.fillStyle = alpha(c.move, c.dark ? 0.22 : 0.16);
+    g.beginPath(); g.arc(px, py, 16 * lk, 0, Math.PI * 2); g.fill();
+    dot(g, px, py, 9 * lk, c.move, bg);
+    g.fillStyle = bg;
+    g.beginPath(); g.arc(px, py, 3.5 * lk, 0, Math.PI * 2); g.fill();
+    g.font = font(11 * k);
     const dx = def(this.axes.x); const dy = def(this.axes.y);
     const fx = `X ${dx.label}: ${dx.format ? dx.format(p[this.axes.x]) : p[this.axes.x]}`;
     const fy = `Y ${dy.label}: ${dy.format ? dy.format(p[this.axes.y]) : p[this.axes.y]}`;
-    g.fillText(fx, w - 10 - g.measureText(fx).width, h - 8);
-    g.fillText(fy, w - 10 - g.measureText(fy).width, 26);
+    g.textAlign = 'right';
+    haloText(g, fx, w - 10 * k, h - 8 * k, c.ink2, bg, 4);
+    haloText(g, fy, w - 10 * k, headBand(g) + 4 * k, c.ink2, bg, 4);
+    g.textAlign = 'start';
   }
 }
 

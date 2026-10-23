@@ -419,37 +419,77 @@ html[data-device="fm1"] body [data-device]:not([data-device~="fm1"]) { display: 
 .instrument-head h3 { margin: 0; font-size: 1.02rem; font-stretch: 108%; font-weight: 640; }
 .instrument-head p { margin: 0; font-size: var(--step--1); color: var(--ink-2); font-family: var(--font-display); }
 
+/* A picture: the canvas fills the box, and the view's name (left) and legend
+   (right) share a header band at the top that the drawing leaves clear.
+   --k is the picture's scale, set by ui/draw.js's fit(): 1 in a lesson, up
+   to 1.6 when Focus fills a large screen, so the labels grow with it. */
 .viz {
   position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  justify-content: space-between;
+  gap: 3px calc(14px * var(--k, 1));
+  padding: calc(7px * var(--k, 1)) calc(10px * var(--k, 1)) 0;
   margin: 12px 18px 0;
   border-radius: var(--radius);
   background: var(--surface-2);
   border: 1px solid var(--rule-2);
   overflow: hidden;
 }
-.viz canvas { width: 100%; height: 100%; }
+.viz > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .viz, .hero-scope { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 .viz-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 12px 18px 0; }
 .viz-row .viz { margin: 0; }
+.viz-label, .viz-legend {
+  position: relative;
+  z-index: 1;
+  font-size: calc(0.72rem * var(--k, 1));
+  line-height: 1.35;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* When the two don't fit, the name's explanation (.more) drops out of a
+   narrow view; if a long legend still doesn't fit beside it, the legend takes
+   a line of its own under the name (the drawing measures the band, see
+   headBand in ui/draw.js), and the name ends in an ellipsis only when it
+   alone is wider than the view. */
+.viz { container-type: inline-size; }
 .viz-label {
-  position: absolute;
-  left: 10px;
-  top: 8px;
-  font-size: 0.72rem;
-  color: var(--ink-3);
-  pointer-events: none;
+  flex: 1 1 6em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+  font-weight: 500;
 }
+@container (max-width: 480px) { .viz-label .more { display: none; } }
 .viz-legend {
-  position: absolute;
-  right: 10px;
-  top: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
   display: flex;
-  gap: 12px;
-  font-size: 0.72rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px calc(12px * var(--k, 1));
+  margin-left: auto;
   color: var(--ink-3);
-  pointer-events: none;
+  font-variant-numeric: tabular-nums;
 }
-.viz-legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+/* A legend that's a sentence (a readout) wraps like one. */
+.viz-legend:not(:has(span)) { white-space: normal; text-align: right; }
+.viz-legend span { display: inline-flex; align-items: center; }
+.viz-legend i {
+  display: inline-block;
+  width: calc(12px * var(--k, 1));
+  height: calc(3px * var(--k, 1));
+  border-radius: 2px;
+  margin-right: calc(5px * var(--k, 1));
+  background: var(--c, currentColor);
+}
+/* Dashed and dotted series get a dashed or dotted key. */
+.viz-legend i[data-dash] { height: 0; border-radius: 0; background: none; border-top: calc(2px * var(--k, 1)) dashed var(--c, currentColor); }
+.viz-legend i[data-dash="dot"] { border-top-style: dotted; border-top-width: calc(2.5px * var(--k, 1)); }
 
 .controls {
   display: grid;
@@ -952,33 +992,45 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .midi-mon { max-height: 14em; }
 
 /* Focus (ui/focus.js): the panel fills the screen. Its pictures grow in
-   proportion (set inline by focus.js), and the keys get bigger. */
+   proportion (set inline by focus.js), take whatever height the controls and
+   keys leave, and a row of views is tiled --cols across; the keys sit at
+   the bottom, like an instrument's. */
 html.has-focus { overflow: hidden; }
 :fullscreen { background: var(--paper); overflow: auto; }
 .instrument[data-focus] {
   position: fixed;
   inset: 0;
   z-index: 60;
+  display: flex;
+  flex-direction: column;
   margin: 0;
   border: 0;
   border-radius: 0;
   overflow: auto;
   overscroll-behavior: contain;
   background: var(--paper);
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) max(6px, env(safe-area-inset-bottom)) env(safe-area-inset-left);
 }
+.instrument[data-focus] > * { flex-shrink: 0; }
 .instrument[data-focus]:focus { outline: none; }
 .instrument[data-focus] .instrument-head { padding-top: 16px; }
 .instrument[data-focus] .instrument-head h3 { font-size: 1.25rem; }
-.instrument[data-focus] .viz-row { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.instrument[data-focus] .viz-row { display: flex; flex-wrap: wrap; align-items: flex-start; }
+.instrument[data-focus] .viz-row > * { flex: 1 1 calc((100% - (var(--cols, 3) - 1) * 12px) / var(--cols, 3)); min-width: 0; }
 .instrument[data-focus] .viz { background: var(--surface); }
-.instrument[data-focus] .viz[data-extra] { display: block; }
-.instrument[data-focus] .keys { height: clamp(96px, 15vh, 150px); }
+.instrument[data-focus] .viz[data-extra] { display: flex; }
+.instrument[data-focus] .keys { height: clamp(96px, 16vh, 210px); }
 .instrument[data-focus] .controls { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+@media (min-width: 700px) {
+  .instrument[data-focus] .control-group { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  /* A choice with many options gets two columns, so its buttons wrap less. */
+  .instrument[data-focus] .ctl:has(.seg > :nth-child(6)) { grid-column: span 2; }
+}
+.instrument[data-focus] > .keys-wrap { margin-top: auto; }
+.instrument[data-focus]:not(:has(> .keys-wrap)) > .instrument-foot:not(.aks-foot) { margin-top: auto; }
 
 @media (max-width: 560px) {
   .viz.flow { margin-left: 12px; margin-right: 12px; height: 104px; }
-  .instrument[data-focus] .viz-row { grid-template-columns: 1fr; }
 }
 
 /* ---------- Hardware check (<hw-check>) ---------- */
