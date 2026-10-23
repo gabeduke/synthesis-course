@@ -19,7 +19,7 @@
  */
 'use strict';
 
-const VERSION = 'ca46501bf3aa';
+const VERSION = '73893df10820';
 const PRECACHE = [
   "./",
   "assets/css/course.css",
@@ -28,9 +28,11 @@ const PRECACHE = [
   "assets/js/audio/fx.js",
   "assets/js/audio/supersaw.js",
   "assets/js/audio/va-synth.js",
+  "assets/js/hw/devices.js",
   "assets/js/hw/fm1.js",
   "assets/js/main.js",
   "assets/js/ui/controls.js",
+  "assets/js/ui/device.js",
   "assets/js/ui/draw.js",
   "assets/js/ui/keyboard.js",
   "assets/js/ui/lessons.js",
