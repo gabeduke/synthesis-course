@@ -34,6 +34,10 @@ function fakeBluetooth(opts) {
   const SERVICE = '03b80e5a-ede8-4b33-a751-6ce34ec4c700';
   const log = { writes: [], requests: [], connects: 0, overlaps: 0 };
   window.__ble = log;
+  window.__bleOpts = opts;
+  // Short waits so the retry loop is quick to test (the page reads these).
+  window.__bleRetryDelays = [20, 20, 20];
+  window.__bleAttemptTimeout = opts.attemptTimeout;
   if (opts.absent) {
     Object.defineProperty(Navigator.prototype, 'bluetooth', { get: () => undefined, configurable: true });
     return;
@@ -63,6 +67,8 @@ function fakeBluetooth(opts) {
       log.connects++;
       if (opts.failConnect) throw new DOMException('Connection attempt failed.', 'NetworkError');
       if (opts.failReconnect && log.connects > 1) throw new DOMException('Connection failed for unknown reason.', 'NetworkError');
+      if (opts.failReconnectsUntil && log.connects > 1 && log.connects <= opts.failReconnectsUntil) throw new DOMException('Connection failed for unknown reason.', 'NetworkError');
+      if (opts.hangReconnect && log.connects > 1) return new Promise(() => {});
       this.connected = true;
       return this;
     },
@@ -128,7 +134,7 @@ const panel = (page) => page.locator('fm1-panel.inline');
 const msgText = (page) => panel(page).locator('.msg[role=status]').textContent();
 const msgIsError = (page) => panel(page).locator('.msg[role=status]').evaluate((n) => n.hasAttribute('data-error'));
 const bleLight = (page) => panel(page).locator('.fm1-row', { hasText: 'Bluetooth MIDI' }).locator('.row-head .light').textContent();
-const bleBtn = (page) => panel(page).getByRole('button', { name: /over Bluetooth|Disconnect Bluetooth|Connecting/ });
+const bleBtn = (page) => panel(page).getByRole('button', { name: /over Bluetooth|Disconnect Bluetooth|Reconnect Bluetooth|Connecting/ });
 
 await check('button and SMK-37 hint shown when navigator.bluetooth exists', async () => {
   const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37');
@@ -232,9 +238,72 @@ await check('lost connection that cannot reconnect is reported', async () => {
   await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('disconnected from Bluetooth'));
   eq(await bleLight(page), 'Disconnected', 'light');
   assert(await msgIsError(page), 'should be an error');
-  eq(await bleBtn(page).textContent(), 'Connect over Bluetooth', 'button');
+  eq(await bleBtn(page).textContent(), 'Reconnect Bluetooth', 'button');
   const synthHw = await page.locator('synth-lab .instrument-foot input[type=checkbox]').first().isDisabled();
   assert(synthHw, 'mirror should be disabled with no link');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('several retries, with waits, bring a dropped link back', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', { failReconnectsUntil: 3 });
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline').textContent.includes('Bluetooth: SMK-37 BLE'));
+  await page.evaluate(() => window.__bleDrop());
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Reconnected'));
+  eq(await page.evaluate(() => window.__ble.connects), 4, 'connect attempts (1 first + 2 failed + 1 good)');
+  eq(await bleLight(page), 'Bluetooth: SMK-37 BLE', 'light');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('after giving up, one tap reconnects with no chooser', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', { failReconnect: true });
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline').textContent.includes('Bluetooth: SMK-37 BLE'));
+  await page.evaluate(() => window.__bleDrop());
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Tap Reconnect Bluetooth'));
+  // Still unreachable: the tap says so and the next tap opens the chooser.
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Still can’t reach'));
+  eq(await bleBtn(page).textContent(), 'Connect over Bluetooth', 'button after a failed resume');
+  eq(await page.evaluate(() => window.__ble.requests.length), 1, 'chooser not opened by the failed resume');
+  // Reachable again, after another loss.
+  await page.evaluate(() => { window.__bleOpts.failReconnect = false; });
+  await bleBtn(page).click(); // chooser again
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline').textContent.includes('Bluetooth: SMK-37 BLE'));
+  await page.evaluate(() => { window.__bleOpts.failReconnect = true; window.__bleDrop(); });
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Tap Reconnect Bluetooth'));
+  await page.evaluate(() => { window.__bleOpts.failReconnect = false; });
+  const requests = await page.evaluate(() => window.__ble.requests.length);
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Reconnected'));
+  eq(await page.evaluate(() => window.__ble.requests.length), requests, 'resume used no chooser');
+  eq(await bleLight(page), 'Bluetooth: SMK-37 BLE', 'light');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('a connection attempt that hangs is given up on', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', { hangReconnect: true, attemptTimeout: 100 });
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline').textContent.includes('Bluetooth: SMK-37 BLE'));
+  await page.evaluate(() => window.__bleDrop());
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Tap Reconnect Bluetooth'), null, { timeout: 5000 });
+  eq(await bleLight(page), 'Disconnected', 'light');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('coming back to the page tries a lost link again', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', { failReconnect: true });
+  await bleBtn(page).click();
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline').textContent.includes('Bluetooth: SMK-37 BLE'));
+  await page.evaluate(() => window.__bleDrop());
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Tap Reconnect Bluetooth'));
+  await page.evaluate(() => { window.__bleOpts.failReconnect = false; document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline .msg[role=status]').textContent.includes('Reconnected'));
+  eq(await bleLight(page), 'Bluetooth: SMK-37 BLE', 'light');
   eq(errors, [], 'console errors');
   await ctx.close();
 });

@@ -187,8 +187,16 @@ const MAX_QUEUE = 512;
 // 'reconnected' for the disconnect path.
 //   state: 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
 export class BleMidi extends EventTarget {
-  constructor({ onMessage, onSysex } = {}) {
+  constructor({ onMessage, onSysex, retryDelays, attemptTimeout } = {}) {
     super();
+    // A dropped link is retried a few times, waiting longer each time: the
+    // instrument may need a moment (or a key press) before it advertises
+    // again, and a single immediate retry usually lands in that gap.
+    this.retryDelays = retryDelays || [500, 2000, 5000, 10000, 20000];
+    // gatt.connect() can hang for a long time on a device that isn't there.
+    this.attemptTimeout = attemptTimeout || 12000;
+    this._run = 0;
+    this._lost = false;
     this.onMessage = onMessage || (() => {});
     this.onSysex = onSysex || (() => {});
     this.device = null;
@@ -200,6 +208,14 @@ export class BleMidi extends EventTarget {
     this._manual = false;
     this._onValue = (e) => this._receive(e.target.value);
     this._onGone = () => this._disconnected();
+    // Android drops Bluetooth links while the screen is off or the page is in
+    // the background. Try once more when the page comes back.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this.state === 'disconnected'
+            && this._lost && this.device && !this._manual) this._retryLoop();
+      });
+    }
   }
 
   static get supported() { return typeof navigator !== 'undefined' && !!navigator.bluetooth; }
@@ -232,7 +248,8 @@ export class BleMidi extends EventTarget {
   // Connect to a device already chosen (from connect(), or getDevices()).
   async open(device) {
     this._manual = false;
-    this._retried = false;
+    this._lost = false;
+    this._run++; // cancels any retry loop still waiting
     if (this.device !== device) {
       this.device?.removeEventListener('gattserverdisconnected', this._onGone);
       this.device = device;
@@ -240,7 +257,7 @@ export class BleMidi extends EventTarget {
     }
     this._set('connecting');
     try {
-      await this._attach();
+      await this._attachWithTimeout();
     } catch (err) {
       this._detachCharacteristic();
       this._manual = true; // our own clean-up, not a lost connection
@@ -249,6 +266,25 @@ export class BleMidi extends EventTarget {
       throw err;
     }
     this._set('connected');
+  }
+
+  // _attach, but give up (and cancel the pending connection) after a while.
+  async _attachWithTimeout() {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        try { this.device?.gatt?.connected && this.device.gatt.disconnect(); } catch (_) { /* ignore */ }
+        reject(Object.assign(new Error('Timed out connecting.'), { name: 'NetworkError', blePhase: 'gatt' }));
+      }, this.attemptTimeout);
+    });
+    try { await Promise.race([this._attach(), timeout]); } finally { clearTimeout(timer); }
+  }
+
+  // Connect again to the device chosen earlier, with no chooser. Works from
+  // a tap after the link was lost; throws if the instrument still can't be reached.
+  async resume() {
+    if (!this.device) throw Object.assign(new Error('No device to resume.'), { name: 'InvalidStateError', blePhase: 'gatt' });
+    await this.open(this.device);
   }
 
   async _attach() {
@@ -275,6 +311,7 @@ export class BleMidi extends EventTarget {
   disconnect() {
     if (!this.device) return;
     this._manual = true;
+    this._run++;
     const gatt = this.device.gatt;
     this._detachCharacteristic();
     try { if (gatt?.connected) gatt.disconnect(); } catch (_) { /* ignore */ }
@@ -286,24 +323,33 @@ export class BleMidi extends EventTarget {
     this._detachCharacteristic();
     if (this._manual) { if (this.state !== 'idle') this._set('idle', 'manual'); return; }
     // Only a live connection can be lost: a drop while connecting is reported
-    // by open() itself, and one during the retry by the retry.
+    // by open() itself, and one during a retry by the retry loop.
     if (this.state !== 'connected') return;
-    // One quiet retry: reconnecting to a device the user already picked needs
-    // no new gesture. If that fails, report it and stop.
-    if (!this._retried && this.device) {
-      this._retried = true;
-      this._set('reconnecting', 'lost');
+    this._retryLoop();
+  }
+
+  // Try to get a lost link back without a tap, backing off between attempts.
+  async _retryLoop() {
+    const run = ++this._run;
+    this._set('reconnecting', 'lost');
+    for (const wait of this.retryDelays) {
+      await new Promise((r) => setTimeout(r, wait));
+      if (run !== this._run || this._manual) return;
       try {
-        await this._attach();
-        if (this._manual) return;
-        this._retried = false; // a later drop gets its own retry
+        await this._attachWithTimeout();
+        if (run !== this._run || this._manual) return;
+        this._lost = false;
         this._set('connected', 'reconnected');
         return;
       } catch (_) {
         this._detachCharacteristic();
+        try { this.device?.gatt?.connected && this.device.gatt.disconnect(); } catch (__) { /* ignore */ }
       }
     }
-    if (!this._manual) this._set('disconnected', 'lost');
+    if (run === this._run && !this._manual) {
+      this._lost = true;
+      this._set('disconnected', 'lost');
+    }
   }
 
   _receive(view) {

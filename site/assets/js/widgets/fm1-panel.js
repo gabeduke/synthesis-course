@@ -96,7 +96,8 @@ function body(panel) {
       : b === 'connecting' ? 'Connecting…' : b === 'reconnecting' ? 'Reconnecting…'
         : b === 'disconnected' ? 'Disconnected' : 'Not connected';
     const busy = b === 'connecting' || b === 'reconnecting';
-    bleBtn.textContent = b === 'connected' ? 'Disconnect Bluetooth' : busy ? 'Connecting…' : 'Connect over Bluetooth';
+    bleBtn.textContent = b === 'connected' ? 'Disconnect Bluetooth' : busy ? 'Connecting…'
+      : b === 'disconnected' ? 'Reconnect Bluetooth' : 'Connect over Bluetooth';
     bleBtn.disabled = busy;
     usbNote.hidden = !(b === 'connected' && (fm1.input || fm1.output));
   };
@@ -118,6 +119,14 @@ function body(panel) {
       return;
     }
     say('');
+    // After a lost link, the first tap tries the same instrument again with no
+    // chooser; if that fails, the next tap opens the chooser.
+    if (fm1.ble?.state === 'disconnected') {
+      fm1.resumeBluetooth().then(
+        () => say(`Reconnected to ${fm1.ble.name} over Bluetooth.`),
+        () => say(`Still can’t reach ${fm1.ble?.device?.name || `the ${deviceLabel()}`}. Make sure it’s switched on and Bluetooth is on (press a key to wake it), then tap again to choose it from the list.`, true));
+      return;
+    }
     fm1.connectBluetooth().then(() => {
       say(`Connected to ${fm1.ble.name} over Bluetooth. The page now plays the ${deviceLabel()} and moves its settings without a cable.`);
     }, (err) => {
@@ -134,7 +143,7 @@ function body(panel) {
     const { state, reason, name } = e.detail;
     if (state === 'reconnecting') say(`Lost the Bluetooth connection to ${name}. Reconnecting…`);
     else if (state === 'connected' && reason === 'reconnected') say(`Reconnected to ${name} over Bluetooth.`);
-    else if (state === 'disconnected') say(`${name} disconnected from Bluetooth. Press Connect over Bluetooth to try again.`, true);
+    else if (state === 'disconnected') say(`${name} disconnected from Bluetooth. Tap Reconnect Bluetooth to try again.`, true);
   });
   inSel.addEventListener('change', () => fm1.selectInput(inSel.value || null));
   outSel.addEventListener('change', () => fm1.selectOutput(outSel.value || null));

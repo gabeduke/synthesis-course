@@ -173,7 +173,7 @@ class FM1Link extends EventTarget {
   // ---------- Bluetooth MIDI ----------
   _bleLink() {
     if (this.ble) return this.ble;
-    this.ble = new BleMidi({ onMessage: (data) => this._onMessage(data) });
+    this.ble = new BleMidi({ onMessage: (data) => this._onMessage(data), retryDelays: globalThis.__bleRetryDelays, attemptTimeout: globalThis.__bleAttemptTimeout });
     let was = 'idle';
     this.ble.addEventListener('change', (e) => {
       const { state, reason } = e.detail;
@@ -195,6 +195,12 @@ class FM1Link extends EventTarget {
   connectBluetooth() {
     if (!this.supported.bluetooth) return Promise.reject(Object.assign(new Error('No Web Bluetooth'), { name: 'NotSupportedError' }));
     return this._bleLink().connect();
+  }
+
+  // Reconnect to the instrument chosen earlier, no chooser. For a tap after
+  // the link was lost.
+  resumeBluetooth() {
+    return this._bleLink().resume();
   }
 
   // Let go of any notes over Bluetooth, wait for that to be written, then

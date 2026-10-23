@@ -19,7 +19,7 @@
  */
 'use strict';
 
-const VERSION = '53db1c7da8f1';
+const VERSION = '7b55a7fb71ac';
 const PRECACHE = [
   "./",
   "assets/css/course.css",

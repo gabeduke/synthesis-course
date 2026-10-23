@@ -103,8 +103,11 @@ with Chrome on Android.
   connected it is the link**: the page sends only over Bluetooth and listens
   only to Bluetooth, so an instrument that's also plugged in by USB doesn't
   get every note and setting twice. The USB ports stay selected and take over
-  again when Bluetooth disconnects. An unexpected drop gets one quiet
-  reconnect attempt.
+  again when Bluetooth disconnects. An unexpected drop is retried five times
+  with growing pauses (0.5 s up to 20 s, each attempt abandoned after 12 s),
+  and once more when the page comes back to the foreground. If that fails, the
+  button turns into "Reconnect Bluetooth": one tap tries the same instrument
+  without the chooser, and a second tap opens the chooser.
 - Browser support: Chrome on Android, and Chrome or Edge on Windows, macOS
   and ChromeOS (Web Bluetooth). Not Firefox or Safari, and not on iOS. It
   needs https or `localhost`, and a tap on the button each time a page loads,
