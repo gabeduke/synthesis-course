@@ -20,20 +20,38 @@ import { audio, resume, clamp, noteName, midiToHz } from '../audio/core.js';
 import { AKSSynth } from '../audio/aks-synth.js';
 import {
   AKS_PARAMS, AKS_GROUPS, AKS_DEFAULTS, AKS_CC, cutoffHz, trapezoidTimes, trapezoidAt,
-  loops, vcaGain, allocate, pickNotes,
+  loops, vcaGain, allocate, pickNotes, lfoHz,
 } from '../audio/aks-core.js';
 import { aks } from '../hw/aks.js';
 import { fm1 } from '../hw/fm1.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
 import {
-  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, makeAnalyser,
+  onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, makeAnalyser, drawFlow, flowPointer,
 } from '../ui/draw.js';
+import { enableFocus } from '../ui/focus.js';
 
 let uid = 0;
 const PREFIX = 'aks:'; // keeps these keys apart from the VA controls in ui/params.js
 const def = (key) => AKS_PARAMS[key];
 const continuous = Object.keys(AKS_PARAMS).filter((k) => def(k).type !== 'choice');
+const FOCUS_VIEWS = ['wave', 'spectrum', 'trap', 'voices']; // added in focus mode
+
+// The AKS Mini's fixed signal path, and what moves it. Clicking a stage points
+// at its controls on the panel.
+const STAGES = {
+  vcos: { name: 'VCOs', about: 'the three oscillators mixed, before anything shapes them', keys: AKS_GROUPS.VCO },
+  filter: { name: 'VCF', about: 'one filter for every key; Response makes it ring, and near the top whistle by itself', keys: AKS_GROUPS.VCF },
+  vca: { name: 'VCA', about: 'Signal sets how far it’s open without the envelope, Trapez how much the envelope adds', keys: ['trapez', 'signal'] },
+  spring: { name: 'Spring', about: 'the spring reverb, then out to the headphones', keys: ['reverb'] },
+  hw: { name: 'Audio in', about: 'the real AKS Mini, through an audio interface', keys: [] },
+  env: { name: 'Trapezoid', about: 'one envelope for every key: Attack, On, Decay, then Off before it fires again', keys: AKS_GROUPS.Envelope },
+  lfo: { name: 'LFO', about: 'a slow wave on the pitch and the filter', keys: AKS_GROUPS.LFO },
+  stick: { name: 'Joystick', about: 'moves two knobs at once', keys: [] },
+};
+// Where a joystick axis lands in the picture: the stage, or the modulator,
+// whose control it moves.
+const stageOf = (key) => ['vcos', 'filter', 'vca', 'spring', 'lfo', 'env'].find((s) => STAGES[s].keys.includes(key)) || 'vca';
 
 // ---------- The AKS Mini's MIDI port: shared by the lab and the panel ----------
 function portRow(say) {
@@ -239,15 +257,30 @@ class AksLab extends HTMLElement {
       el('label', { class: 'switch aks-power', for: powerId, title: 'Mute the page’s model (the real AKS Mini isn’t affected)' }, [power, el('span', { text: 'Sound' })]),
     ]));
 
+    // Signal path
+    if (this.getAttribute('flow') !== 'off') {
+      this.flowCanvas = el('canvas', { role: 'img', 'aria-label': 'Signal path: VCOs, filter, VCA and spring, and the trapezoid, LFO and joystick that move them. Click a stage to find its controls.' });
+      box.append(el('div', { class: 'viz flow' }, this.flowCanvas));
+      this._flowHits = [];
+      flowPointer(this.flowCanvas, () => this._flowHits, {
+        onHover: (id) => {
+          this._flowHover = id;
+          if (id && this.where) this.where.replaceChildren(el('b', { text: STAGES[id].name }), `: ${STAGES[id].about}.`);
+        },
+        onClick: (id) => this._pointAt(id),
+      });
+    }
+
     // Visualizations
     const row = el('div', { class: 'viz-row' });
     this.canvases = {};
     const labels = { wave: 'Waveform', spectrum: 'Spectrum', trap: 'Envelope shaper', voices: 'Three VCOs', joystick: 'Joystick' };
-    for (const v of this.views) {
+    for (const v of [...this.views, ...FOCUS_VIEWS.filter((x) => !this.views.includes(x))]) {
       if (!labels[v]) continue;
       const c = el('canvas', { role: 'img', 'aria-label': labels[v] });
       const legend = el('div', { class: 'viz-legend' });
       const viz = el('div', { class: `viz aks-viz-${v}`, style: `height:${v === 'joystick' ? 220 : 190}px` }, [c, el('div', { class: 'viz-label', text: labels[v] }), legend]);
+      if (!this.views.includes(v)) viz.setAttribute('data-extra', '');
       if (v === 'joystick') row.append(this._joystick(viz, c));
       else row.append(viz);
       this.canvases[v] = { c, legend };
@@ -361,6 +394,54 @@ class AksLab extends HTMLElement {
     this.addEventListener('pointerdown', () => { resume(); this.ensure(); }, { once: true });
     this.addEventListener('focusin', () => this.ensure(), { once: true });
     for (const [v, { c, legend }] of Object.entries(this.canvases)) onFrame(c, (now) => this._draw(v, c, legend, now));
+    if (this.flowCanvas) onFrame(this.flowCanvas, (now) => this._drawFlow(now));
+    enableFocus(this);
+    this.addEventListener('focuschange', (e) => { if (e.detail.on) { resume(); this.ensure(); } });
+  }
+
+  // Light up the controls for one stage of the signal path.
+  _pointAt(id) {
+    const keys = id === 'stick' ? [this.axes.x, this.axes.y] : STAGES[id].keys;
+    const found = keys.map((k) => this.ctls.get(k)).filter(Boolean);
+    for (const c of found) {
+      c.setAttribute('data-flash', '');
+      clearTimeout(c._flash);
+      c._flash = setTimeout(() => c.removeAttribute('data-flash'), 1200);
+    }
+    if (found.length) {
+      const r = found[0].getBoundingClientRect();
+      if (r.top < 0 || r.bottom > innerHeight) found[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    if (!this.where) return;
+    this.where.replaceChildren(el('b', { text: STAGES[id].name }), found.length
+      ? `: ${found.map((c) => c.querySelector('label, .ctl-name, .switch span')?.textContent).filter(Boolean).join(', ')}.`
+      : id === 'hw' ? `: ${STAGES.hw.about}.` : ': none of its controls are on this panel.');
+  }
+
+  // ---------- Signal path ----------
+  _drawFlow(now) {
+    const { g, w, h } = fit(this.flowCanvas);
+    const c = colors();
+    g.clearRect(0, 0, w, h);
+    const p = this.full();
+    const taps = this.synth?.taps();
+    const n1 = (v) => (Math.round(v * 10) / 10).toString();
+    const stages = [
+      { id: 'vcos', name: STAGES.vcos.name, color: c.sound, tap: taps?.vcos, sub: `${def('mode').names[def('mode').options.indexOf(p.mode)]} · saw ${n1(p.saw)} sq ${n1(p.square)}` },
+      { id: 'filter', name: STAGES.filter.name, color: c.sound, tap: taps?.filter, sub: `${def('cutoff').format(p.cutoff).split(' · ')[1]} · R ${n1(p.response)}` },
+      { id: 'vca', name: STAGES.vca.name, color: c.time, tap: taps?.vca, sub: `trap ${n1(p.trapez)} · sig ${n1(p.signal)}` },
+      { id: 'spring', name: STAGES.spring.name, color: c.space, tap: taps?.out, sub: p.reverb ? `reverb ${n1(p.reverb)}` : 'dry', dim: !p.reverb },
+    ];
+    if (fm1.analyser) stages.push({ id: 'hw', name: STAGES.hw.name, color: c.hw, tap: fm1.analyser, sub: 'real output', aside: true });
+    const mods = [
+      { id: 'lfo', name: STAGES.lfo.name, color: c.move, over: 'vcos', at: 0.85, land: 0.35, rate: lfoHz(p.lfoRate), targets: [['vcos', p.lfoPitch / 10], ['filter', p.lfoCutoff / 10]] },
+      { id: 'env', name: STAGES.env.name, color: c.time, over: 'vca', at: 0.5, land: 0.62, active: (this.synth?.envAt().level ?? 0) > 0.01, targets: [['vca', p.trapez / 10], ['filter', p.egInt / 10], ['vcos', p.pitchEg / 10]] },
+    ];
+    if (this.views.includes('joystick')) {
+      mods.push({ id: 'stick', name: STAGES.stick.name, color: c.ink2, over: 'spring', at: 0.5, land: 0.5, targets: [[stageOf(this.axes.x), 0.6], [stageOf(this.axes.y), 0.6]] });
+    }
+    this._flowState ||= {};
+    this._flowHits = drawFlow(g, w, h, now, { stages, mods, state: this._flowState, hover: this._flowHover });
   }
 
   _send(message) {

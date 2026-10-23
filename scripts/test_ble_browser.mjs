@@ -532,6 +532,60 @@ await check('signal path points at controls; focus opens and Escape closes it', 
   await ctx.close();
 });
 
+await check('hardware check ticks rows off from what arrives, and reports them', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37', {}, { midi: true });
+  await panel(page).getByRole('button', { name: 'Connect MIDI' }).click();
+  const chk = page.locator('hw-check');
+  await page.evaluate(() => {
+    for (const [n, v] of [[48, 30], [60, 100], [84, 127]]) { window.__usbIn([0x90, n, v]); window.__usbIn([0x80, n, 0]); }
+    window.__usbIn([0xe0, 0, 0]); window.__usbIn([0xe0, 0x7f, 0x7f]);
+    window.__usbIn([0xb0, 64, 127]); window.__usbIn([0xb0, 64, 0]);
+    window.__usbIn([0xb0, 25, 60]); window.__usbIn([0xb1, 19, 40]); // Super; chorus mix on the FX channel
+  });
+  await chk.getByRole('button', { name: 'Listen for pads' }).click();
+  await page.evaluate(() => { for (let i = 0; i < 16; i++) window.__usbIn([0x90, 36 + i, 100]); });
+  await chk.getByRole('button', { name: 'Copy report' }).click();
+  const report = await chk.locator('pre').textContent();
+  for (const want of ['[x] Keys: C3 to C6, velocity 30 to 127', '[x] Pitch wheel: −8192 to +8191', '[x] Sustain pedal: CC 64, down, up',
+    '[x] Settings sent as controls: Super, chorus mix', '[x] Pads: C2 (36)', 'D♯3 (51)', '[ ] Clock: not seen', 'MIDI in: SMK-37 MIDI']) {
+    assert(report.includes(want), `missing “${want}” in:\n${report}`);
+  }
+  assert(!/Keys: .*C2/.test(report), 'pad taps counted as keys');
+  eq(await chk.locator('.focus-btn').count(), 0, 'no Focus button on the checklist');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('the page can play through the instrument, and then won’t loop its sound back', async () => {
+  const { page, ctx, errors } = await open('/lessons/00-start.html?device=smk37');
+  await page.evaluate(() => {
+    window.__sinks = [];
+    AudioContext.prototype.setSinkId = async function (id) { window.__sinks.push(id); };
+    const fake = new AudioContext().createMediaStreamDestination().stream;
+    navigator.mediaDevices.getUserMedia = async () => fake;
+    navigator.mediaDevices.enumerateDevices = async () => [
+      { kind: 'audioinput', deviceId: 'smk-in', label: 'SMK-37+VA Audio' },
+      { kind: 'audiooutput', deviceId: 'default', label: 'Default' },
+      { kind: 'audiooutput', deviceId: 'mac', label: 'MacBook Air Speakers' },
+      { kind: 'audiooutput', deviceId: 'smk-out', label: 'SMK-37+VA Audio' },
+    ];
+  });
+  await panel(page).getByRole('button', { name: 'Listen to its audio' }).click();
+  const sink = panel(page).getByLabel('Where the page’s sound plays');
+  await sink.waitFor();
+  assert((await sink.locator('option').allTextContents()).includes('SMK-37+VA Audio (the SMK-37’s own output)'), 'instrument output not offered');
+  await panel(page).locator('input[type=checkbox]').first().check(); // monitor on
+  await sink.selectOption('smk-out');
+  await page.waitForFunction(() => document.querySelector('fm1-panel.inline input[type=checkbox]').disabled);
+  eq(await page.evaluate(() => window.__sinks.at(-1)), 'smk-out', 'setSinkId');
+  eq(await panel(page).locator('input[type=checkbox]').first().isChecked(), false, 'monitor switched off');
+  eq(await page.evaluate(() => localStorage.getItem('course.sink')), 'smk-out', 'remembered');
+  await sink.selectOption('');
+  eq(await page.evaluate(() => window.__sinks.at(-1)), '', 'back to the default');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
 // Every page, both devices: no console errors, with Bluetooth present.
 const pages = ['/index.html', '/history.html', ...fs.readdirSync(path.join(SITE, 'lessons')).filter((f) => f.endsWith('.html')).map((f) => `/lessons/${f}`)];
 for (const dev of ['fm1', 'smk37']) {

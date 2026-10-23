@@ -266,7 +266,7 @@ main.home > * { grid-column: wide; }
 main.home > p, main.home > h2 { max-width: var(--measure); }
 main > .wide, main > synth-lab, main > voice-stack, main > beat-lab, main > harmonics-lab,
 main > space-lab, main > fm-lab, main > chip-lab,
-main > fm1-panel, main > history-timeline { grid-column: wide; }
+main > fm1-panel, main > history-timeline, main > hw-check { grid-column: wide; }
 
 /* ---------- Prose ---------- */
 
@@ -803,7 +803,7 @@ fm1-panel.inline .instrument { margin: 2em 0; }
   main { padding-top: 28px; }
   main > .wide, main > synth-lab, main > voice-stack, main > beat-lab, main > harmonics-lab,
   main > space-lab, main > fm-lab, main > chip-lab,
-  main > fm1-panel, main > history-timeline, .hero, .path-list { grid-column: content; }
+  main > fm1-panel, main > history-timeline, main > hw-check, .hero, .path-list { grid-column: content; }
 }
 
 @media (max-width: 560px) {
@@ -951,9 +951,10 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 
 .midi-mon { max-height: 14em; }
 
-/* Focus: the panel fills the screen, with bigger scopes and keys. */
+/* Focus (ui/focus.js): the panel fills the screen. Its pictures grow in
+   proportion (set inline by focus.js), and the keys get bigger. */
 html.has-focus { overflow: hidden; }
-synth-lab:fullscreen { background: var(--paper); overflow: auto; }
+:fullscreen { background: var(--paper); overflow: auto; }
 .instrument[data-focus] {
   position: fixed;
   inset: 0;
@@ -969,9 +970,8 @@ synth-lab:fullscreen { background: var(--paper); overflow: auto; }
 .instrument[data-focus]:focus { outline: none; }
 .instrument[data-focus] .instrument-head { padding-top: 16px; }
 .instrument[data-focus] .instrument-head h3 { font-size: 1.25rem; }
-.instrument[data-focus] .viz.flow { height: clamp(140px, 20vh, 200px) !important; }
 .instrument[data-focus] .viz-row { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
-.instrument[data-focus] .viz { height: clamp(170px, 30vh, 360px) !important; background: var(--surface); }
+.instrument[data-focus] .viz { background: var(--surface); }
 .instrument[data-focus] .viz[data-extra] { display: block; }
 .instrument[data-focus] .keys { height: clamp(96px, 15vh, 150px); }
 .instrument[data-focus] .controls { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
@@ -980,3 +980,15 @@ synth-lab:fullscreen { background: var(--paper); overflow: auto; }
   .viz.flow { margin-left: 12px; margin-right: 12px; height: 104px; }
   .instrument[data-focus] .viz-row { grid-template-columns: 1fr; }
 }
+
+/* ---------- Hardware check (<hw-check>) ---------- */
+.hw-check-list { list-style: none; margin: 0; padding: 12px 18px 6px; display: grid; gap: 12px; }
+.hw-check-list li { display: grid; grid-template-columns: 12px 1fr; gap: 10px; align-items: start; font-size: 0.86rem; line-height: 1.45; }
+.hw-check-list li > .light { margin-top: 5px; }
+.hw-check-list strong { font-weight: 620; }
+.hw-check-seen { color: var(--hw); font-variant-numeric: tabular-nums; }
+.hw-check-how { color: var(--ink-3); font-size: 0.8rem; }
+.hw-check-list .btn { margin-top: 6px; padding: 4px 12px; font-size: 0.8rem; }
+.light[data-partial]::before { background: var(--time); box-shadow: 0 0 0 3px color-mix(in srgb, var(--time) 22%, transparent); }
+.hw-check-summary { margin: 0; font-size: 0.84rem; color: var(--ink-2); }
+.hw-check > .midi-mon { margin: 0 18px 14px; }

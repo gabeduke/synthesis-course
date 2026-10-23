@@ -245,7 +245,7 @@ class FM1Link extends EventTarget {
   // ---------- Bluetooth MIDI ----------
   _bleLink() {
     if (this.ble) return this.ble;
-    this.ble = new BleMidi({ onMessage: (data) => this._onMessage(data), retryDelays: globalThis.__bleRetryDelays, attemptTimeout: globalThis.__bleAttemptTimeout });
+    this.ble = new BleMidi({ onMessage: (data) => this._onMessage(data, 'ble'), retryDelays: globalThis.__bleRetryDelays, attemptTimeout: globalThis.__bleAttemptTimeout });
     let was = 'idle';
     this.ble.addEventListener('change', (e) => {
       const { state, reason } = e.detail;
@@ -325,7 +325,7 @@ class FM1Link extends EventTarget {
     this.input = id ? this.ports().inputs.find((p) => p.id === id) || null : null;
     // While Bluetooth is the link, USB input is ignored so an instrument on
     // both doesn't play every note twice.
-    if (this.input) this.input.onmidimessage = (e) => { if (!this.bleActive) this._onMessage(e.data); };
+    if (this.input) this.input.onmidimessage = (e) => { if (!this.bleActive) this._onMessage(e.data, 'usb'); };
     if (remember && id) storage('fm1.inId', id);
     this._emit('change');
   }
@@ -364,10 +364,11 @@ class FM1Link extends EventTarget {
 
   // Events: noteon, noteoff, cc (every Control Change, with its channel),
   // param (a CC the page knows, as a course parameter), bend (−1…1), mod and
-  // pressure (0…1), sustain, program, and midi (every message, raw).
-  _onMessage(data) {
+  // pressure (0…1), sustain, program, and midi (every message, raw, with
+  // `via`: 'usb' for a MIDI port, 'ble' for Bluetooth).
+  _onMessage(data, via = 'usb') {
     const [status, d1, d2] = data;
-    this._emit('midi', { data });
+    this._emit('midi', { data, via });
     if (status >= 0xf0) return; // clock and other system messages
     const type = status & 0xf0;
     const channel = (status & 0x0f) + 1;

@@ -5,7 +5,7 @@
 
 import { fm1, describeMidi } from '../hw/fm1.js';
 import { bleErrorKind, getBleLog, clearBleLog, bleLogEvents } from '../hw/ble-midi.js';
-import { noteName, resume } from '../audio/core.js';
+import { noteName, resume, audio, canChooseOutput, outputId, outputLabel, setOutput } from '../audio/core.js';
 import { el } from '../ui/controls.js';
 import { device, deviceLabel, devName, ctl, onDeviceChange } from '../ui/device.js';
 
@@ -71,6 +71,14 @@ function body(panel) {
   const devSel = el('select', { 'aria-label': 'Audio input' });
   const monitor = el('input', { type: 'checkbox', id: `mon-${++popoverCount}` });
   const monitorLab = el('label', { class: 'switch', for: monitor.id, style: '--c: var(--hw)' }, [monitor, el('span', { text: 'Also play it through this page (use headphones)' })]);
+  // Where the page's own sound plays. An instrument that is also a USB audio
+  // interface (the SMK-37 is) mixes what it's sent into its own output, so the
+  // page and the instrument can share one pair of headphones.
+  const sinkSel = el('select', { 'aria-label': 'Where the page’s sound plays' });
+  const sinkNote = el('p', { class: 'hw-hint' });
+  const sinkLab = el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [el('span', { text: 'The page’s sound plays through' }), sinkSel]);
+  const isInstrument = (label) => device().audioMatch.test(label || '');
+  let shownOutputs = []; // what the output list offers right now
 
   // Settings
   const midiCh = el('input', { type: 'number', min: 1, max: 16, value: fm1.midiChannel });
@@ -139,6 +147,22 @@ function body(panel) {
       devSel.replaceChildren(...devs.map((d, i) => el('option', { value: d.deviceId, text: d.label || `Input ${i + 1}` })));
       devSel.value = current || '';
     }
+    // Output names are only shown once audio permission is given.
+    let outs = [];
+    if (s.audio && canChooseOutput) outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.label);
+    // Without the list, still show an output chosen earlier, so it can be undone.
+    if (!outs.length && outputId()) outs = [{ deviceId: outputId(), label: outputLabel() || 'The output chosen earlier' }];
+    sinkLab.hidden = !outs.length;
+    shownOutputs = outs;
+    sinkSel.replaceChildren(el('option', { value: '', text: 'This computer’s default output' }),
+      ...outs.map((d) => el('option', { value: d.deviceId, text: isInstrument(d.label) ? `${d.label} (the ${deviceLabel()}’s own output)` : d.label })));
+    sinkSel.value = outs.some((d) => d.deviceId === outputId()) ? outputId() : '';
+    const viaInstrument = isInstrument(outs.find((d) => d.deviceId === sinkSel.value)?.label);
+    // Its input would hear its output: playing it back out of the page again loops.
+    if (viaInstrument && monitor.checked) { monitor.checked = false; fm1.monitor(false); }
+    monitor.disabled = viaInstrument;
+    sinkNote.hidden = !viaInstrument;
+    sinkNote.textContent = `The page now plays through the ${deviceLabel()}, so its headphones carry both. Its purple trace includes the page’s sound too, and “Also play it through this page” is off so the sound can’t loop.`;
     testBtn.disabled = !s.midiOut;
 
     const b = s.bluetooth;
@@ -210,6 +234,14 @@ function body(panel) {
       say(err.name === 'NotAllowedError' ? 'Audio permission was refused. Allow microphone access for this site to listen.' : (err.message || 'Couldn’t open the audio input.'), true);
     }
   });
+  sinkSel.addEventListener('change', async () => {
+    try {
+      audio(); // so the switch happens now, not when the sound first starts
+      await setOutput(sinkSel.value, sinkSel.value ? shownOutputs.find((d) => d.deviceId === sinkSel.value)?.label : '');
+      say(sinkSel.value ? `The page’s sound now plays through ${sinkSel.selectedOptions[0].textContent}.` : 'The page’s sound plays through this computer again.');
+    } catch (err) { say(`Couldn’t switch the output (${err.message || err.name}).`, true); }
+    fm1.dispatchEvent(new CustomEvent('change')); // both connection panels redraw
+  });
   devSel.addEventListener('change', async () => {
     try { await fm1.connectAudio(devSel.value); } catch (err) { say(err.message, true); }
   });
@@ -250,7 +282,7 @@ function body(panel) {
     el('hr'),
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, bleNote, bleLog]),
     el('hr'),
-    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab]),
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab, sinkLab, sinkNote]),
     el('hr'),
     el('div', { class: 'fm1-row' }, [
       el('strong', { text: 'Settings' }),

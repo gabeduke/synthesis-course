@@ -7,6 +7,34 @@ let master = null;
 let noiseBuffer = null;
 let levelMeter = null;
 
+// Where the page's sound goes. Chrome and Edge can send it to any output
+// (AudioContext.setSinkId), such as an instrument that is also a USB audio
+// interface; elsewhere it's always the system default. '' is the default.
+export const canChooseOutput = typeof AudioContext !== 'undefined' && 'setSinkId' in AudioContext.prototype;
+let sinkId = '';
+let sinkLabel = '';
+try {
+  sinkId = localStorage.getItem('course.sink') || '';
+  sinkLabel = localStorage.getItem('course.sinkLabel') || '';
+} catch (_) { /* storage blocked */ }
+
+export function outputId() { return sinkId; }
+// The chosen output's name, kept so it can be shown (and undone) before the
+// browser will list outputs by name.
+export function outputLabel() { return sinkLabel; }
+
+// Switch outputs. Only remembered once the browser has accepted it; throws
+// (and keeps the old one) if it can't.
+export async function setOutput(id, label = '') {
+  if (ctx && canChooseOutput) await ctx.setSinkId(id || '');
+  sinkId = id || '';
+  sinkLabel = sinkId ? label : '';
+  try {
+    localStorage.setItem('course.sink', sinkId);
+    localStorage.setItem('course.sinkLabel', sinkLabel);
+  } catch (_) { /* storage blocked */ }
+}
+
 export function audio() {
   if (!ctx) {
     // iPhones mute web audio with the ring/silent switch unless told otherwise.
@@ -24,6 +52,9 @@ export function audio() {
     limiter.ratio.value = 12;
     limiter.attack.value = 0.003;
     limiter.release.value = 0.12;
+
+    // An output chosen last time; if it's gone (unplugged), the default stays.
+    if (sinkId && canChooseOutput) ctx.setSinkId(sinkId).catch(() => {});
 
     master = ctx.createGain();
     master.gain.value = 0.7;

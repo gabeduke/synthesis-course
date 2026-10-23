@@ -119,6 +119,11 @@
       <p data-device="fm1">If the page plays but the FM-1 doesn’t, open the FM-1 panel and press <span class="btn-name">Play a test note on the FM-1</span>, then check the output port. If the FM-1 plays but its purple trace never appears, choose its audio input from the list; its name should include “FM-1”.</p>
       <p data-device="smk37">If the page plays but the SMK-37 doesn’t, open the SMK-37 panel in the top-right corner and press <span class="btn-name">Play a test note on the FM-1</span>. Over USB the SMK-37+VA’s MIDI port is called “SMK-37+VA” and its audio input “SMK-37+VA Audio”, and the page picks both by name; if another device is selected, choose them from the lists yourself.</p>
 
+      <h3>Try every control</h3>
+      <p>Once it’s connected, work down this list on the <span class="dev-name">FM-1</span>. Each row ticks itself off when its messages arrive and shows what came in: the range of your keys, how far the wheels go, which numbers the pads send. It’s a quick way to find a setting that’s switched off, and <span class="btn-name">Copy report</span> writes the results up as text, which is useful when something here doesn’t match your unit.</p>
+
+      <hw-check></hw-check>
+
       <aside class="on-device" data-device="smk37">
         <h3>Connecting the SMK-37 over Bluetooth</h3>
         <p>The connection panel also has <span class="btn-name">Connect over Bluetooth</span>, in browsers that can use Bluetooth (Chrome on Android, Windows, macOS and ChromeOS). It talks to the keyboard over standard Bluetooth MIDI directly, which helps on a tablet where the paired SMK-37 never shows up in the MIDI port list.</p>

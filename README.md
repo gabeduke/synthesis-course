@@ -40,8 +40,9 @@ Plus a filterable history timeline with sources.
 
 Every lesson panel shows its **signal path** along the top (the sound after the
 oscillators, the filter, the amp and the effects, with the envelope and LFO
-drawn to what they move), and has a **Focus** button that fills the screen
-with it and adds a scope, spectrum and spectrogram.
+drawn to what they move), and every playable panel has a **Focus** button that
+fills the screen with it; the synth and AKS panels add a scope, spectrum and
+spectrogram (or the trapezoid and the three VCOs) there.
 
 ## Supported devices
 
@@ -154,7 +155,8 @@ with Chrome on Android.
 
 Run the parser tests with `node scripts/test_ble_midi.mjs`, and the browser
 tests (a simulated device, the USB path, CCs and wheels into the page, the MIDI
-monitor, the signal path and Focus, and every page on both devices) with
+monitor, the hardware check, the output chooser, the signal path and Focus, and
+every page on both devices) with
 `NODE_PATH=$(npm root -g) node scripts/test_ble_browser.mjs` (needs
 Playwright and Chromium). The browser tests fake Web MIDI; for real hardware,
 use an installed Chrome: Chrome for Testing 148 on macOS stalled on Web MIDI
@@ -180,6 +182,19 @@ through `ui/keyboard.js`:
   connection panel's "knobs and wheels move the page" switch turns this off.
 - The connection panel's **MIDI monitor** lists every incoming message,
   decoded, with clock counted rather than listed.
+- **Try every control** (`<hw-check>`, in lesson 0) is a checklist that ticks
+  itself off from what arrives: keys, wheels, pedal, Send CC, the CC banks,
+  pads (it records the notes they send), preset changes, clock, Bluetooth, and
+  the instrument's sound on its audio input. **Copy report** writes it up as
+  text for `hw/devices.js` and this README. Incoming messages carry `via`
+  (`usb` or `ble`) for it.
+- **The page can play through the instrument.** Once audio is connected, the
+  connection panel offers the computer's outputs (`AudioContext.setSinkId`,
+  Chrome and Edge). The SMK-37 is also a USB audio output, and what it's sent
+  comes back mixed into its own output (a tone sent to it was recorded on its
+  USB input), so the page's synth and the SMK-37 can share its headphones.
+  While the page plays through the instrument, "Also play it through this
+  page" is switched off, since that would loop.
 
 ## How it works
 
@@ -197,10 +212,13 @@ server: GitHub Pages serves the `site/` folder as is.
   `hw/ble-midi.js` adds Bluetooth MIDI (see [Bluetooth MIDI](#bluetooth-midi)).
 - `site/assets/js/hw/devices.js` and `site/assets/js/ui/device.js` — device
   profiles and the translation layer (see above).
+- `site/assets/js/ui/focus.js` — the Focus button every playable panel gets
+  (`enableFocusAll()` from `main.js`); pictures grow in proportion, and the
+  element gets a `focuschange` event.
 - `site/assets/js/widgets/` — the custom elements used in lessons:
   `<synth-lab>`, `<voice-stack>`, `<beat-lab>`, `<harmonics-lab>`,
   `<space-lab>`, `<fm-lab>`, `<chip-lab>`, `<fm1-panel>`, `<history-timeline>`,
-  and `<aks-lab>` / `<aks-panel>` for the AKS Mini track.
+  `<hw-check>`, and `<aks-lab>` / `<aks-panel>` for the AKS Mini track.
 - `site/assets/js/ui/params.js` — every control's range, color, and where it
   lives on the FM-1 (translated for other devices). Start here to add or
   change a control.

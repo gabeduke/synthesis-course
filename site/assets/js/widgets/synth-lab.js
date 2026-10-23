@@ -25,9 +25,10 @@ import { GROUPS, PARAMS, getParam, toPartial, ccFor, formatValue } from '../ui/p
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
 import { share } from '../ui/pwa.js';
+import { enableFocus } from '../ui/focus.js';
 import {
   onFrame, fit, colors, grid, drawWave, drawSpectrum, freqGrid, xForFreq, freqForX, yForDb, rms, makeAnalyser,
-  drawMiniWave, Sonogram,
+  Sonogram, drawFlow, flowPointer,
 } from '../ui/draw.js';
 
 const HISTORY = 240; // frames of level / LFO history (~4 s)
@@ -69,7 +70,6 @@ class SynthLab extends HTMLElement {
     this.bendAmount = 0;
     this.modAmount = 0;
     this._hwPending = new Map();
-    this._agc = {};
     this._build();
     registerInstrument(this);
   }
@@ -205,23 +205,6 @@ class SynthLab extends HTMLElement {
     this.modThumb.style.setProperty('--v', String(this.modAmount));
   }
 
-  // ---------- Focus ----------
-  async focus(on) {
-    on = on ?? !this.box.hasAttribute('data-focus');
-    this.box.toggleAttribute('data-focus', on);
-    document.documentElement.classList.toggle('has-focus', on);
-    this.focusBtn.setAttribute('aria-pressed', String(on));
-    this.focusBtn.textContent = on ? 'Exit focus' : 'Focus';
-    if (on) {
-      resume();
-      this.ensure();
-      try { if (this.requestFullscreen && !document.fullscreenElement) await this.requestFullscreen({ navigationUI: 'hide' }); } catch (_) { /* the overlay is enough */ }
-      this.box.focus({ preventScroll: true });
-    } else if (document.fullscreenElement === this) {
-      try { await document.exitFullscreen(); } catch (_) { /* ignore */ }
-    }
-  }
-
   // ---------- UI ----------
   _keys() {
     const spec = (this.getAttribute('controls') || '').split(/\s+/).filter(Boolean);
@@ -242,36 +225,20 @@ class SynthLab extends HTMLElement {
     const box = el('section', { class: 'instrument', 'aria-label': heading });
 
     this.box = box;
-    box.tabIndex = -1;
-    this.focusBtn = el('button', { class: 'btn focus-btn', type: 'button', 'aria-pressed': 'false', title: 'Fill the screen with this panel (Esc to leave)', text: 'Focus' });
-    this.focusBtn.addEventListener('click', () => this.focus());
-    box.addEventListener('keydown', (e) => { if (e.key === 'Escape' && box.hasAttribute('data-focus')) { e.preventDefault(); this.focus(false); } });
-    document.addEventListener('fullscreenchange', () => {
-      if (!document.fullscreenElement && box.hasAttribute('data-focus') && this._wasFullscreen) this.focus(false);
-      this._wasFullscreen = document.fullscreenElement === this;
-    });
-    box.append(el('div', { class: 'instrument-head' }, [el('h3', { text: heading }), intro ? el('p', { text: intro }) : null, el('span', { class: 'grow' }), this.focusBtn]));
+    box.append(el('div', { class: 'instrument-head' }, [el('h3', { text: heading }), intro ? el('p', { text: intro }) : null]));
 
     // Signal path
     if (this.getAttribute('flow') !== 'off') {
       this.flowCanvas = el('canvas', { role: 'img', 'aria-label': 'Signal path: oscillators, filter, amp and effects, and the envelope and LFO that move them. Click a stage to find its controls.' });
       box.append(el('div', { class: 'viz flow' }, this.flowCanvas));
       this._flowHits = [];
-      const hit = (e) => {
-        const r = this.flowCanvas.getBoundingClientRect();
-        const x = e.clientX - r.left; const y = e.clientY - r.top;
-        return this._flowHits.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
-      };
-      this.flowCanvas.addEventListener('pointermove', (e) => {
-        const b = hit(e);
-        this.flowCanvas.style.cursor = b ? 'pointer' : '';
-        if (b?.id !== this._flowHover) {
-          this._flowHover = b?.id;
-          if (b) this.where.replaceChildren(el('b', { text: b.id === 'hw' ? deviceLabel() : STAGES[b.id].name }), `: ${STAGES[b.id].about}.`);
-        }
+      flowPointer(this.flowCanvas, () => this._flowHits, {
+        onHover: (id) => {
+          this._flowHover = id;
+          if (id) this.where.replaceChildren(el('b', { text: id === 'hw' ? deviceLabel() : STAGES[id].name }), `: ${STAGES[id].about}.`);
+        },
+        onClick: (id) => this._pointAt(id),
       });
-      this.flowCanvas.addEventListener('pointerleave', () => { this._flowHover = null; });
-      this.flowCanvas.addEventListener('click', (e) => { const b = hit(e); if (b) this._pointAt(b.id); });
     }
 
     // Visualizations
@@ -382,6 +349,9 @@ class SynthLab extends HTMLElement {
     this.status = el('div', { class: 'where', role: 'status' });
     box.append(this.status);
     this.append(box);
+    // Focus (ui/focus.js) also shows the scope, spectrum and spectrogram, so start the sound.
+    enableFocus(this);
+    this.addEventListener('focuschange', (e) => { if (e.detail.on) { resume(); this.ensure(); } });
 
     const syncHw = () => {
       const out = fm1.canSend;
@@ -594,127 +564,31 @@ class SynthLab extends HTMLElement {
 
   // ---------- Signal path ----------
   // Four stages left to right, with the envelope and LFO above them and a line
-  // to each thing they move. Each stage shows the signal at that point, scaled
-  // to fit; the bar under it shows how loud it really is.
+  // to each thing they move (ui/draw.js's drawFlow does the drawing).
   _drawFlow(now) {
-    const canvas = this.flowCanvas;
-    const { g, w, h } = fit(canvas);
+    const { g, w, h } = fit(this.flowCanvas);
     const c = colors();
     g.clearRect(0, 0, w, h);
     const s = this.synth;
     const p = s ? s.p : this._full();
     const taps = s?._taps;
-    const hw = fm1.analyser;
-    const ids = ['osc', 'filter', 'amp', 'fx', ...(hw ? ['hw'] : [])];
-    const gap = w < 480 ? 14 : 22;
-    const top = 30;
-    const bh = h - top - 8;
-    const hwGap = hw ? gap : 0;
-    const bw = (w - 16 - gap * (ids.length - 1) - hwGap) / ids.length;
-    const fxOn = Object.entries(p.fx || {}).filter(([, f]) => f.on).map(([k]) => k);
+    const fxOn = Object.entries(p.fx || {}).filter(([, f]) => f.on).map(([k]) => k[0].toUpperCase() + k.slice(1));
     const open = p.filterType !== 'hp' && p.filterType !== 'bp' && p.cutoff >= 19000 && !p.filterEnv && !p.lfoToCutoff;
-    const info = {
-      osc: { color: c.sound, tap: taps?.osc, sub: `${PARAMS.waveform.names[PARAMS.waveform.options.indexOf(p.waveform)]}${p.super ? ' ×7' : ''}` },
-      filter: { color: c.sound, tap: taps?.filter, sub: open ? 'open' : `${PARAMS.filterType.names[PARAMS.filterType.options.indexOf(p.filterType)]} ${formatValue('cutoff', p.cutoff)}`, dim: open },
-      amp: { color: c.time, tap: taps?.amp, sub: `A ${formatValue('attack', p.attack)} · R ${formatValue('release', p.release)}` },
-      fx: { color: c.space, tap: taps?.out, sub: fxOn.length ? fxOn.map((k) => k[0].toUpperCase() + k.slice(1)).join(' + ') : 'off', dim: !fxOn.length },
-      hw: { color: c.hw, tap: hw, sub: 'real output' },
-    };
-    const pulse = this._flowPulse && now - this._flowPulse.at < 700 ? this._flowPulse : null;
-    this._flowHits = [];
-    const boxes = {};
-    let x = 8;
-    g.font = '600 11px Archivo, sans-serif';
-    for (const id of ids) {
-      if (id === 'hw') x += hwGap;
-      const b = { x, y: top, w: bw, h: bh, id };
-      boxes[id] = b;
-      this._flowHits.push(b);
-      const it = info[id];
-      g.globalAlpha = it.dim ? 0.45 : 1;
-      g.fillStyle = c.surface;
-      g.strokeStyle = pulse?.stage === id || this._flowHover === id ? it.color : c.rule;
-      g.lineWidth = pulse?.stage === id ? 2 : 1;
-      g.setLineDash(id === 'hw' ? [4, 3] : []);
-      g.beginPath(); g.roundRect(b.x, b.y, b.w, b.h, 6); g.fill(); g.stroke();
-      g.setLineDash([]);
-      g.fillStyle = it.color;
-      g.fillText(id === 'hw' ? deviceLabel() : STAGES[id].name, b.x + 7, b.y + 14);
-      // The stage's main setting, when there's room beside its name.
-      const nameW = g.measureText(id === 'hw' ? deviceLabel() : STAGES[id].name).width;
-      g.font = '10px Archivo, sans-serif';
-      const subW = g.measureText(it.sub).width;
-      if (nameW + subW + 24 < b.w) {
-        g.fillStyle = c.ink3;
-        g.fillText(it.sub, b.x + b.w - 7 - subW, b.y + 14);
-      }
-      g.font = '600 11px Archivo, sans-serif';
-      let level = 0;
-      if (it.tap) {
-        this._agc[id] ||= {};
-        const peak = drawMiniWave(g, b.x + 6, b.y + 20, b.w - 12, b.h - 30, it.tap, { color: it.color, agc: this._agc[id], span: 384 });
-        level = peak;
-      } else {
-        g.strokeStyle = it.color; g.lineWidth = 1.2;
-        g.beginPath(); g.moveTo(b.x + 6, b.y + 20 + (b.h - 30) / 2); g.lineTo(b.x + b.w - 6, b.y + 20 + (b.h - 30) / 2); g.stroke();
-      }
-      // Level bar
-      g.fillStyle = c.rule2 || c.rule;
-      g.fillRect(b.x + 6, b.y + b.h - 7, b.w - 12, 3);
-      g.fillStyle = it.color;
-      g.fillRect(b.x + 6, b.y + b.h - 7, (b.w - 12) * clamp(level / 0.6, 0, 1), 3);
-      g.globalAlpha = 1;
-      // Arrow to the next stage, with the signal flowing along it while it sounds.
-      const next = ids[ids.indexOf(id) + 1];
-      if (next && next !== 'hw') {
-        const ax = b.x + b.w; const ay = b.y + b.h / 2;
-        g.strokeStyle = level > 0.002 ? it.color : c.rule;
-        g.lineWidth = 1.6;
-        g.setLineDash([4, 4]);
-        g.lineDashOffset = level > 0.002 ? -(now / 40) % 8 : 0;
-        g.beginPath(); g.moveTo(ax + 2, ay); g.lineTo(ax + gap - 4, ay); g.stroke();
-        g.setLineDash([]);
-        g.lineDashOffset = 0;
-        g.fillStyle = g.strokeStyle;
-        g.beginPath(); g.moveTo(ax + gap - 2, ay); g.lineTo(ax + gap - 7, ay - 4); g.lineTo(ax + gap - 7, ay + 4); g.fill();
-      }
-      x += bw + gap;
-    }
-
-    // Modulators: the envelope always drives the amp; the LFO only what it's turned up for.
-    const sounding = !!s?.voices.some((v) => !v.released);
-    const mods = [
-      { id: 'env', color: c.time, x: boxes.amp.x + boxes.amp.w / 2, targets: [['amp', 1], ['filter', p.filterEnv / 100]], active: sounding },
-      { id: 'lfo', color: c.move, x: boxes.osc.x + boxes.osc.w * 0.9, targets: [['osc', Math.max(p.lfoPitch / 99, this.modAmount)], ['filter', p.lfoToCutoff / 100], ['amp', p.lfoAmp / 99]], rate: lfoHz(p.lfoSpeed) },
+    const choice = (key) => PARAMS[key].names[PARAMS[key].options.indexOf(p[key])];
+    const stages = [
+      { id: 'osc', name: STAGES.osc.name, color: c.sound, tap: taps?.osc, sub: `${choice('waveform')}${p.super ? ' ×7' : ''}` },
+      { id: 'filter', name: STAGES.filter.name, color: c.sound, tap: taps?.filter, sub: open ? 'open' : `${choice('filterType')} ${formatValue('cutoff', p.cutoff)}`, dim: open },
+      { id: 'amp', name: STAGES.amp.name, color: c.time, tap: taps?.amp, sub: `A ${formatValue('attack', p.attack)} · R ${formatValue('release', p.release)}` },
+      { id: 'fx', name: STAGES.fx.name, color: c.space, tap: taps?.out, sub: fxOn.length ? fxOn.join(' + ') : 'off', dim: !fxOn.length },
     ];
-    g.font = '600 10px Archivo, sans-serif';
-    for (const m of mods) {
-      const used = m.targets.filter(([, d]) => d > 0.005);
-      const label = STAGES[m.id].name;
-      const lw = g.measureText(label).width + 14;
-      const lx = clamp(m.x - lw / 2, 4, w - lw - 4);
-      g.globalAlpha = used.length ? 1 : 0.4;
-      g.strokeStyle = m.color; g.fillStyle = c.surface; g.lineWidth = 1;
-      g.beginPath(); g.roundRect(lx, 4, lw, 16, 8); g.fill(); g.stroke();
-      g.fillStyle = m.color;
-      g.fillText(label, lx + 7, 15.5);
-      this._flowHits.push({ x: lx, y: 4, w: lw, h: 16, id: m.id });
-      for (const [t, depth] of used) {
-        const b = boxes[t];
-        const tx = b.x + b.w * (m.id === 'env' ? 0.62 : 0.38);
-        g.strokeStyle = m.color;
-        g.lineWidth = 1 + depth * 2;
-        g.globalAlpha = m.id === 'env' ? (m.active ? 0.95 : 0.45) : 0.9;
-        if (m.id === 'lfo') { g.setLineDash([3, 4]); g.lineDashOffset = -(now / 1000) * m.rate * 14; }
-        g.beginPath();
-        g.moveTo(lx + lw / 2, 20);
-        g.bezierCurveTo(lx + lw / 2, 27, tx, 22, tx, b.y);
-        g.stroke();
-        g.setLineDash([]);
-        g.lineDashOffset = 0;
-      }
-      g.globalAlpha = 1;
-    }
+    if (fm1.analyser) stages.push({ id: 'hw', name: deviceLabel(), color: c.hw, tap: fm1.analyser, sub: 'real output', aside: true });
+    const mods = [
+      { id: 'env', name: STAGES.env.name, color: c.time, over: 'amp', at: 0.5, land: 0.62, targets: [['amp', 1], ['filter', p.filterEnv / 100]], active: !!s?.voices.some((v) => !v.released) },
+      { id: 'lfo', name: STAGES.lfo.name, color: c.move, over: 'osc', at: 0.9, land: 0.38, rate: lfoHz(p.lfoSpeed), targets: [['osc', Math.max(p.lfoPitch / 99, this.modAmount)], ['filter', p.lfoToCutoff / 100], ['amp', p.lfoAmp / 99]] },
+    ];
+    const pulse = this._flowPulse && now - this._flowPulse.at < 700 ? this._flowPulse.stage : null;
+    this._flowState ||= {};
+    this._flowHits = drawFlow(g, w, h, now, { stages, mods, state: this._flowState, hover: this._flowHover, pulse });
   }
 
   _drawHistory(g, w, h, hist, color, gain, lw, show, bipolar = false) {

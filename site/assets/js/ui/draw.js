@@ -266,3 +266,147 @@ export class Sonogram {
     g.stroke();
   }
 }
+
+// A signal path: stages left to right, each with a small scope of the signal
+// at that point and a bar under it for how loud it really is, and modulators
+// above, with a line down to each stage they move.
+//
+//   stages  [{ id, name, color, tap, sub, dim, aside }]  aside: drawn apart at
+//           the right with a dashed border (an instrument's real output)
+//   mods    [{ id, name, color, over, at, land, targets: [[id, depth 0–1]],
+//              rate, active }]  over/at: the stage and fraction of its width
+//           the label sits above; land: where on a stage its lines arrive;
+//           a target can be a stage, or a mod drawn earlier in the list;
+//           rate (Hz) makes the line crawl like an LFO
+//   state   an object kept between frames (scope scaling, hit boxes)
+//   hover, pulse  stage or mod ids to outline
+// Returns hit boxes [{ x, y, w, h, id }] for pointer handling.
+export function drawFlow(g, w, h, now, { stages, mods = [], state, hover, pulse }) {
+  const c = colors();
+  state.agc ||= {};
+  const hits = [];
+  const main = stages.filter((s) => !s.aside);
+  const aside = stages.filter((s) => s.aside);
+  const gap = w < 480 ? 14 : 22;
+  const top = 30;
+  const bh = h - top - 8;
+  const bw = (w - 16 - gap * (stages.length - 1) - (aside.length ? gap : 0)) / stages.length;
+  const boxes = {};
+  const order = [...main, ...aside];
+  let x = 8;
+  for (const [i, st] of order.entries()) {
+    if (st.aside && !order[i - 1]?.aside) x += gap;
+    const b = { x, y: top, w: bw, h: bh, id: st.id };
+    boxes[st.id] = b;
+    hits.push(b);
+    g.globalAlpha = st.dim ? 0.45 : 1;
+    g.fillStyle = c.surface;
+    g.strokeStyle = pulse === st.id || hover === st.id ? st.color : c.rule;
+    g.lineWidth = pulse === st.id ? 2 : 1;
+    g.setLineDash(st.aside ? [4, 3] : []);
+    g.beginPath(); g.roundRect(b.x, b.y, b.w, b.h, 6); g.fill(); g.stroke();
+    g.setLineDash([]);
+    g.font = '600 11px Archivo, sans-serif';
+    g.fillStyle = st.color;
+    g.fillText(st.name, b.x + 7, b.y + 14);
+    // The stage's main setting, when there's room beside its name.
+    const nameW = g.measureText(st.name).width;
+    g.font = '10px Archivo, sans-serif';
+    const subW = st.sub ? g.measureText(st.sub).width : 0;
+    if (st.sub && nameW + subW + 24 < b.w) {
+      g.fillStyle = c.ink3;
+      g.fillText(st.sub, b.x + b.w - 7 - subW, b.y + 14);
+    }
+    let level = 0;
+    const sy = b.y + 20; const sh = b.h - 30;
+    if (st.tap) {
+      state.agc[st.id] ||= {};
+      level = drawMiniWave(g, b.x + 6, sy, b.w - 12, sh, st.tap, { color: st.color, agc: state.agc[st.id], span: 384 });
+    } else {
+      g.strokeStyle = st.color; g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(b.x + 6, sy + sh / 2); g.lineTo(b.x + b.w - 6, sy + sh / 2); g.stroke();
+    }
+    g.fillStyle = c.rule;
+    g.fillRect(b.x + 6, b.y + b.h - 7, b.w - 12, 3);
+    g.fillStyle = st.color;
+    g.fillRect(b.x + 6, b.y + b.h - 7, (b.w - 12) * Math.min(1, level / 0.6), 3);
+    g.globalAlpha = 1;
+    // Arrow to the next stage, with the signal flowing along it while it sounds.
+    const next = order[i + 1];
+    if (next && !next.aside && !st.aside) {
+      const ax = b.x + b.w; const ay = b.y + b.h / 2;
+      const live = level > 0.002;
+      g.strokeStyle = live ? st.color : c.rule;
+      g.lineWidth = 1.6;
+      g.setLineDash([4, 4]);
+      g.lineDashOffset = live ? -(now / 40) % 8 : 0;
+      g.beginPath(); g.moveTo(ax + 2, ay); g.lineTo(ax + gap - 4, ay); g.stroke();
+      g.setLineDash([]);
+      g.lineDashOffset = 0;
+      g.fillStyle = g.strokeStyle;
+      g.beginPath(); g.moveTo(ax + gap - 2, ay); g.lineTo(ax + gap - 7, ay - 4); g.lineTo(ax + gap - 7, ay + 4); g.fill();
+    }
+    x += bw + gap;
+  }
+
+  g.font = '600 10px Archivo, sans-serif';
+  const pills = {};
+  for (const m of mods) {
+    const anchor = boxes[m.over];
+    if (!anchor) continue;
+    const used = m.targets.filter(([t, d]) => (boxes[t] || pills[t]) && d > 0.005);
+    const lw = g.measureText(m.name).width + 14;
+    const lx = Math.min(Math.max(anchor.x + anchor.w * (m.at ?? 0.5) - lw / 2, 4), w - lw - 4);
+    g.globalAlpha = used.length ? 1 : 0.4;
+    g.strokeStyle = m.color; g.fillStyle = c.surface;
+    g.lineWidth = pulse === m.id || hover === m.id ? 2 : 1;
+    g.beginPath(); g.roundRect(lx, 4, lw, 16, 8); g.fill(); g.stroke();
+    g.fillStyle = m.color;
+    g.fillText(m.name, lx + 7, 15.5);
+    hits.push({ x: lx, y: 4, w: lw, h: 16, id: m.id });
+    pills[m.id] = { x: lx, w: lw };
+    for (const [t, depth] of used) {
+      g.strokeStyle = m.color;
+      g.lineWidth = 1 + Math.min(1, depth) * 2;
+      g.globalAlpha = m.active === false ? 0.45 : 0.92;
+      if (m.rate) { g.setLineDash([3, 4]); g.lineDashOffset = -(now / 1000) * m.rate * 14; }
+      g.beginPath();
+      if (boxes[t]) {
+        const b = boxes[t];
+        const tx = b.x + b.w * (m.land ?? 0.5);
+        g.moveTo(lx + lw / 2, 20);
+        g.bezierCurveTo(lx + lw / 2, 27, tx, 22, tx, b.y);
+      } else {
+        // Another modulator: a loop under the labels, from this one to that one.
+        const p = pills[t];
+        const from = lx + lw / 2; const to = p.x + p.w / 2;
+        g.moveTo(from, 20);
+        g.bezierCurveTo(from, 28, to, 28, to, 20);
+      }
+      g.stroke();
+      g.setLineDash([]);
+      g.lineDashOffset = 0;
+    }
+    g.globalAlpha = 1;
+  }
+  return hits;
+}
+
+// Pointer handling for a drawFlow canvas: `hits()` returns the boxes from the
+// last frame; onHover(id or null) and onClick(id) are called with the stage
+// or modulator under the pointer.
+export function flowPointer(canvas, hits, { onHover, onClick }) {
+  let over = null;
+  const at = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const x = e.clientX - r.left; const y = e.clientY - r.top;
+    return hits().find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h)?.id ?? null;
+  };
+  canvas.addEventListener('pointermove', (e) => {
+    const id = at(e);
+    canvas.style.cursor = id ? 'pointer' : '';
+    if (id !== over) { over = id; onHover(id); }
+  });
+  canvas.addEventListener('pointerleave', () => { if (over) { over = null; onHover(null); } });
+  canvas.addEventListener('click', (e) => { const id = at(e); if (id) onClick(id); });
+}

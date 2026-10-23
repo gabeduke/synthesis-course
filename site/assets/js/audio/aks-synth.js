@@ -291,6 +291,21 @@ export class AKSSynth {
 
   get params() { return { ...this.p }; }
 
+  // Listening points along the signal path, for drawing it stage by stage:
+  // the three VCOs' mix, after the filter, after the VCA, and the output.
+  taps() {
+    if (this._taps) return this._taps;
+    const tap = (node) => {
+      const a = this.ctx.createAnalyser();
+      a.fftSize = 2048;
+      a.smoothingTimeConstant = 0;
+      node.connect(a);
+      return a;
+    };
+    this._taps = { vcos: tap(this.mix), filter: tap(this.postFilter), vca: tap(this.vca), out: tap(this.output) };
+    return this._taps;
+  }
+
   // Set the three VCOs' pitches (and the pulse widths, which depend on pitch)
   // from the notes they hold, DETUNE and OCT.
   _retune(immediate = false) {
