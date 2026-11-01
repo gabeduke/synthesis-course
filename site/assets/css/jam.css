@@ -1,0 +1,76 @@
+/* The Jam page (widgets/jam-room.js). Phone first: one column, the chord and
+   Play button at the top. On a wide screen the chord and the neck stay put
+   on the left while the settings scroll on the right. */
+
+jam-room { display: block; }
+.ctl[data-kind="hw"] { --c: var(--hw); }
+
+.jam-grid { display: grid; gap: 0 22px; }
+.jam-grid .instrument { margin: 0 0 18px; }
+.jam-side, .jam-controls { min-width: 0; }
+@media (min-width: 1100px) {
+  .jam-grid { grid-template-columns: minmax(320px, 400px) 1fr; align-items: start; }
+  .jam-side { position: sticky; top: 72px; }
+}
+
+/* Now playing */
+.jam-hero { padding: 18px 18px 6px; display: grid; gap: 4px; }
+.jam-chord { display: flex; align-items: baseline; gap: 12px; }
+.jam-chord-name { font-size: clamp(3rem, 16vw, 4.4rem); line-height: 1; font-weight: 720; font-stretch: 112%; color: var(--ink); }
+.jam-numeral { order: 2; font-size: 1.3rem; color: var(--ink-3); font-weight: 560; }
+.jam-keyline { margin: 0; font-size: 0.95rem; color: var(--ink-2); }
+.jam-beats { display: flex; gap: 8px; margin-top: 8px; }
+.jam-beats i { width: 12px; height: 12px; border-radius: 50%; background: var(--rule); transition: background 0.06s; }
+.jam-beats i:first-child { width: 16px; }
+.jam-beats i[data-on] { background: var(--time); }
+
+.jam-strip { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 18px 14px; padding: 0; }
+.jam-strip li { display: grid; padding: 6px 12px; border: 1px solid var(--rule); border-radius: var(--radius-sm); min-width: 54px; text-align: center; }
+.jam-strip li strong { font-size: 1rem; }
+.jam-strip li span { font-size: 0.75rem; color: var(--ink-3); }
+.jam-strip li[aria-current] { border-color: var(--sound); background: color-mix(in srgb, var(--sound) 12%, var(--surface)); }
+
+.jam-transport { justify-content: space-between; }
+.jam-play { font-size: 1.1rem; padding: 12px 34px; min-width: 120px; }
+.jam-tempo { display: flex; align-items: center; gap: 6px; }
+.jam-tempo .btn { min-width: 42px; padding: 9px 10px; }
+.jam-bpm { min-width: 78px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Settings */
+.jam-wide { grid-column: 1 / -1; display: grid; gap: 6px; }
+.jam-keys { display: grid; grid-template-columns: repeat(6, 1fr); width: 100%; }
+.jam-keys button { padding: 9px 0; font-size: 0.95rem; }
+.jam-hint { margin: 0; font-size: 0.82rem; color: var(--ink-2); font-family: var(--font-display); }
+.jam-link { margin: 0; font-size: 0.88rem; display: flex; align-items: center; gap: 8px; }
+.jam-link::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rule); flex: none; }
+.jam-link[data-on]::before { background: var(--hw); }
+.jam-panel .seg button { padding: 7px 11px; }
+
+/* The neck */
+.jam-scale { margin: 10px 18px 0; font-size: 0.9rem; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.jam-scale span { color: var(--ink-2); }
+.jam-scale b { font-weight: 560; color: var(--ink-2); }
+.jam-scale b[data-chord] { color: var(--sound); font-weight: 720; }
+.jam-scale b[data-color] { text-decoration: underline 2px var(--move); text-underline-offset: 3px; }
+.jam-neck { padding: 6px 12px 14px; display: flex; justify-content: center; }
+.jam-neck svg { width: 100%; max-width: 330px; height: auto; font-family: var(--font-display); }
+.jam-neck .string { stroke: var(--ink-3); }
+.jam-neck .fret { stroke: var(--rule); stroke-width: 1.5; }
+.jam-neck .nut { stroke: var(--ink); stroke-width: 5; }
+.jam-neck .inlay { fill: var(--rule-2); }
+.jam-neck .fretno { fill: var(--ink-3); font-size: 12px; text-anchor: middle; }
+.jam-neck .dot.scale { fill: var(--surface); stroke: var(--ink-3); stroke-width: 1.4; }
+.jam-neck .dot.chord { fill: var(--sound); stroke: none; }
+.jam-neck .dot.chordroot { fill: color-mix(in srgb, var(--sound) 70%, var(--ink)); }
+.jam-neck .dot.key { stroke: var(--move); stroke-width: 3.5; }
+.jam-neck .dotname { font-size: 11px; text-anchor: middle; fill: var(--ink-2); font-weight: 560; pointer-events: none; }
+.jam-neck .dotname.on { fill: var(--surface); font-size: 12px; font-weight: 700; }
+
+@media (max-width: 560px) {
+  .jam-hero { padding: 14px 12px 4px; }
+  .jam-strip { margin: 8px 12px 12px; }
+  .jam-scale { margin: 10px 12px 0; }
+  .jam-transport { gap: 10px; }
+  .jam-play { flex: 1; }
+  .jam-tempo { width: 100%; justify-content: space-between; }
+}

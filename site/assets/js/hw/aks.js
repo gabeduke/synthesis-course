@@ -77,26 +77,30 @@ class AksLink extends EventTarget {
     this._emit('change');
   }
 
-  _send(bytes) {
+  // `at`: an optional Web MIDI timestamp (the performance.now() clock).
+  _send(bytes, at) {
     if (!this.output) return;
     // A port can vanish mid-send (cable pulled); don't let that break the page.
-    try { this.output.send(bytes); } catch (_) { /* port went away */ }
+    try { at === undefined ? this.output.send(bytes) : this.output.send(bytes, at); } catch (_) { /* port went away */ }
   }
 
-  noteOn(note, velocity = 0.8) {
+  sendRaw(bytes, at) { this._send(bytes, at); }
+
+  noteOn(note, velocity = 0.8, at) {
     const ch = this.channel;
-    this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)]);
+    this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)], at);
     this.sounding.add(`${ch}:${note & 127}`);
   }
 
-  noteOff(note) {
+  noteOff(note, at) {
     const ch = this.channel;
-    this._send([0x80 | (ch - 1), note & 127, 0]);
+    this._send([0x80 | (ch - 1), note & 127, 0], at);
     this.sounding.delete(`${ch}:${note & 127}`);
   }
 
   // Note-offs for everything we started, then All Notes Off for good measure.
   releaseAll() {
+    try { this.output?.clear?.(); } catch (_) { /* not supported */ }
     if (!this.output) { this.sounding.clear(); return; }
     for (const key of this.sounding) {
       const [ch, note] = key.split(':').map(Number);

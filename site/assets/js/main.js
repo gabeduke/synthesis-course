@@ -13,6 +13,7 @@ import './widgets/chip-lab.js';
 import './widgets/aks-lab.js';
 import './widgets/history-timeline.js';
 import './widgets/hw-check.js';
+import './widgets/jam-room.js';
 
 // Every widget above is defined (and the ones already in the page built), so
 // the page can now be put into the selected device's control names.

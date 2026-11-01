@@ -101,7 +101,10 @@ function fakeMidi() {
   const sent = [];
   window.__usbSent = sent;
   const input = { id: 'in1', name: 'SMK-37 MIDI', state: 'connected', type: 'input', onmidimessage: null };
-  const output = { id: 'out1', name: 'SMK-37 MIDI', state: 'connected', type: 'output', send: (d) => sent.push([...d]) };
+  // Timestamps are kept beside the messages (the Jam page schedules ahead).
+  const times = [];
+  window.__usbTimes = times;
+  const output = { id: 'out1', name: 'SMK-37 MIDI', state: 'connected', type: 'output', send: (d, ts) => { sent.push([...d]); times.push(ts); } };
   window.__usbIn = (bytes) => input.onmidimessage?.({ data: new Uint8Array(bytes) });
   navigator.requestMIDIAccess = async () => ({ inputs: new Map([['in1', input]]), outputs: new Map([['out1', output]]), onstatechange: null });
 }
@@ -605,6 +608,87 @@ for (const dev of ['fm1', 'smk37']) {
     eq(bad, [], 'errors');
   });
 }
+
+
+// ---- The Jam page ----
+const jam = (page) => page.locator('jam-room');
+const SCRATCH = process.env.JAM_SHOTS;
+
+await check('jam: plays a part over USB, timestamped ahead, in the key', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37', {}, { midi: true });
+  await page.evaluate(() => localStorage.removeItem('jam.settings'));
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  eq(await jam(page).locator('.jam-chord-name').textContent(), 'Am', 'starts on A Dorian i');
+  eq(await jam(page).locator('.jam-strip strong').allTextContents(), ['Am', 'D'], 'Dorian vamp');
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Pulse' }).click();
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForFunction(() => window.__usbSent.some((m) => (m[0] & 0xf0) === 0x90));
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(() => {
+    const now = performance.now();
+    const ons = window.__usbSent.map((m, i) => ({ m, ts: window.__usbTimes[i] })).filter((x) => (x.m[0] & 0xf0) === 0x90);
+    return { notes: ons.map((x) => x.m[1]), stamped: ons.every((x) => typeof x.ts === 'number'), ahead: ons.some((x) => x.ts > now - 600) };
+  });
+  assert(r.notes.length >= 2, `pulse notes sent: ${r.notes}`);
+  assert(r.notes.every((n) => n % 12 === 9), `pulse plays the root A: ${r.notes}`);
+  assert(r.stamped, 'every note-on carries a timestamp');
+  await jam(page).getByRole('button', { name: 'Stop' }).click();
+  const last = await page.evaluate(() => window.__usbSent.at(-1));
+  eq(last, [0xb0, 123, 0], 'all notes off on stop');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('jam: plays a part over Bluetooth MIDI', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37');
+  await jam(page).getByRole('button', { name: 'Connect over Bluetooth' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('over Bluetooth'));
+  await jam(page).getByRole('button', { name: 'Bass', exact: true }).click();
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  // BLE MIDI packets: header, timestamp, status, note, velocity.
+  await page.waitForFunction(() => window.__ble.writes.some((w) => w.some((b, i) => (b & 0xf0) === 0x90 && i >= 2)), null, { timeout: 4000 });
+  await jam(page).getByRole('button', { name: 'Stop' }).click();
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('jam: key, mode, sevenths and the neck follow the choice', async () => {
+  const { page, ctx, errors } = await open('/jam.html');
+  await jam(page).locator('.jam-keys').getByRole('button', { name: 'E', exact: true }).click();
+  await jam(page).getByRole('button', { name: 'Mixolydian' }).click();
+  eq(await jam(page).locator('.jam-strip strong').allTextContents(), ['E', 'D'], 'E Mixolydian vamp');
+  await jam(page).getByRole('button', { name: 'Journey' }).click();
+  await jam(page).getByRole('switch', { name: 'Sevenths' }).check();
+  eq(await jam(page).locator('.jam-strip strong').allTextContents(), ['E7', 'Dmaj7', 'Amaj7', 'E7'], 'journey with sevenths');
+  const dots = await jam(page).locator('.jam-neck .dot.key').count();
+  assert(dots === 8, `E roots on the neck: ${dots}`);
+  await jam(page).locator('.jam-keys').getByRole('button', { name: 'B♭', exact: true }).click();
+  await jam(page).getByRole('button', { name: 'Major', exact: true }).click();
+  assert((await jam(page).locator('.jam-scale').textContent()).includes('E♭'), 'B♭ major spelled with flats');
+  // Settings survive a reload.
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  assert((await jam(page).locator('.jam-keyline').textContent()).startsWith('B♭ Major'), 'remembered');
+  // Runs on the page alone, with no instrument.
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForTimeout(1200);
+  assert(await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel() > 0.0005), 'the page makes sound');
+  await jam(page).getByRole('button', { name: 'Stop' }).click();
+  if (SCRATCH) {
+    for (const scheme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.screenshot({ path: `${SCRATCH}/jam-phone-${scheme}.png`, fullPage: true });
+    }
+    await page.setViewportSize({ width: 1400, height: 1000 });
+    await page.screenshot({ path: `${SCRATCH}/jam-desktop.png`, fullPage: false });
+  }
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
 
 await browser.close();
 server.close();

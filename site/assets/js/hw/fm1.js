@@ -186,6 +186,7 @@ class FM1Link extends EventTarget {
     this._pending = new Map();
     this._timers = new Map();
     this.sounding = new Set(); // "channel:note" pairs we've sent note-ons for
+    this._bleTimers = new Set();
     this.monitoring = false;
     // Leaving the page mid-chord shouldn't leave the FM-1 droning.
     window.addEventListener('pagehide', () => this.releaseAll());
@@ -387,27 +388,45 @@ class FM1Link extends EventTarget {
     else if (type === 0xc0) this._emit('program', { program: d1 });
   }
 
-  _send(bytes) {
-    if (this.bleActive) { this.ble.send(bytes); return; }
+  // `at` is an optional time on the performance.now() clock. A USB port
+  // takes it as Web MIDI's own timestamp, so a sequence scheduled ahead plays
+  // in time; Bluetooth has no such thing, so the message waits in a timer.
+  _send(bytes, at) {
+    if (this.bleActive) {
+      const wait = at === undefined ? 0 : at - performance.now();
+      if (wait > 2) {
+        const id = setTimeout(() => { this._bleTimers.delete(id); if (this.bleActive) this.ble.send(bytes); }, wait);
+        this._bleTimers.add(id);
+      } else this.ble.send(bytes);
+      return;
+    }
     if (!this.output) return;
     // A port can vanish mid-send (cable pulled); don't let that break the page.
-    try { this.output.send(bytes); } catch (_) { /* port went away */ }
+    try { at === undefined ? this.output.send(bytes) : this.output.send(bytes, at); } catch (_) { /* port went away */ }
   }
 
-  noteOn(note, velocity = 0.8) {
+  // Any message, as it is: MIDI clock and transport for the Jam page.
+  sendRaw(bytes, at) { if (this.canSend) this._send(bytes, at); }
+
+  noteOn(note, velocity = 0.8, at) {
     const ch = this.midiChannel;
-    this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)]);
+    this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)], at);
     this.sounding.add(`${ch}:${note & 127}`);
   }
 
-  noteOff(note) {
+  noteOff(note, at) {
     const ch = this.midiChannel;
-    this._send([0x80 | (ch - 1), note & 127, 0]);
+    this._send([0x80 | (ch - 1), note & 127, 0], at);
     this.sounding.delete(`${ch}:${note & 127}`);
   }
 
   // Note-offs for everything we started, then All Notes Off for good measure.
+  // Bluetooth messages still waiting for their time are dropped; USB ones
+  // already handed to the browser are cleared where the browser allows it.
   releaseAll() {
+    for (const id of this._bleTimers) clearTimeout(id);
+    this._bleTimers.clear();
+    try { this.output?.clear?.(); } catch (_) { /* not supported */ }
     if (!this.canSend) { this.sounding.clear(); return; }
     for (const key of this.sounding) {
       const [ch, note] = key.split(':').map(Number);

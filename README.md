@@ -36,7 +36,11 @@ the USB link follow it (see [Supported devices](#supported-devices)).
 | 14 | Three VCOs, one filter | Saw/square/Shape, Detune, voice modes, paraphony, the Response filter |
 | 15 | The trapezoid and the joystick | Attack/On/Decay/Off, the looping envelope, Trapez vs Signal, the joystick |
 
-Plus a filterable history timeline with sources.
+Plus a filterable history timeline with sources, and **Jam** (`jam.html`), a
+play-along page: pick a key and a mode and the page makes a drone that drifts
+through a few chords in that key, an instrument plugged in over USB or paired
+over Bluetooth plays a part over it, and a guitar neck shows the scale and
+the chord playing now (see [Jam](#jam)).
 
 Every lesson panel shows its **signal path** along the top (the sound after the
 oscillators, the filter, the amp and the effects, with the envelope and LFO
@@ -161,6 +165,41 @@ every page on both devices) with
 Playwright and Chromium). The browser tests fake Web MIDI; for real hardware,
 use an installed Chrome: Chrome for Testing 148 on macOS stalled on Web MIDI
 sends to a real port, while Chrome 155 did not.
+
+## Jam
+
+`jam.html` is one widget, `<jam-room>` (`widgets/jam-room.js`), built for a
+phone with an instrument plugged into it.
+
+- **The drone** (`audio/drone.js`) is generated from the key and the current
+  chord: four voices of three detuned oscillators through one slowly moving
+  low-pass filter, a sine pedal on the key's root that never moves, and
+  "blooms", high chord tones or the mode's color note that swell in at random
+  places in the stereo field. Textures: Warm, Bowed (saws with breath),
+  Tanpura (a plucked, buzzing Pa–Sa–Sa–Sa cycle in free time) and Glass
+  (sines, with blooms struck like bells). When the chord changes the voices
+  glide to it.
+- **The harmony** (`audio/theory.js`, pure functions): six modes, bright to
+  dark; the chords each mode gives (with sevenths if asked), named and
+  numbered; three progressions per mode (Pedal, Vamp, Journey) chosen to show
+  the mode off; spelling with flats in flat keys.
+- **The part** goes to the FM-1 or SMK-37 (through `hw/fm1.js`, so USB or
+  Bluetooth, whichever is the link) or the AKS Mini (`hw/aks.js`): Hold, Pulse,
+  Bass, Arp or Wander, generated a bar at a time. One lookahead scheduler on the
+  AudioContext clock drives the drone, the kit and the part; notes go out with
+  Web MIDI timestamps mapped through `getOutputTimestamp()`, so they line up
+  with the page's audio. Over Bluetooth, which has no timestamps, each message
+  waits in a timer instead (cleared by `releaseAll()`). Optional MIDI clock
+  (24 per quarter note, Start and Stop). With nothing connected the part plays
+  on the page's own synth.
+- **Send a matching sound** sends lesson 10's drone (for Hold) or pluck (for
+  the rest) to the FM-1 or SMK-37's current preset.
+- Settings are kept in localStorage (`jam.settings`). The screen is kept on
+  while it plays. "Set key from instrument" takes the key from the next note
+  played on the connected keyboard.
+
+Run `node scripts/test_jam.mjs` for the theory; the browser tests cover the
+page over USB and Bluetooth.
 
 ## Playing the page from the instrument
 

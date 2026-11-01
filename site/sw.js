@@ -19,17 +19,20 @@
  */
 'use strict';
 
-const VERSION = '8accdc121e7e';
+const VERSION = '225d115d26d6';
 const PRECACHE = [
   "./",
   "assets/css/aks.css",
   "assets/css/course.css",
+  "assets/css/jam.css",
   "assets/favicon.svg",
   "assets/js/audio/aks-core.js",
   "assets/js/audio/aks-synth.js",
   "assets/js/audio/core.js",
+  "assets/js/audio/drone.js",
   "assets/js/audio/fx.js",
   "assets/js/audio/supersaw.js",
+  "assets/js/audio/theory.js",
   "assets/js/audio/va-synth.js",
   "assets/js/hw/aks.js",
   "assets/js/hw/ble-midi.js",
@@ -52,6 +55,7 @@ const PRECACHE = [
   "assets/js/widgets/fm1-panel.js",
   "assets/js/widgets/history-timeline.js",
   "assets/js/widgets/hw-check.js",
+  "assets/js/widgets/jam-room.js",
   "assets/js/widgets/space-lab.js",
   "assets/js/widgets/synth-lab.js",
   "assets/js/widgets/voice-stack.js",
@@ -62,6 +66,7 @@ const PRECACHE = [
   "icons/maskable-192.png",
   "icons/maskable-512.png",
   "index.html",
+  "jam.html",
   "lessons/00-start.html",
   "lessons/01-sound.html",
   "lessons/02-oscillators.html",
