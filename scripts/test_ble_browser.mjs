@@ -590,9 +590,9 @@ await check('the page can play through the instrument, and then won’t loop its
 });
 
 // Every page, both devices: no console errors, with Bluetooth present.
-const pages = ['/index.html', '/history.html', ...fs.readdirSync(path.join(SITE, 'lessons')).filter((f) => f.endsWith('.html')).map((f) => `/lessons/${f}`)];
-for (const dev of ['fm1', 'smk37']) {
-  await check(`all ${pages.length} pages load cleanly (${dev})`, async () => {
+const pages = ['/index.html', '/history.html', '/jam.html', ...fs.readdirSync(path.join(SITE, 'lessons')).filter((f) => f.endsWith('.html')).map((f) => `/lessons/${f}`)];
+for (const [dev, fw] of [['fm1', 'bg'], ['smk37', 'bg'], ['fm1', 'stock'], ['smk37', 'stock']]) {
+  await check(`all ${pages.length} pages load cleanly (${dev}${fw === 'stock' ? ', stock firmware' : ''})`, async () => {
     const ctx = await browser.newContext({ serviceWorkers: 'block' });
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await ctx.addInitScript(fakeBluetooth, {});
@@ -601,7 +601,7 @@ for (const dev of ['fm1', 'smk37']) {
       const page = await ctx.newPage();
       page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.|Failed to load resource/.test(m.text())) bad.push(`${p}: ${m.text()}`); });
       page.on('pageerror', (e) => bad.push(`${p}: ${e}`));
-      await page.goto(`${BASE}${p}?device=${dev}`, { waitUntil: 'load' });
+      await page.goto(`${BASE}${p}?device=${dev}&firmware=${fw}`, { waitUntil: 'load' });
       await page.waitForTimeout(150);
       await page.close();
     }
@@ -702,6 +702,54 @@ await check('tabs: Lessons and Jam, and Lessons goes back to the last lesson', a
   await page.locator('.site-tabs').getByRole('link', { name: 'Lessons' }).click();
   await page.waitForURL(/05-lfo\.html$/);
   assert(!(await page.locator('.rail').textContent()).includes('Jam'), 'Jam is not in the lesson list');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('stock firmware: steps fold away, CC sends stop, notes still go', async () => {
+  const { page, ctx, errors } = await open('/lessons/03-filters.html?device=fm1', {}, { midi: true });
+  // Baud Girl's firmware: the steps show, no fold line.
+  assert(await page.locator('main .on-fm1').first().isVisible(), 'steps visible on FM-1+VA');
+  eq(await page.locator('.stock-fold').count(), 0, 'no fold on FM-1+VA');
+  await page.locator('#device-select').selectOption('fm1:stock');
+  eq(await page.evaluate(() => document.documentElement.dataset.firmware), 'stock', 'firmware attribute');
+  assert(!(await page.locator('main .on-fm1').first().isVisible()), 'steps folded');
+  assert(await page.locator('.stock-fold').first().isVisible(), 'fold line shown');
+  assert((await page.locator('.stock-fold').first().textContent()).includes('FM-1+VA'), 'fold names the firmware');
+  assert(!(await page.locator('synth-lab .btn.hw.bg-only').first().isVisible()), 'Send settings hidden');
+  // Settings never go out on stock; notes do.
+  const r = await page.evaluate(async () => {
+    const { fm1 } = await import('/assets/js/hw/fm1.js');
+    await fm1.connectMidi();
+    fm1.selectOutput('out1'); // the fake port is named for an SMK-37
+    window.__usbSent.length = 0;
+    const n = fm1.sendPatch({ cutoff: 1000, resonance: 20 });
+    const p = fm1.sendParam('cutoff', 500, false);
+    fm1.noteOn(60, 0.8);
+    fm1.noteOff(60);
+    return { n, p, sent: window.__usbSent };
+  });
+  eq(r.n, 0, 'no patch'); eq(r.p, false, 'no param');
+  eq(r.sent.map((m) => m[0] & 0xf0), [0x90, 0x80], 'notes only');
+  await page.locator('.stock-fold').first().getByRole('button', { name: 'Show them anyway' }).click();
+  assert(await page.locator('main .on-fm1').first().isVisible(), 'shown on request');
+  // Remembered across pages, and back to Baud Girl clears it all.
+  await page.goto(`${BASE}/lessons/00-start.html`);
+  assert(await page.locator('main aside.stock-only').isVisible(), 'stock box on the Start lesson');
+  await page.locator('#device-select').selectOption('fm1');
+  assert(!(await page.locator('main aside.stock-only').isVisible()), 'stock box gone on FM-1+VA');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('stock firmware: the AKS Mini boxes and the Jam page', async () => {
+  const { page, ctx, errors } = await open('/lessons/14-aks-oscillators.html?device=smk37&firmware=stock');
+  assert(await page.locator('main .on-fm1').first().isVisible(), 'AKS steps stay');
+  await page.goto(`${BASE}/jam.html`);
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  assert(!(await jam(page).getByRole('button', { name: 'Send a matching sound' }).isVisible()), 'no matching sound on stock');
+  assert((await jam(page).locator('.jam-patterns + .jam-hint').textContent()).includes('stock firmware'), 'patterns explain stock');
+  eq(await page.locator('#device-select').inputValue(), 'smk37:stock', 'picker shows stock');
   eq(errors, [], 'console errors');
   await ctx.close();
 });

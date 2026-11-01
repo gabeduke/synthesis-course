@@ -458,8 +458,12 @@ class FM1Link extends EventTarget {
   }
 
   // Set one course parameter on the FM-1. Returns false if it has no CC.
+  // Nothing is sent on stock firmware: these are Baud Girl's CC numbers, and
+  // stock firmware would read them as other settings (see devices.js).
+  get canSetSound() { return this.canSend && !device().stock; }
+
   sendParam(key, value, throttled = true) {
-    if (!this.canSend) return false;
+    if (!this.canSetSound) return false;
     const num = vaCc(key);
     if (num === undefined) return false;
     (throttled ? this.ccThrottled : this.cc).call(this, num, ccValue(key, value));
@@ -467,7 +471,7 @@ class FM1Link extends EventTarget {
   }
 
   sendFx(effect, key, value) {
-    if (!this.canSend) return false;
+    if (!this.canSetSound) return false;
     const num = fxCc(effect, key);
     if (num === undefined) return false;
     let raw = value;
@@ -479,7 +483,7 @@ class FM1Link extends EventTarget {
 
   // Send a whole patch. Returns how many settings went out.
   sendPatch(params) {
-    if (!this.canSend) return 0;
+    if (!this.canSetSound) return 0;
     let n = 0;
     for (const key of Object.keys(VA_CC)) {
       const num = vaCc(key);

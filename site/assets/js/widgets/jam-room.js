@@ -56,7 +56,7 @@ class JamRoom extends HTMLElement {
     fm1.addEventListener('change', () => this.paintLink());
     aks.addEventListener('change', () => this.paintLink());
     fm1.addEventListener('noteon', (e) => this.onInstrumentNote(e.detail.note));
-    onDeviceChange(() => { this.paintTargets(); this.paintLink(); });
+    onDeviceChange(() => { this.paintTargets(); this.paintLink(); this.paintPatterns(); });
     document.addEventListener('visibilitychange', () => this.wake());
     window.addEventListener('pagehide', () => this.stop());
   }
@@ -334,9 +334,12 @@ class JamRoom extends HTMLElement {
         el('div', { class: 'jam-pattern-btns' }, [dl, rec]),
       ]);
     }));
-    this.chainNote.textContent = parts.length > 1
+    const stockNote = device().stock && this.s.target !== 'aks'
+      ? ' On stock firmware the instrument has its own sequencer, not Baud Girl’s, so the files are for a Bento, MPC or DAW; Play into sequencer still works with anything that follows MIDI clock and records the notes it receives.'
+      : '';
+    this.chainNote.textContent = (parts.length > 1
       ? `The loop is longer than one pattern holds, so it comes as ${parts.length}. Load them into consecutive patterns, chain each to the next and the last back to the first.`
-      : 'The whole loop fits in one pattern. Set the pattern to repeat and it plays until you stop it.';
+      : 'The whole loop fits in one pattern. Set the pattern to repeat and it plays until you stop it.') + stockNote;
   }
 
   // The part also plays on the page when no instrument is connected (or
@@ -689,7 +692,8 @@ class JamRoom extends HTMLElement {
     this.usbBtn.textContent = fm1.access ? `Find the ${name}` : 'Connect USB MIDI';
     this.bleBtn.hidden = aksT || !fm1.supported.bluetooth;
     this.bleBtn.textContent = fm1.bleActive ? 'Disconnect Bluetooth' : fm1.ble?.device ? 'Reconnect Bluetooth' : 'Connect over Bluetooth';
-    this.patchBtn.hidden = aksT;
+    // Stock firmware doesn't take Baud Girl's CC numbers.
+    this.patchBtn.hidden = aksT || !!device().stock;
     this.patchBtn.disabled = !fm1.canSend;
     if (!midi && !fm1.supported.bluetooth) {
       this.linkNote.textContent = 'This browser can’t talk to instruments. Chrome on Android (or Chrome or Edge on a computer) can, over USB or Bluetooth.';
@@ -697,7 +701,9 @@ class JamRoom extends HTMLElement {
       this.linkNote.dataset.auto = '1';
       this.linkNote.textContent = aksT
         ? 'The AKS Mini plays over USB only. The page never changes its sound; set it by hand.'
-        : 'Bluetooth needs the instrument in BT Device mode, and a tap here each time the page opens. Over USB, a phone needs a USB-C cable or an OTG adapter.';
+        : device().stock
+          ? 'On stock firmware the page sends notes only; set the sound on the instrument. Over USB, a phone needs a USB-C cable or an OTG adapter. Bluetooth needs the instrument’s Bluetooth MIDI switched on, and a tap here each time the page opens.'
+          : 'Bluetooth needs the instrument in BT Device mode, and a tap here each time the page opens. Over USB, a phone needs a USB-C cable or an OTG adapter.';
     }
   }
 

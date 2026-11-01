@@ -111,6 +111,40 @@ export const DEVICES = {
 
 export const DEFAULT_DEVICE = 'fm1';
 
+// Each device can also be read on its stock firmware (M-VAVE's own). The
+// course is written for Baud Girl's firmware, whose Virtual Analog engine,
+// menus and MIDI CC map the stock firmware doesn't have, so on stock:
+//   * the hands-on steps for the hardware are folded away (ui/device.js),
+//     with a button to show them anyway;
+//   * nothing sends Baud Girl's CCs (Mirror, Send settings, Send a matching
+//     sound), since stock firmware would read them as something else;
+//   * notes still go both ways: the page plays the instrument, and its keys
+//     play the page.
+// `firmware` keeps Baud Girl's name, because .fw-name in the lessons names
+// the firmware the sentence is about. UNVERIFIED: the stock firmware's port
+// names (the same patterns are used, generic names included) and bend range.
+export const FIRMWARES = { bg: 'Baud Girl', stock: 'Stock' };
+
+const STOCK = {
+  fm1: {
+    notes: ['Stock firmware: the page plays notes on it and hears its keys. The lessons’ steps and CC numbers are for FM-1+VA.'],
+  },
+  smk37: {
+    bleName: undefined,
+    bendRange: undefined,
+    notes: ['Stock firmware: the page plays notes on it (if its engine sounds notes from USB MIDI) and hears its keys. The lessons’ steps and CC numbers are for SMK-37+VA.'],
+  },
+};
+
+// The profile for a device on a firmware: the device itself, or a stock
+// variant of it that keeps its id (so device-specific lesson text still
+// shows) and adds `stock: true`.
+export function profileFor(id, fw = 'bg') {
+  const base = DEVICES[id] || DEVICES[DEFAULT_DEVICE];
+  if (fw !== 'stock') return base;
+  return { ...base, ...(STOCK[base.id] || {}), stock: true, fw: 'stock', cc: {} };
+}
+
 // Control names that only ever mean a physical control, so they can be
 // translated anywhere in a "where" path. Others (HOME is also the name of a
 // screen, LFO and EDIT are also words for the things they open) are only

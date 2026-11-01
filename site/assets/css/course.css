@@ -353,6 +353,26 @@ hr { border: 0; border-top: 1px solid var(--rule); margin: 3em 0; }
 .on-fm1 h3, .on-device h3 { margin-top: 0; color: var(--hw); font-size: 1.1rem; }
 .on-fm1 ol, .on-device ol { padding-left: 1.2em; }
 
+/* Stock firmware (ui/device.js): Baud Girl's hardware steps fold away behind
+   a line saying why, and controls that send her CC numbers hide. */
+html[data-firmware="stock"]:not([data-show-steps]) main :is(.on-fm1, aside.on-device[data-device]):not([data-any-firmware]),
+html[data-firmware="stock"] .bg-only { display: none !important; }
+.stock-only, .stock-fold { display: none; }
+html[data-firmware="stock"] .stock-only:not([hidden]) { display: block; }
+html[data-firmware="stock"]:not([data-show-steps]) .stock-fold { display: flex; }
+.stock-fold {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 1.4em 0;
+  padding: 12px 16px;
+  border: 1px dashed color-mix(in srgb, var(--hw) 45%, var(--rule));
+  border-radius: var(--radius);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+
 /* Text for one device only (data-device="fm1", "smk37" …). Before the
    scripts run, and with no choice made, the page reads for the FM-1;
    ui/device.js adds the matching rule for whichever device is selected. */

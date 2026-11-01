@@ -20,7 +20,7 @@
 import { audio, resume, clamp } from '../audio/core.js';
 import { VASynth, attackTime, decayTime, releaseTime, lfoHz } from '../audio/va-synth.js';
 import { fm1 } from '../hw/fm1.js';
-import { deviceLabel, devName, ctl, where as whereOn, onDeviceChange } from '../ui/device.js';
+import { device, deviceLabel, devName, ctl, where as whereOn, onDeviceChange } from '../ui/device.js';
 import { GROUPS, PARAMS, getParam, toPartial, ccFor, formatValue } from '../ui/params.js';
 import { el, makeControl } from '../ui/controls.js';
 import { Keyboard, registerInstrument } from '../ui/keyboard.js';
@@ -281,7 +281,7 @@ class SynthLab extends HTMLElement {
         const where = () => {
           const cc = ccFor(k);
           this.where.innerHTML = '';
-          this.where.append(`On the ${deviceLabel()}: `, el('b', { text: whereOn(PARAMS[k].where) }), cc ? ` (${cc})` : '');
+          this.where.append(device().stock ? `With ${device().firmware} on the ${deviceLabel()}: ` : `On the ${deviceLabel()}: `, el('b', { text: whereOn(PARAMS[k].where) }), cc ? ` (${cc})` : '');
         };
         c.addEventListener('pointerenter', where);
         c.addEventListener('focusin', where);
@@ -336,7 +336,7 @@ class SynthLab extends HTMLElement {
       this.mirror = mirror.checked;
       if (this.mirror) this._send(`Mirroring: each control you move here moves on the ${deviceLabel()} too.`);
     });
-    const sendBtn = el('button', { class: 'btn hw', type: 'button' }, ['Send settings to ', devName()]);
+    const sendBtn = el('button', { class: 'btn hw bg-only', type: 'button' }, ['Send settings to ', devName()]);
     sendBtn.addEventListener('click', () => this._send());
     const resetBtn = el('button', { class: 'btn', type: 'button', text: 'Reset' });
     resetBtn.addEventListener('click', () => this.reset());
@@ -347,7 +347,7 @@ class SynthLab extends HTMLElement {
 
     const foot = el('div', { class: 'instrument-foot' }, [
       el('span', { class: 'label', text: 'Play on' }), seg,
-      el('label', { class: 'switch', for: mirrorId, style: '--c: var(--hw)' }, [mirror, el('span', {}, ['Mirror to ', devName()])]),
+      el('label', { class: 'switch bg-only', for: mirrorId, style: '--c: var(--hw)' }, [mirror, el('span', {}, ['Mirror to ', devName()])]),
       el('span', { class: 'grow' }),
       sendBtn, shareBtn, resetBtn,
     ]);
@@ -373,7 +373,12 @@ class SynthLab extends HTMLElement {
       sendBtn.title = out ? '' : `Connect the ${deviceLabel()} (top right) to use this`;
     };
     fm1.addEventListener('change', syncHw);
-    onDeviceChange(() => { syncHw(); this.where.textContent = ''; });
+    onDeviceChange(() => {
+      // Stock firmware can't take these settings: stop mirroring them.
+      if (device().stock && this.mirror) { this.mirror = false; mirror.checked = false; }
+      syncHw();
+      this.where.textContent = '';
+    });
     syncHw();
 
     this.addEventListener('pointerdown', () => { resume(); this.ensure(); }, { once: true });

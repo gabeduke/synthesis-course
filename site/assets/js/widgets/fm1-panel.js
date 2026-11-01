@@ -30,7 +30,9 @@ function body(panel) {
   const bleBtn = el('button', { class: 'btn hw', type: 'button', text: 'Connect over Bluetooth' });
   const bleState = el('span', { class: 'light' }, el('span', { text: 'Not connected' }));
   const bleAbout = el('p');
-  const bleHint = el('p', { 'data-device': 'smk37', class: 'ble-hint' },
+  const stockBleHint = el('p', { class: 'ble-hint-stock stock-only' },
+    'On stock firmware, switch on the instrument’s Bluetooth MIDI as M-VAVE’s manual describes; it should then appear in the list under its own name. Not yet checked on the hardware.');
+  const bleHint = el('p', { 'data-device': 'smk37', class: 'ble-hint bg-only' },
     'On the SMK-37, press BT until GLOBE › BT Mode says Device; it then shows up in the list as SMK-37+VA_BLE. If the list comes up empty, unpair it in the computer’s or tablet’s Bluetooth settings, or disconnect it from any app that has it. On a Mac you can instead pair it in Audio MIDI Setup (Window › Show MIDI Studio, then the Bluetooth button): it then appears in the port lists above, and the page prefers the USB port while both are there.');
   const bleNote = el('p', { class: 'ble-note' });
   const usbNote = el('p', { text: 'Bluetooth is connected, so the page sends and listens over Bluetooth only. These USB ports take over again when it disconnects.' });
@@ -62,6 +64,7 @@ function body(panel) {
   bleBtn.hidden = !bleCan;
   bleAbout.hidden = !bleCan;
   bleHint.hidden = !bleCan;
+  stockBleHint.hidden = !bleCan;
   bleNote.hidden = bleCan;
   bleState.hidden = !bleCan;
 
@@ -280,7 +283,7 @@ function body(panel) {
     intro,
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports, usbNote]),
     el('hr'),
-    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, bleNote, bleLog]),
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, stockBleHint, bleNote, bleLog]),
     el('hr'),
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab, sinkLab, sinkNote]),
     el('hr'),

@@ -56,6 +56,28 @@ spectrogram (or the trapezoid and the three VCOs) there.
 | M-VAVE SMK-37 (Pro, Elite) | SMK-37+VA | Control names and SMK-only notes from the version 102 manual and quick start. USB and Bluetooth MIDI tested on a real unit (below). |
 | Behringer AKS Mini | its own | A separate track (lessons 13–15) with its own model and MIDI link; see [AKS Mini](#aks-mini-lessons-1315). Not a translation of the FM-1 lessons. |
 
+Each device can also be chosen **on its stock firmware** (the picker's
+"Stock firmware" group, or `?firmware=stock`; kept in localStorage as
+`course.firmware`). The course is still about Baud Girl's firmware, so on
+stock:
+
+- the hands-on steps (`.on-fm1` boxes and device-only `aside.on-device`
+  boxes) fold away behind a line saying why, with "Show them anyway"
+  (remembered as `course.showSteps`). Boxes marked `data-any-firmware`, like
+  the AKS Mini's, stay. Lesson 0 shows a `.stock-only` box explaining all this;
+- anything that sends Baud Girl's CC numbers is off (`fm1.canSetSound` is
+  false, so `sendParam`, `sendFx` and `sendPatch` send nothing, and `.bg-only`
+  controls such as Mirror and Send settings hide), since stock firmware would
+  read those numbers as other settings;
+- notes still go both ways, the Jam tab still plays a part, and its pattern
+  files are for other gear.
+
+The stock profile (`profileFor()` in `hw/devices.js`) keeps the device's id,
+so device-only text still shows, and keeps `firmware` as Baud Girl's name,
+since `.fw-name` names the firmware a sentence is about. **Unverified:** the
+stock firmware's MIDI port names, whether the SMK-37's stock engine sounds
+notes from USB, and its bend range.
+
 The SMK-37+VA firmware also runs on the Donner Starrykey-37 Play and the EROK
 MKE-P37; they aren't separate entries yet.
 
