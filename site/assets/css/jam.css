@@ -80,3 +80,11 @@ jam-room { display: block; }
 .jam-patterns li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius-sm); }
 .jam-patterns li span { color: var(--ink-2); font-size: 0.86rem; }
 .jam-pattern-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Where it is in a long chord: a mark a bar. */
+.jam-meter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.jam-meter .jam-beats { margin-top: 0; }
+.jam-bartext { font-size: 0.82rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.jam-bars { display: flex; gap: 3px; margin-top: 6px; }
+.jam-bars i { flex: 1; height: 4px; border-radius: 2px; background: var(--rule); transition: background 0.1s; }
+.jam-bars i[data-on] { background: var(--sound); }

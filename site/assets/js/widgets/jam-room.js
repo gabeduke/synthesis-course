@@ -50,6 +50,7 @@ class JamRoom extends HTMLElement {
     if (!T.MODES[this.s.mode]) this.s.mode = DEFAULTS.mode;
     this.running = false;
     this.queue = []; // what the screen should show, and when
+    this.pending = []; // note-offs not yet sent
     this.build();
     this.recompute();
     this.paintAll();
@@ -79,7 +80,7 @@ class JamRoom extends HTMLElement {
   restart() {
     this.recompute();
     this.dirty = true;
-    if (!this.running) { this.shown = 0; this.drone?.setHarmony(this.harmony(0), true); }
+    if (!this.running) { this.shown = 0; this.drone?.setHarmony(this.harmony(0), true); this.paintBars(-1, this.s.barsPer); }
     this.paintChord();
     this.paintStrip();
     this.paintNeck();
@@ -116,6 +117,7 @@ class JamRoom extends HTMLElement {
     this.dirty = false;
     this.nextTime = ctx.currentTime + 0.12;
     this.queue = [];
+    this.pending = [];
     if (this.s.clock && !once) this.link().sendRaw?.([0xfa], this.midiAt(this.nextTime));
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.tick();
@@ -137,13 +139,12 @@ class JamRoom extends HTMLElement {
     if (this.s.clock || (this.once && !this.once.stopped)) this.link().sendRaw?.([0xfc]);
     this.once = null;
     this.paintPatterns();
-    fm1.releaseAll();
-    aks.releaseAll();
-    this.preview?.allOff();
+    this.silence();
     this.queue = [];
     this.wake();
     this.paintPlay();
     for (const d of this.beatDots) d.removeAttribute('data-on');
+    this.paintBars(-1, this.s.barsPer);
   }
 
   stepDur() { return 60 / this.s.bpm / 4; }
@@ -175,6 +176,7 @@ class JamRoom extends HTMLElement {
       this.nextTime += this.stepDur();
       this.step++;
     }
+    this.flushOffs(until);
     if (this.s.drone) this.drone.tick(until);
   }
 
@@ -185,9 +187,7 @@ class JamRoom extends HTMLElement {
       // A new key, mode or pattern: start the progression over from here.
       this.dirty = false;
       this.origin = Math.floor(step / T.STEPS_PER_BAR);
-      fm1.releaseAll();
-      aks.releaseAll();
-      this.preview?.allOff();
+      this.silence();
     }
     const bar = Math.floor(step / T.STEPS_PER_BAR) - this.origin;
     const per = this.s.barsPer;
@@ -223,7 +223,7 @@ class JamRoom extends HTMLElement {
         // Exactly the notes the downloaded file for this pattern holds.
         const from = bar * T.STEPS_PER_BAR;
         this.playEvents(o.events.filter((e) => e.step >= from && e.step < from + T.STEPS_PER_BAR).map((e) => ({ ...e, step: e.step - from })), t);
-        this.queue.push({ t, chord: idx, bar });
+        this.queue.push({ t, chord: idx, bar, inChord: pbar % per, per });
       }
       for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
       if (ready) clock();
@@ -242,7 +242,7 @@ class JamRoom extends HTMLElement {
         voicing: this.s.voicing === 'chord' ? 'chord' : 'fifth',
       });
       this.playEvents(events, t);
-      this.queue.push({ t, chord: idx, bar });
+      this.queue.push({ t, chord: idx, bar, inChord, per });
     }
     for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
     if (this.s.clock && this.linkReady()) clock();
@@ -259,14 +259,44 @@ class JamRoom extends HTMLElement {
     for (const e of events) {
       const on = t + e.step * dur;
       const off = on + e.len * dur;
-      if (send) {
-        link.noteOn(e.note, e.vel, this.midiAt(on));
-        link.noteOff(e.note, this.midiAt(off));
-      }
+      // The page's synth takes the whole note now; Stop swaps in a fresh
+      // synth, so nothing scheduled on this one can outlive it.
       if (hear && this.preview) {
         this.preview.noteOn(e.note, e.vel, on);
         this.preview.noteOff(e.note, off);
       }
+      if (!send) continue;
+      link.noteOn(e.note, e.vel, this.midiAt(on));
+      // The instrument's note-off waits here until its time comes into the
+      // lookahead, rather than going to the port bars in advance, so Stop
+      // always knows what is still sounding (a held chord can last 8 bars).
+      this.pending.push({ note: e.note, off, link, sent: false });
+    }
+  }
+
+  // Send the note-offs due before `until`. Each stays listed until its time
+  // has passed, so Stop can repeat it at once if the port drops it.
+  flushOffs(until) {
+    const { ctx } = audio();
+    for (const p of this.pending) {
+      if (p.sent || p.off >= until) continue;
+      p.sent = true;
+      p.link.noteOff(p.note, this.midiAt(p.off));
+    }
+    this.pending = this.pending.filter((p) => !p.sent || p.off > ctx.currentTime - 0.05);
+  }
+
+  // Everything still sounding ends now: the instrument (note by note, then
+  // All Notes Off) and the page's synth.
+  silence() {
+    for (const p of this.pending) p.link.noteOff(p.note);
+    this.pending = [];
+    fm1.releaseAll();
+    aks.releaseAll();
+    if (this.preview) {
+      this.preview.dispose();
+      this.preview = null;
+      if (this.running) this.ensurePreview();
     }
   }
 
@@ -385,8 +415,21 @@ class JamRoom extends HTMLElement {
         this.paintStrip();
         this.paintNeck();
       }
+      if (q.inChord !== undefined) this.paintBars(q.inChord, q.per);
       if (q.beat !== undefined) this.beatDots.forEach((d, i) => d.toggleAttribute('data-on', i === q.beat));
     }
+  }
+
+  // How far through the chord it is: one mark a bar, so a long chord is
+  // plainly moving even though it hasn't changed yet.
+  paintBars(inChord, per) {
+    if (this.barMarks.length !== per) {
+      this.barMarks = Array.from({ length: per }, () => el('i'));
+      this.barLine.replaceChildren(...this.barMarks);
+    }
+    this.barLine.hidden = per < 2;
+    this.barMarks.forEach((m, i) => m.toggleAttribute('data-on', i <= inChord));
+    this.barText.textContent = inChord >= 0 && per > 1 ? `bar ${inChord + 1} of ${per}` : '';
   }
 
   onInstrumentNote(note) {
@@ -406,6 +449,9 @@ class JamRoom extends HTMLElement {
     this.numeral = el('span', { class: 'jam-numeral' });
     this.keyLine = el('p', { class: 'jam-keyline' });
     this.beatDots = [0, 1, 2, 3].map(() => el('i'));
+    this.barMarks = [];
+    this.barLine = el('div', { class: 'jam-bars', 'aria-hidden': 'true' });
+    this.barText = el('span', { class: 'jam-bartext' });
     this.strip = el('ol', { class: 'jam-strip', 'aria-label': 'The progression' });
     this.playBtn = el('button', { type: 'button', class: 'btn primary jam-play', 'aria-pressed': 'false' });
     this.playBtn.addEventListener('click', () => (this.running ? this.stop() : this.start()));
@@ -422,7 +468,8 @@ class JamRoom extends HTMLElement {
       el('div', { class: 'jam-hero' }, [
         el('div', { class: 'jam-chord', 'aria-live': 'polite' }, [this.numeral, this.chordName]),
         this.keyLine,
-        el('div', { class: 'jam-beats', 'aria-hidden': 'true' }, this.beatDots),
+        el('div', { class: 'jam-meter' }, [el('div', { class: 'jam-beats', 'aria-hidden': 'true' }, this.beatDots), this.barText]),
+        this.barLine,
       ]),
       this.strip,
       el('div', { class: 'instrument-foot jam-transport' }, [
@@ -617,6 +664,7 @@ class JamRoom extends HTMLElement {
 
   // ---------- Painting ----------
   paintAll() {
+    this.paintBars(-1, this.s.barsPer);
     this.setBpm(this.s.bpm);
     this.paintKeys();
     this.paintPlay();

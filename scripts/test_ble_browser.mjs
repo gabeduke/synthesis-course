@@ -754,6 +754,37 @@ await check('stock firmware: the AKS Mini boxes and the Jam page', async () => {
   await ctx.close();
 });
 
+await check('jam: Stop ends long held notes on the instrument and the page', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37', {}, { midi: true });
+  await page.evaluate(() => localStorage.removeItem('jam.settings'));
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  await jam(page).getByRole('group', { name: 'Bars per chord' }).getByRole('button', { name: '8' }).click();
+  await jam(page).getByRole('switch', { name: 'Also play the part here' }).check();
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForFunction(() => window.__usbSent.some((m) => (m[0] & 0xf0) === 0x90));
+  await page.waitForTimeout(1500);
+  eq(await jam(page).locator('.jam-bartext').textContent().then((t) => /^bar \d of 8$/.test(t)), true, 'bar counter');
+  // Hold over eight bars: no note-off has gone out yet.
+  eq(await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x80).length), 0, 'no early note-offs');
+  await jam(page).getByRole('button', { name: 'Stop' }).click();
+  const r = await page.evaluate(() => {
+    const ons = window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90).map((m) => m[1]);
+    const offs = window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x80).map((m) => m[1]);
+    return { ons, offs, offsNow: window.__usbTimes.filter((t, i) => (window.__usbSent[i][0] & 0xf0) === 0x80).every((t) => t === undefined) };
+  });
+  assert(r.ons.length >= 3, `held notes: ${r.ons}`);
+  assert(r.ons.every((n) => r.offs.includes(n)), `every held note released: on ${r.ons}, off ${r.offs}`);
+  assert(r.offsNow, 'released straight away, not scheduled bars ahead');
+  await page.waitForTimeout(900);
+  const level = await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel());
+  assert(level < 0.003, `the page is quiet after Stop: ${level}`);
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
 await check('jam: key, mode, sevenths and the neck follow the choice', async () => {
   const { page, ctx, errors } = await open('/jam.html');
   await jam(page).locator('.jam-keys').getByRole('button', { name: 'E', exact: true }).click();

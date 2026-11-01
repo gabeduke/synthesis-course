@@ -242,7 +242,8 @@ export class DroneEngine {
     this.running = false;
     this.out.gain.cancelScheduledValues(t);
     this.out.gain.setValueAtTime(this.out.gain.value, t);
-    this.out.gain.setTargetAtTime(0, t, 0.8);
+    // Quick enough that Stop feels like stop, slow enough not to click.
+    this.out.gain.setTargetAtTime(0, t, 0.25);
     this.nextBloom = this.nextPluck = Infinity;
   }
 
