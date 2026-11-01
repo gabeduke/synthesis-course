@@ -12,8 +12,8 @@ import { audio, resume } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
 import { fm1 } from '../hw/fm1.js';
 import { aks } from '../hw/aks.js';
-import { device, onDeviceChange } from '../ui/device.js';
-import { VASynth } from '../audio/va-synth.js';
+import { device, onDeviceChange, ctl as ctlName } from '../ui/device.js';
+import { VASynth, DEFAULT_VA } from '../audio/va-synth.js';
 import { DroneEngine, Kit, TEXTURES, TEXTURE_IDS, VOICINGS, VOICING_IDS } from '../audio/drone.js';
 import * as T from '../audio/theory.js';
 import { loopEvents, splitPatterns, writeSmf, PATTERN_STEPS } from '../audio/smf.js';
@@ -35,6 +35,40 @@ const PATCHES = {
 };
 const patchFor = (pattern) => (pattern === 'hold' ? PATCHES.hold : PATCHES.pluck);
 
+// The instrument's sound, from the page: the settings that matter most for
+// playing along, in groups. Each sends Baud Girl's CC for it as it moves (to
+// the FM-1 or SMK-37's current preset), and also shapes the page's synth.
+const SOUND = [
+  ['Envelope', ['attack', 'decay', 'sustain', 'release']],
+  ['Tone', ['waveform', 'cutoff', 'resonance']],
+  ['Width', ['super', 'detune', 'drift']],
+  ['Space', ['fx.reverb.on', 'fx.reverb.mix', 'fx.delay.on', 'fx.delay.mix']],
+];
+const SOUND_KEYS = SOUND.flatMap(([, keys]) => keys);
+const getPath = (obj, key) => key.split('.').reduce((o, k) => o?.[k], obj);
+
+// The panel's values from a patch (missing ones from the synth's defaults).
+function soundFrom(patch) {
+  const out = {};
+  for (const k of SOUND_KEYS) out[k] = getPath(patch, k) ?? getPath(DEFAULT_VA, k);
+  return out;
+}
+// The other way: flat panel values to a patch, with effects nested.
+function toPatch(sound) {
+  const out = {};
+  for (const [k, v] of Object.entries(sound)) {
+    if (!k.startsWith('fx.')) { out[k] = v; continue; }
+    const [, fx, field] = k.split('.');
+    ((out.fx ||= {})[fx] ||= {})[field] = v;
+  }
+  return out;
+}
+function mergePatch(base, over) {
+  const fx = { ...(base.fx || {}) };
+  for (const [k, v] of Object.entries(over.fx || {})) fx[k] = { ...(fx[k] || {}), ...v };
+  return { ...base, ...over, fx };
+}
+
 const LOOKAHEAD = 0.15; // seconds scheduled ahead
 const TICK_MS = 25;
 
@@ -48,6 +82,7 @@ class JamRoom extends HTMLElement {
     this._built = true;
     this.s = load();
     if (!T.MODES[this.s.mode]) this.s.mode = DEFAULTS.mode;
+    this.s.sound = { ...soundFrom(PATCHES.hold), ...(this.s.sound || {}) };
     this.running = false;
     this.queue = []; // what the screen should show, and when
     this.pending = []; // note-offs not yet sent
@@ -57,6 +92,11 @@ class JamRoom extends HTMLElement {
     fm1.addEventListener('change', () => this.paintLink());
     aks.addEventListener('change', () => this.paintLink());
     fm1.addEventListener('noteon', (e) => this.onInstrumentNote(e.detail.note));
+    // Turning a knob on the instrument moves the same slider here.
+    fm1.addEventListener('param', (e) => {
+      if (!fm1.followHw || this.s.target === 'aks' || !this.soundCtls.has(e.detail.key)) return;
+      this.setSound(e.detail.key, e.detail.value, 'hw');
+    });
     onDeviceChange(() => { this.paintTargets(); this.paintLink(); this.paintPatterns(); });
     document.addEventListener('visibilitychange', () => this.wake());
     window.addEventListener('pagehide', () => this.stop());
@@ -378,7 +418,7 @@ class JamRoom extends HTMLElement {
     const want = this.s.pattern === 'hold' ? 'hold' : 'pluck';
     if (this.preview && this.previewKind === want) return;
     this.preview?.dispose();
-    this.preview = new VASynth({ ...patchFor(this.s.pattern), level: 62 });
+    this.preview = new VASynth({ ...this.fullPatch(), level: 62 });
     this.preview.output.connect(master);
     this.previewKind = want;
   }
@@ -534,8 +574,10 @@ class JamRoom extends HTMLElement {
     this.usbBtn.addEventListener('click', () => this.connectUsb());
     this.bleBtn = el('button', { type: 'button', class: 'btn hw', text: 'Connect over Bluetooth' });
     this.bleBtn.addEventListener('click', () => this.connectBle());
-    this.patchBtn = el('button', { type: 'button', class: 'btn', text: 'Send a matching sound' });
-    this.patchBtn.addEventListener('click', () => this.sendPatch());
+    this.patchBtn = el('button', { type: 'button', class: 'btn', text: 'Load a matching sound' });
+    this.patchBtn.addEventListener('click', () => this.loadSound());
+    this.sendAllBtn = el('button', { type: 'button', class: 'btn hw', text: 'Send all' });
+    this.sendAllBtn.addEventListener('click', () => this.sendSound());
     this.patternFeel = el('p', { class: 'jam-hint' });
     this.linkNote = el('p', { class: 'jam-hint jam-wide' });
     const instSec = this.panel('Your instrument', 'Plug the FM-1, SMK-37 or AKS Mini into the phone (or pair it over Bluetooth) and it plays a part, one bar at a time.', [
@@ -549,7 +591,23 @@ class JamRoom extends HTMLElement {
       this.toggle('clock', 'Send MIDI clock', (on) => { if (this.running) this.link().sendRaw?.([on ? 0xfa : 0xfc]); }),
       this.toggle('preview', 'Also play the part here', () => { this.save(); }),
       this.linkNote,
-    ], [this.usbBtn, this.bleBtn, this.patchBtn]);
+    ], [this.usbBtn, this.bleBtn]);
+
+    // The instrument's sound, set from here over MIDI.
+    this.soundCtls = new Map();
+    this.soundNote = el('p', { class: 'jam-hint jam-wide' });
+    const groups = SOUND.map(([name, keys]) => el('div', { class: 'control-group' }, [
+      el('span', { class: 'group-name', text: name }),
+      ...keys.map((k) => {
+        const c = makeControl(k, this.s.sound[k], (key, v) => this.setSound(key, v));
+        this.soundCtls.set(k, c);
+        return c;
+      }),
+    ]));
+    this.soundSec = this.panel('Instrument sound', 'Shape the part’s sound without the menus: a long Attack and full Sustain for a swelling drone, a short Release for a tight pulse.', [
+      this.soundNote,
+      ...groups,
+    ], [this.patchBtn, this.sendAllBtn]);
 
     // Taking the part away on the instrument.
     this.patternList = el('ol', { class: 'jam-patterns' });
@@ -573,7 +631,7 @@ class JamRoom extends HTMLElement {
     ]);
 
     const side = el('div', { class: 'jam-side' }, [now, neckSec]);
-    const controls = el('div', { class: 'jam-controls' }, [keySec, instSec, keepSec, droneSec, kitSec]);
+    const controls = el('div', { class: 'jam-controls' }, [keySec, instSec, this.soundSec, keepSec, droneSec, kitSec]);
     this.append(el('div', { class: 'jam-grid' }, [side, controls]));
     this.paintTargets();
   }
@@ -650,10 +708,52 @@ class JamRoom extends HTMLElement {
     this.paintLink();
   }
 
-  sendPatch() {
-    if (this.s.target === 'aks' || !fm1.canSend) return;
-    const n = fm1.sendPatch(patchFor(this.s.pattern));
-    this.say(`Sent ${n} settings to the ${device().label}’s current preset. It isn’t saved there until you press ${device().controls?.SAVE || 'SAVE'}.`);
+  // The part's whole sound: the pad or pluck for the pattern, with the
+  // panel's settings on top.
+  fullPatch() { return mergePatch(patchFor(this.s.pattern), toPatch(this.s.sound)); }
+
+  // One setting from the panel ('page'), or from the instrument's own knob
+  // ('hw', which is only shown here and never sent back).
+  setSound(key, value, source = 'page') {
+    this.s.sound[key] = value;
+    this.save();
+    if (source === 'hw') this.soundCtls.get(key)?.update(value);
+    else if (this.s.target !== 'aks') {
+      if (key.startsWith('fx.')) { const [, fx, field] = key.split('.'); fm1.sendFx(fx, field, value); }
+      else fm1.sendParam(key, value);
+    }
+    this.preview?.set(toPatch({ [key]: value }));
+    if (key === 'attack' || key === 'release') this.paintSoundNote();
+  }
+
+  // Set the panel to the pad (Hold) or pluck (everything else) and send it.
+  loadSound() {
+    this.s.sound = soundFrom(patchFor(this.s.pattern));
+    for (const [k, c] of this.soundCtls) c.update(this.s.sound[k]);
+    this.save();
+    if (this.preview) { this.preview.dispose(); this.preview = null; this.ensurePreview(); }
+    this.sendSound(`Loaded the ${this.s.pattern === 'hold' ? 'drone pad' : 'pluck'} from lesson 10`);
+  }
+
+  // Send everything on the panel, so the instrument matches it.
+  sendSound(what = 'Sent the panel') {
+    if (this.s.target === 'aks') return;
+    if (!fm1.canSetSound) {
+      this.soundNote.textContent = `${what} to the page’s synth. Connect the ${device().label} to send it there too.`;
+      return;
+    }
+    const n = fm1.sendPatch(this.fullPatch());
+    this.soundNote.textContent = `${what}: ${n} settings sent to the ${device().label}’s current preset. Press ${ctlName('SAVE')} on it to keep them.`;
+  }
+
+  paintSoundNote() {
+    if (!this.soundNote) return;
+    const label = device().label;
+    let text;
+    if (device().stock) text = `On stock firmware these only shape the page’s synth: the ${label} doesn’t take Baud Girl’s settings.`;
+    else if (!fm1.canSend) text = `These shape the page’s synth now, and the ${label} too once it’s connected. They start from the page’s last settings, not the instrument’s: Send all makes the two match.`;
+    else text = `Each slider sets the ${label}’s current preset as it moves (a Virtual Analog preset; the FM and 8-Bit engines don’t take these). If Attack and Release change nothing, its envelope is off: hold ${ctlName('ENV')} on the ${label} to switch it on. Turning its knobs moves these sliders too.`;
+    this.soundNote.textContent = text;
   }
 
   // A message under the instrument's controls that stays until the next one.
@@ -740,9 +840,12 @@ class JamRoom extends HTMLElement {
     this.usbBtn.textContent = fm1.access ? `Find the ${name}` : 'Connect USB MIDI';
     this.bleBtn.hidden = aksT || !fm1.supported.bluetooth;
     this.bleBtn.textContent = fm1.bleActive ? 'Disconnect Bluetooth' : fm1.ble?.device ? 'Reconnect Bluetooth' : 'Connect over Bluetooth';
-    // Stock firmware doesn't take Baud Girl's CC numbers.
-    this.patchBtn.hidden = aksT || !!device().stock;
-    this.patchBtn.disabled = !fm1.canSend;
+    // The sound panel is for the FM-1 and SMK-37 (the AKS Mini has its own
+    // lessons); on stock firmware it shapes only the page's synth.
+    this.soundSec.hidden = aksT;
+    this.sendAllBtn.hidden = !!device().stock;
+    this.sendAllBtn.disabled = !fm1.canSetSound;
+    this.paintSoundNote();
     if (!midi && !fm1.supported.bluetooth) {
       this.linkNote.textContent = 'This browser can’t talk to instruments. Chrome on Android (or Chrome or Edge on a computer) can, over USB or Bluetooth.';
     } else if (!this.linkNote.textContent || this.linkNote.dataset.auto) {

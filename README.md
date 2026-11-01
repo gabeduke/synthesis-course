@@ -228,8 +228,14 @@ Lessons tab returns to the last course page you were on.
   instrument that follows clock and records notes arriving over MIDI.
   **Unverified:** whether the Device Manager imports these files as they are,
   and whether real-time recording takes notes from USB or Bluetooth MIDI.
-- **Send a matching sound** sends lesson 10's drone (for Hold) or pluck (for
-  the rest) to the FM-1 or SMK-37's current preset.
+- **Instrument sound**: sliders for the part's sound on the FM-1 or SMK-37
+  (envelope, waveform, cutoff and resonance, Super/Detune/Drift, reverb and
+  delay), each sent as Baud Girl's CC as it moves (`fm1.sendParam` and
+  `sendFx`), also applied to the page's synth, and moved by the instrument's
+  own knobs (`param` events from `hw/fm1.js`). **Load a matching sound** sets
+  them to lesson 10's drone (for Hold) or pluck (for the rest) and sends them;
+  **Send all** sends the whole panel. Kept in `jam.settings`. On stock firmware
+  they shape only the page's synth.
 - Settings are kept in localStorage (`jam.settings`). The screen is kept on
   while it plays. "Set key from instrument" takes the key from the next note
   played on the connected keyboard.

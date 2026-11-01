@@ -747,7 +747,8 @@ await check('stock firmware: the AKS Mini boxes and the Jam page', async () => {
   assert(await page.locator('main .on-fm1').first().isVisible(), 'AKS steps stay');
   await page.goto(`${BASE}/jam.html`);
   await page.waitForFunction(() => customElements.get('jam-room'));
-  assert(!(await jam(page).getByRole('button', { name: 'Send a matching sound' }).isVisible()), 'no matching sound on stock');
+  assert(!(await jam(page).getByRole('button', { name: 'Send all' }).isVisible()), 'no Send all on stock');
+  assert((await jam(page).locator('section[aria-label="Instrument sound"] .jam-hint').first().textContent()).includes('stock firmware'), 'sound panel explains stock');
   assert((await jam(page).locator('.jam-patterns + .jam-hint').textContent()).includes('stock firmware'), 'patterns explain stock');
   eq(await page.locator('#device-select').inputValue(), 'smk37:stock', 'picker shows stock');
   eq(errors, [], 'console errors');
@@ -781,6 +782,44 @@ await check('jam: Stop ends long held notes on the instrument and the page', asy
   await page.waitForTimeout(900);
   const level = await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel());
   assert(level < 0.003, `the page is quiet after Stop: ${level}`);
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('jam: Instrument sound sends CCs live, and the instrument’s knobs move it', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37', {}, { midi: true });
+  await page.evaluate(() => localStorage.removeItem('jam.settings'));
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  const sound = jam(page).locator('section[aria-label="Instrument sound"]');
+  await page.evaluate(() => { window.__usbSent.length = 0; });
+  // Attack to its top: CC 73 = 127 on the MIDI channel.
+  const attack = sound.locator('.ctl[data-key="attack"] input[type=range]');
+  await attack.focus();
+  await page.keyboard.press('End');
+  await page.waitForTimeout(80);
+  const cc = await page.evaluate(() => window.__usbSent.filter((m) => m[0] === 0xb0 && m[1] === 73).map((m) => m[2]));
+  eq(cc.at(-1), 127, 'Attack sent as CC 73');
+  // Reverb on goes to the FX channel (2) as CC 4.
+  await sound.getByRole('switch', { name: 'Reverb' }).uncheck();
+  await page.waitForTimeout(80);
+  assert(await page.evaluate(() => window.__usbSent.some((m) => m[0] === 0xb1 && m[1] === 4 && m[2] === 0)), 'reverb off on the FX channel');
+  // The instrument's cutoff knob (CC 74) moves the slider, and isn't echoed.
+  await page.evaluate(() => { window.__usbSent.length = 0; window.__usbIn([0xb0, 74, 0]); });
+  await page.waitForTimeout(50);
+  eq(await sound.locator('.ctl[data-key="cutoff"] output').textContent(), '20 Hz', 'knob moved the slider');
+  eq(await page.evaluate(() => window.__usbSent.filter((m) => m[0] === 0xb0 && m[1] === 74).length), 0, 'not sent back');
+  // Load a matching sound sends a whole patch.
+  await page.evaluate(() => { window.__usbSent.length = 0; });
+  await sound.getByRole('button', { name: 'Load a matching sound' }).click();
+  assert(await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0xb0).length) > 10, 'patch sent');
+  eq(await sound.locator('.ctl[data-key="sustain"] output').textContent(), '100%', 'pad sustain');
+  // Remembered.
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  eq(await sound.locator('.ctl[data-key="sustain"] output').textContent(), '100%', 'kept');
   eq(errors, [], 'console errors');
   await ctx.close();
 });
