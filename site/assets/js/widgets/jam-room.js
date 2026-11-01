@@ -16,6 +16,7 @@ import { device, onDeviceChange } from '../ui/device.js';
 import { VASynth } from '../audio/va-synth.js';
 import { DroneEngine, Kit, TEXTURES, TEXTURE_IDS, VOICINGS, VOICING_IDS } from '../audio/drone.js';
 import * as T from '../audio/theory.js';
+import { loopEvents, splitPatterns, writeSmf, PATTERN_STEPS } from '../audio/smf.js';
 
 const STORE = 'jam.settings';
 const DEFAULTS = {
@@ -82,6 +83,7 @@ class JamRoom extends HTMLElement {
     this.paintChord();
     this.paintStrip();
     this.paintNeck();
+    this.paintPatterns();
     this.save();
   }
 
@@ -90,7 +92,11 @@ class JamRoom extends HTMLElement {
   }
 
   // ---------- Transport ----------
-  async start() {
+  // `once`: { index, events, bars, startBar } plays one sequencer pattern a
+  // single time after a bar of count-in, with MIDI Start, clock and Stop
+  // around it, for an instrument recording in time with the page.
+  async start(once = null) {
+    if (this.running) this.stop();
     const ctx = await resume();
     const { master } = audio();
     if (!this.drone) {
@@ -105,11 +111,12 @@ class JamRoom extends HTMLElement {
     if (this.s.drone) this.drone.start();
     this.running = true;
     this.step = 0;
-    this.origin = 0;
+    this.once = once;
+    this.origin = once ? 1 : 0; // one bar of count-in before a recording pass
     this.dirty = false;
     this.nextTime = ctx.currentTime + 0.12;
     this.queue = [];
-    if (this.s.clock) this.link().sendRaw?.([0xfa], this.midiAt(this.nextTime));
+    if (this.s.clock && !once) this.link().sendRaw?.([0xfa], this.midiAt(this.nextTime));
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.tick();
     this.wake();
@@ -127,7 +134,9 @@ class JamRoom extends HTMLElement {
     this.running = false;
     clearInterval(this.timer);
     this.drone?.stop();
-    if (this.s.clock) this.link().sendRaw?.([0xfc]);
+    if (this.s.clock || (this.once && !this.once.stopped)) this.link().sendRaw?.([0xfc]);
+    this.once = null;
+    this.paintPatterns();
     fm1.releaseAll();
     aks.releaseAll();
     this.preview?.allOff();
@@ -182,6 +191,45 @@ class JamRoom extends HTMLElement {
     }
     const bar = Math.floor(step / T.STEPS_PER_BAR) - this.origin;
     const per = this.s.barsPer;
+    const clock = () => {
+      // 24 clocks to a quarter note: six to each sixteenth.
+      for (let k = 0; k < 6; k++) this.link().sendRaw([0xf8], this.midiAt(t + (k * dur) / 6));
+    };
+    if (this.once) {
+      const o = this.once;
+      const ready = this.linkReady();
+      if (bar < 0) {
+        // Count-in: clicks on the beats, and clock so the instrument is
+        // already following the page's tempo when Start arrives.
+        if (sub % 4 === 0) this.kit.hit('rim', t, sub === 0 ? 1 : 0.65);
+        if (ready) clock();
+        if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
+        return;
+      }
+      if (bar >= o.bars) {
+        if (!o.stopped) {
+          o.stopped = true;
+          if (ready) this.link().sendRaw([0xfc], this.midiAt(t));
+          const { ctx } = audio();
+          setTimeout(() => { if (this.once === o) this.stop(); }, Math.max(0, (t - ctx.currentTime) * 1000) + 80);
+        }
+        return;
+      }
+      if (bar === 0 && sub === 0 && ready) this.link().sendRaw([0xfa], this.midiAt(t));
+      const pbar = bar + o.startBar;
+      const idx = Math.floor(pbar / per) % this.chords.length;
+      if (sub === 0) {
+        if (pbar % per === 0 || bar === 0) this.drone.setHarmony(this.harmony(idx), bar === 0, t);
+        // Exactly the notes the downloaded file for this pattern holds.
+        const from = bar * T.STEPS_PER_BAR;
+        this.playEvents(o.events.filter((e) => e.step >= from && e.step < from + T.STEPS_PER_BAR).map((e) => ({ ...e, step: e.step - from })), t);
+        this.queue.push({ t, chord: idx, bar });
+      }
+      for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
+      if (ready) clock();
+      if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
+      return;
+    }
     const idx = Math.floor(bar / per) % this.chords.length;
     const inChord = bar % per;
     const chord = this.chords[idx];
@@ -193,29 +241,102 @@ class JamRoom extends HTMLElement {
         bar: inChord, bars: per, seed: 1 + Math.floor(bar / (per * this.chords.length)) % 3,
         voicing: this.s.voicing === 'chord' ? 'chord' : 'fifth',
       });
-      const link = this.link();
-      const send = this.linkReady();
-      const hear = this.s.preview || !send;
-      for (const e of events) {
-        const on = t + e.step * dur;
-        const off = on + e.len * dur;
-        if (send) {
-          link.noteOn(e.note, e.vel, this.midiAt(on));
-          link.noteOff(e.note, this.midiAt(off));
-        }
-        if (hear && this.preview) {
-          this.preview.noteOn(e.note, e.vel, on);
-          this.preview.noteOff(e.note, off);
-        }
-      }
+      this.playEvents(events, t);
       this.queue.push({ t, chord: idx, bar });
     }
     for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
-    if (this.s.clock && this.linkReady()) {
-      // 24 clocks to a quarter note: six to each sixteenth.
-      for (let k = 0; k < 6; k++) this.link().sendRaw([0xf8], this.midiAt(t + (k * dur) / 6));
-    }
+    if (this.s.clock && this.linkReady()) clock();
     if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
+  }
+
+  // One bar's notes, from time t: to the instrument, and to the page's synth
+  // when there's no instrument (or when asked).
+  playEvents(events, t) {
+    const dur = this.stepDur();
+    const link = this.link();
+    const send = this.linkReady();
+    const hear = this.s.preview || !send;
+    for (const e of events) {
+      const on = t + e.step * dur;
+      const off = on + e.len * dur;
+      if (send) {
+        link.noteOn(e.note, e.vel, this.midiAt(on));
+        link.noteOff(e.note, this.midiAt(off));
+      }
+      if (hear && this.preview) {
+        this.preview.noteOn(e.note, e.vel, on);
+        this.preview.noteOff(e.note, off);
+      }
+    }
+  }
+
+  // ---------- Patterns for the instrument's sequencer ----------
+  // One pass through the progression, cut into patterns of up to 64 steps.
+  patterns() {
+    return splitPatterns(loopEvents({
+      chords: this.chords, barsPer: this.s.barsPer, pattern: this.s.pattern,
+      key: this.s.key, mode: this.s.mode, octave: this.s.octave,
+      voicing: this.s.voicing === 'chord' ? 'chord' : 'fifth',
+    }), PATTERN_STEPS);
+  }
+
+  fileStem() {
+    const key = T.spell(this.s.key, this.s.key, this.s.mode).replace('♭', 'b').replace('♯', 's');
+    return `jam-${key}-${this.s.mode}-${this.s.prog}-${this.s.pattern}`;
+  }
+
+  download(bytes, name) {
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
+    const a = el('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  downloadPattern(p, total) {
+    const name = total > 1 ? `${this.fileStem()}-pattern${p.index + 1}of${total}.mid` : `${this.fileStem()}.mid`;
+    const label = `${T.keyLabel(this.s.key, this.s.mode)} ${T.PATTERNS[this.s.pattern].name}${total > 1 ? ` ${p.index + 1}/${total}` : ''}`;
+    this.download(writeSmf({ events: p.events, steps: p.steps, bpm: this.s.bpm, name: label, channel: this.s.target === 'aks' ? aks.channel : fm1.midiChannel }), name);
+  }
+
+  // The whole loop as one file, for a groovebox or a DAW that has room.
+  downloadLoop() {
+    const loop = loopEvents({
+      chords: this.chords, barsPer: this.s.barsPer, pattern: this.s.pattern,
+      key: this.s.key, mode: this.s.mode, octave: this.s.octave,
+      voicing: this.s.voicing === 'chord' ? 'chord' : 'fifth',
+    });
+    this.download(writeSmf({ ...loop, bpm: this.s.bpm, name: `${T.keyLabel(this.s.key, this.s.mode)} loop`, channel: fm1.midiChannel }), `${this.fileStem()}-loop.mid`);
+  }
+
+  async recordPass(p) {
+    await this.start({ index: p.index, events: p.events, bars: p.steps / T.STEPS_PER_BAR, startBar: p.start / T.STEPS_PER_BAR });
+    this.paintPatterns();
+  }
+
+  paintPatterns() {
+    if (!this.patternList) return;
+    const parts = this.patterns();
+    const bars = (p) => {
+      const a = p.start / T.STEPS_PER_BAR + 1;
+      const b = (p.start + p.steps) / T.STEPS_PER_BAR;
+      return a === b ? `bar ${a}` : `bars ${a}–${b}`;
+    };
+    this.patternList.replaceChildren(...parts.map((p) => {
+      const dl = el('button', { type: 'button', class: 'btn', text: 'Download .mid' });
+      dl.addEventListener('click', () => this.downloadPattern(p, parts.length));
+      const rec = el('button', { type: 'button', class: 'btn hw', text: this.once?.index === p.index ? 'Playing…' : 'Play into sequencer' });
+      rec.disabled = !!this.once;
+      rec.addEventListener('click', () => this.recordPass(p));
+      return el('li', {}, [
+        el('div', {}, [el('strong', { text: parts.length > 1 ? `Pattern ${p.index + 1}` : 'One pattern' }), el('span', { text: ` · ${bars(p)}, ${p.steps} steps, ${p.events.length} notes` })]),
+        el('div', { class: 'jam-pattern-btns' }, [dl, rec]),
+      ]);
+    }));
+    this.chainNote.textContent = parts.length > 1
+      ? `The loop is longer than one pattern holds, so it comes as ${parts.length}. Load them into consecutive patterns, chain each to the next and the last back to the first.`
+      : 'The whole loop fits in one pattern. Set the pattern to repeat and it plays until you stop it.';
   }
 
   // The part also plays on the page when no instrument is connected (or
@@ -380,6 +501,18 @@ class JamRoom extends HTMLElement {
       this.linkNote,
     ], [this.usbBtn, this.bleBtn, this.patchBtn]);
 
+    // Taking the part away on the instrument.
+    this.patternList = el('ol', { class: 'jam-patterns' });
+    this.chainNote = el('p', { class: 'jam-hint' });
+    const loopBtn = el('button', { type: 'button', class: 'btn', text: 'Whole loop as one .mid' });
+    loopBtn.addEventListener('click', () => this.downloadLoop());
+    const keepSec = this.panel('Keep it on the instrument', 'Save the part so the instrument plays it unplugged. A Baud Girl pattern holds 64 steps (four bars), so a longer loop comes as several patterns to chain.', [
+      el('div', { class: 'jam-wide' }, [this.patternList, this.chainNote]),
+      el('div', { class: 'jam-wide' }, [
+        el('p', { class: 'jam-hint', text: 'Download: a MIDI file per pattern, for the MIDI Files section of Baud Girl’s Device Manager (or a Bento, MPC or DAW). Play into sequencer: one bar of clicks, then MIDI Start, the pattern in time with clock, and Stop, for an instrument following clock and recording. Neither has been tried on the hardware yet; see the notes below the page.' }),
+      ]),
+    ], [loopBtn]);
+
     // The neck.
     this.neck = el('div', { class: 'jam-neck' });
     this.scaleLine = el('p', { class: 'jam-scale' });
@@ -390,7 +523,7 @@ class JamRoom extends HTMLElement {
     ]);
 
     const side = el('div', { class: 'jam-side' }, [now, neckSec]);
-    const controls = el('div', { class: 'jam-controls' }, [keySec, instSec, droneSec, kitSec]);
+    const controls = el('div', { class: 'jam-controls' }, [keySec, instSec, keepSec, droneSec, kitSec]);
     this.append(el('div', { class: 'jam-grid' }, [side, controls]));
     this.paintTargets();
   }
@@ -489,6 +622,7 @@ class JamRoom extends HTMLElement {
     this.paintFeel();
     this.paintNeck();
     this.paintLink();
+    this.paintPatterns();
   }
 
   paintPlay() {

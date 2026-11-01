@@ -655,6 +655,57 @@ await check('jam: plays a part over Bluetooth MIDI', async () => {
   await ctx.close();
 });
 
+await check('jam: patterns download as MIDI files and play once into the sequencer', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37', {}, { midi: true });
+  await page.evaluate(() => localStorage.removeItem('jam.settings'));
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  // A Dorian vamp, two bars a chord: four bars, one pattern.
+  eq(await jam(page).locator('.jam-patterns li').count(), 1, 'one pattern');
+  await jam(page).getByRole('button', { name: 'Journey' }).click();
+  await jam(page).getByRole('group', { name: 'Bars per chord' }).getByRole('button', { name: '4' }).click();
+  eq(await jam(page).locator('.jam-patterns li').count(), 4, 'sixteen bars, four patterns');
+  const [dl] = await Promise.all([page.waitForEvent('download'), jam(page).locator('.jam-patterns li').nth(1).getByRole('button', { name: 'Download .mid' }).click()]);
+  eq(dl.suggestedFilename(), 'jam-A-dorian-journey-hold-pattern2of4.mid', 'file name');
+  const bytes = fs.readFileSync(await dl.path());
+  eq(bytes.subarray(0, 4).toString(), 'MThd', 'a MIDI file');
+
+  // Back to one short pattern, sent to the fake instrument in one pass.
+  await jam(page).getByRole('button', { name: 'Vamp' }).click();
+  await jam(page).getByRole('group', { name: 'Bars per chord' }).getByRole('button', { name: '1' }).click();
+  await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Pulse' }).click();
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  await jam(page).getByRole('button', { name: 'Faster' }).evaluate((b) => { for (let i = 0; i < 40; i++) b.click(); }); // 164 BPM: a quick test
+  await jam(page).getByRole('button', { name: 'Play into sequencer' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-play').textContent === 'Play', null, { timeout: 8000 });
+  const sent = await page.evaluate(() => window.__usbSent.filter((m) => m[0] !== 0xf8));
+  const kinds = sent.map((m) => (m[0] === 0xfa ? 'start' : m[0] === 0xfc ? 'stop' : (m[0] & 0xf0) === 0x90 ? 'on' : null)).filter(Boolean);
+  eq(kinds[0], 'start', 'Start before the first note');
+  eq(kinds.filter((k) => k === 'on').length, 16, 'two bars of eighths');
+  assert(kinds.lastIndexOf('stop') > kinds.lastIndexOf('on'), 'Stop after the last note');
+  const clocks = await page.evaluate(() => window.__usbSent.filter((m) => m[0] === 0xf8).length);
+  eq(clocks, 3 * 96, 'clock through the count-in and both bars');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('tabs: Lessons and Jam, and Lessons goes back to the last lesson', async () => {
+  const { page, ctx, errors } = await open('/lessons/05-lfo.html');
+  const tabs = page.locator('.site-tabs a');
+  eq(await tabs.allTextContents(), ['Lessons', 'Jam'], 'two tabs');
+  eq(await page.locator('.site-tabs a[aria-current]').textContent(), 'Lessons', 'Lessons current');
+  await page.locator('.site-tabs').getByRole('link', { name: 'Jam' }).click();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  eq(await page.locator('.site-tabs a[aria-current]').textContent(), 'Jam', 'Jam current');
+  eq(await page.locator('#rail').count(), 0, 'no lesson rail on Jam');
+  await page.locator('.site-tabs').getByRole('link', { name: 'Lessons' }).click();
+  await page.waitForURL(/05-lfo\.html$/);
+  assert(!(await page.locator('.rail').textContent()).includes('Jam'), 'Jam is not in the lesson list');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
 await check('jam: key, mode, sevenths and the neck follow the choice', async () => {
   const { page, ctx, errors } = await open('/jam.html');
   await jam(page).locator('.jam-keys').getByRole('button', { name: 'E', exact: true }).click();

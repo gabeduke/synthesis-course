@@ -24,8 +24,7 @@
 </head>
 <body>
   <header id="site-header"></header>
-  <div class="page">
-    <nav id="rail"></nav>
+  <div class="page solo">
     <main id="main" class="jam-page">
       <h1>Jam</h1>
       <p class="lede">Pick a key and a mode and press Play. The page makes a drone that drifts slowly through a few chords in that key, never quite the same twice, for you to play over on guitar, keys or anything else. Plug in an instrument and it plays a part along with it.</p>
@@ -38,8 +37,14 @@
         <li><strong>Without a cable.</strong> Put the SMK-37 in BT Device mode and tap <em>Connect over Bluetooth</em>. The page sends the part over Bluetooth MIDI, a little ahead of time so it stays in step. It needs Chrome on Android, Windows, macOS or ChromeOS; iPhones can’t do it.</li>
         <li><strong>Which part.</strong> <em>Hold</em> turns the instrument into a second drone that changes chord with the page. <em>Pulse</em> and <em>Bass</em> give you something to lock onto. <em>Arp</em> and <em>Wander</em> play lines you can answer. <em>Send a matching sound</em> sets a pad (for Hold) or a pluck (for the rest) on the FM-1 or SMK-37’s current preset, using lesson 10’s recipes.</li>
         <li><strong>Choosing a mode.</strong> They’re listed bright to dark. Dorian and Mixolydian are the friendliest to improvise in on guitar; the drone leans on each mode’s color note (Dorian’s 6th, Lydian’s ♯4) so you can hear what makes it different.</li>
+        <li><strong>Unplugged.</strong> <em>Keep it on the instrument</em> turns the part into sequencer patterns of up to 64 steps (four bars), the most a Baud Girl pattern holds. <em>Download .mid</em> saves one MIDI file per pattern, for the MIDI Files section of Baud Girl’s Device Manager or any other sequencer. <em>Play into sequencer</em> clicks for a bar, then sends MIDI Start, the pattern in time with clock, and Stop, for an instrument that follows clock and records notes arriving over MIDI. Load or record each pattern into its own slot, chain them in order with the last back to the first, and press <span class="btn-name">SAVE</span>.</li>
         <li><strong>MIDI clock</strong> lets gear that follows it (an arpeggiator, a delay, a Bento) run at the page’s tempo. Leave it off if the instrument doesn’t need it.</li>
       </ul>
+      <aside class="on-device">
+        <h3>Not yet checked on the hardware</h3>
+        <p>Baud Girl’s manual lists the pieces this relies on (a MIDI Files section and pattern backups in the Device Manager, notes from a MIDI keyboard, following a clock), but this page hasn’t been tried against them yet. Things to find out on a real unit: whether the Device Manager imports these files as they are (format 0, 96 ticks to a quarter note, notes on the MIDI channel, one bar of 4/4 per 16 steps), whether real-time recording takes notes arriving over USB or Bluetooth, and whether the sequencer starts on MIDI Start when it follows the clock. If the files need a different shape, say so and the export can change.</p>
+      </aside>
+
       <p class="note">Lesson 12 is about building drones on the instrument itself. Once you have one you like, set the part here to <em>Pulse</em> or <em>Wander</em> and switch the page’s drone off, and the instrument carries the whole thing.</p>
     </main>
   </div>

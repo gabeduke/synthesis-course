@@ -169,7 +169,9 @@ sends to a real port, while Chrome 155 did not.
 ## Jam
 
 `jam.html` is one widget, `<jam-room>` (`widgets/jam-room.js`), built for a
-phone with an instrument plugged into it.
+phone with an instrument plugged into it. It's the site's second tab
+(Lessons | Jam in the header, from `ui/shell.js`), with no lesson rail; the
+Lessons tab returns to the last course page you were on.
 
 - **The drone** (`audio/drone.js`) is generated from the key and the current
   chord: four voices of three detuned oscillators through one slowly moving
@@ -192,6 +194,18 @@ phone with an instrument plugged into it.
   waits in a timer instead (cleared by `releaseAll()`). Optional MIDI clock
   (24 per quarter note, Start and Stop). With nothing connected the part plays
   on the page's own synth.
+- **Keep it on the instrument** (`audio/smf.js`, pure functions): one pass
+  through the progression, cut into patterns of up to 64 steps (four bars,
+  the most a Baud Girl pattern holds). A note that crosses a pattern line is
+  cut there and struck again at the start of the next. Each pattern downloads
+  as a format 0 MIDI file (96 ticks a quarter note, tempo, 4/4, notes on the
+  MIDI channel, ending exactly at the pattern's length), for the MIDI Files
+  section of Baud Girl's Device Manager or another sequencer; the whole loop
+  downloads as one file too. **Play into sequencer** plays one pattern once:
+  a bar of clicks with clock, then MIDI Start, the pattern and Stop, for an
+  instrument that follows clock and records notes arriving over MIDI.
+  **Unverified:** whether the Device Manager imports these files as they are,
+  and whether real-time recording takes notes from USB or Bluetooth MIDI.
 - **Send a matching sound** sends lesson 10's drone (for Hold) or pluck (for
   the rest) to the FM-1 or SMK-37's current preset.
 - Settings are kept in localStorage (`jam.settings`). The screen is kept on

@@ -74,3 +74,9 @@ jam-room { display: block; }
   .jam-play { flex: 1; }
   .jam-tempo { width: 100%; justify-content: space-between; }
 }
+
+/* Patterns for the instrument's sequencer */
+.jam-patterns { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.jam-patterns li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius-sm); }
+.jam-patterns li span { color: var(--ink-2); font-size: 0.86rem; }
+.jam-pattern-btns { display: flex; gap: 8px; flex-wrap: wrap; }

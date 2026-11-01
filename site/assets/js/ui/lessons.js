@@ -25,6 +25,5 @@ export const PARTS = {
 };
 
 export const EXTRAS = [
-  { file: 'jam.html', title: 'Jam: a drone to play along with' },
   { file: 'history.html', title: 'A short history of synthesis' },
 ];

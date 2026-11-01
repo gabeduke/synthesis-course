@@ -23,13 +23,39 @@ function markVisited(file) {
 
 const WAVE_MARK = `<svg viewBox="0 0 34 18" aria-hidden="true"><path d="M1 13 L9 4 L9 13 L17 4 L17 13 L25 4 L25 13 L33 4" fill="none" stroke="var(--sound)" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
 
+// Two places to be: the course, and the Jam page for playing along. The
+// Lessons tab goes back to the last course page you were on.
+const JAM = 'jam.html';
+function lastLessonHref() {
+  try {
+    const p = localStorage.getItem('course.lastPage');
+    if (p && p.startsWith(new URL(href(''), location.href).pathname)) return p;
+  } catch (_) { /* storage blocked */ }
+  return href('index.html');
+}
+
+function tabs() {
+  const onJam = isCurrent(JAM);
+  if (!onJam) {
+    try { localStorage.setItem('course.lastPage', location.pathname); } catch (_) { /* storage blocked */ }
+  }
+  const nav = el('nav', { class: 'site-tabs', 'aria-label': 'Sections' });
+  const tab = (text, link, current) => {
+    const a = el('a', { href: link, text });
+    if (current) a.setAttribute('aria-current', 'page');
+    return a;
+  };
+  nav.append(tab('Lessons', onJam ? lastLessonHref() : href('index.html'), !onJam), tab('Jam', href(JAM), onJam));
+  return nav;
+}
+
 function header() {
   const h = document.getElementById('site-header');
   if (!h) return;
   h.classList.add('site-header');
   const mark = el('a', { class: 'wordmark', href: href('index.html') });
   mark.innerHTML = `${WAVE_MARK}<span>Signal Path</span>`;
-  h.replaceChildren(mark, el('div', { class: 'spacer' }), deviceSelect(el), el('fm1-panel', { compact: true }));
+  h.replaceChildren(mark, tabs(), el('div', { class: 'spacer' }), deviceSelect(el), el('fm1-panel', { compact: true }));
 }
 
 function rail() {
