@@ -57,13 +57,14 @@ export function explainConnect(f) {
         'Then tap Try again.',
       ];
     } else if (name === 'UnknownError' || /initiali[sz]ation failed/i.test(message)) {
-      // Chrome's own MIDI system didn't start: the page never got as far as
-      // looking for ports, so it can't tell why.
-      title = 'Chrome’s MIDI didn’t start on this phone.';
+      // On Android, Chrome asks the system's MIDI service for the devices and
+      // opens each one; this is that service failing (Chromium's
+      // MidiManagerAndroid.java), before the page sees any port.
+      title = 'Android’s MIDI service failed when Chrome asked it for MIDI devices.';
       steps = [
         `Unplug the ${device}. Close Chrome completely (swipe it away from recent apps, and the installed app too).`,
         `Plug the ${device} back in, open the page again and tap Try again.`,
-        `If Android asks whether Chrome may use the ${device}, allow it.`,
+        `If the ${device} itself lags or freezes while it’s plugged in, the trouble is between the phone and the ${device}, not this page. Play over Bluetooth for now.`,
         f.app
           ? 'If it still fails, try the page in a Chrome tab and see whether it says the same.'
           : 'If it still fails, try the installed app and see whether it says the same.',

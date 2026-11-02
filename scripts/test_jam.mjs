@@ -261,7 +261,7 @@ test('connect check: waiting, then no answer', () => {
 test('connect check: Chrome’s init error, blocked, and anything else', () => {
   const init = C.explainConnect(facts({ state: 'failed', ms: 120, error: { name: 'UnknownError', message: 'Platform dependent initialization failed.' } }, { app: true }));
   assert.equal(init.level, 'problem');
-  assert.match(init.title, /didn’t start/);
+  assert.match(init.title, /MIDI service failed/);
   assert.ok(init.steps.some((s) => /Unplug the FM-1/.test(s)));
   assert.match(init.details, /installed app/);
   assert.match(init.details, /Try 1: failed after 120 ms\n {2}UnknownError: Platform dependent initialization failed\./);

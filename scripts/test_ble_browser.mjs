@@ -880,7 +880,7 @@ await check('jam: a USB connect that fails says why, and Try again recovers', as
   });
   assert(await box.isHidden(), 'nothing shown before a tap');
   await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
-  await box.locator('strong', { hasText: 'didn’t start' }).waitFor();
+  await box.locator('strong', { hasText: 'MIDI service failed' }).waitFor();
   assert((await box.locator('pre').textContent()).includes('UnknownError: Platform dependent initialization failed.'), 'details carry the error');
   await box.getByRole('button', { name: 'Try again' }).click();
   await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
