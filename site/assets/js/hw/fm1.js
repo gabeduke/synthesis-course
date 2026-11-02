@@ -132,6 +132,30 @@ function storage(key, value) {
   return null;
 }
 
+// What Chrome says about MIDI for this site, if it will say.
+async function midiPermission() {
+  try { return (await navigator.permissions.query({ name: 'midi' })).state; } catch (_) { return undefined; }
+}
+
+const installedApp = () => !!(globalThis.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone);
+
+// The browser and phone, for the details a page can copy ("Chrome 142 ·
+// Android 15 · Pixel 8"). Chrome's user agent string hides the Android
+// version and the model; userAgentData can give them.
+async function browserLabel() {
+  try {
+    const d = navigator.userAgentData;
+    if (!d) return '';
+    const h = await d.getHighEntropyValues(['platformVersion', 'model', 'fullVersionList']);
+    const chrome = (h.fullVersionList || d.brands).find((b) => /Chrome|Edge/.test(b.brand));
+    return [
+      chrome && `${chrome.brand.replace('Google ', '')} ${chrome.version.split('.')[0]}`,
+      [d.platform, h.platformVersion?.split('.')[0]].filter(Boolean).join(' '),
+      h.model,
+    ].filter(Boolean).join(' · ');
+  } catch (_) { return ''; }
+}
+
 class FM1Link extends EventTarget {
   constructor() {
     super();
@@ -153,6 +177,12 @@ class FM1Link extends EventTarget {
       bluetooth: BleMidi.supported,
     };
     this.ble = null;
+    // The last time the page asked for MIDI and how it went, and what Chrome
+    // says about MIDI for this site, for the page to explain (midiFacts()).
+    this.midiTry = null;
+    this.midiPermission = undefined;
+    this.browser = '';
+    browserLabel().then((s) => { this.browser = s; });
     this._pending = new Map();
     this._timers = new Map();
     this.sounding = new Set(); // "channel:note" pairs we've sent note-ons for
@@ -187,7 +217,7 @@ class FM1Link extends EventTarget {
     try {
       if (this.supported.midi && navigator.permissions) {
         const s = await navigator.permissions.query({ name: 'midi' });
-        if (s.state === 'granted') await this.connectMidi();
+        if (s.state === 'granted') await this.connectMidi({ quiet: true });
       }
     } catch (_) { /* some browsers can't query MIDI permission */ }
     try {
@@ -259,15 +289,60 @@ class FM1Link extends EventTarget {
   }
 
   // ---------- MIDI ----------
-  async connectMidi() {
+  // Ask for MIDI, or look at the ports again if it's already open. Each call
+  // is recorded in midiTry, so a tap always has an answer on screen. `quiet`
+  // is the reconnect on page load, which the page doesn't report.
+  async connectMidi({ quiet = false } = {}) {
     if (!this.supported.midi) throw new Error('This browser has no Web MIDI. Use Chrome, Edge or Firefox.');
+    const attempt = { state: 'waiting', at: Date.now(), quiet, tries: (this.midiTry?.tries ?? 0) + 1 };
+    this.midiTry = attempt;
     if (!this.access) {
-      this.access = await navigator.requestMIDIAccess({ sysex: false });
-      this.access.onstatechange = () => { this._pickPorts(); this._emit('change'); };
+      this._emit('change');
+      const t0 = performance.now();
+      // No answer at all is an answer too: say so after a few seconds.
+      const slow = setTimeout(() => { attempt.slow = true; this._emit('change'); }, globalThis.__midiSlowMs ?? 5000);
+      let failed = null;
+      try {
+        // A tap during the reconnect on load shares its request.
+        this._opening ??= navigator.requestMIDIAccess({ sysex: false });
+        this.access = await this._opening;
+        this.access.onstatechange = () => { this._pickPorts(); this._emit('change'); };
+      } catch (err) {
+        failed = err;
+      }
+      clearTimeout(slow);
+      this._opening = null;
+      attempt.ms = Math.round(performance.now() - t0);
+      // Read after, and not waited for: connecting shouldn't wait on it.
+      midiPermission().then((p) => { this.midiPermission = p; this._emit('change'); });
+      if (failed) {
+        attempt.state = 'failed';
+        attempt.error = { name: failed?.name || 'Error', message: failed?.message || String(failed) };
+        this._emit('change');
+        throw failed;
+      }
     }
+    attempt.state = 'ok';
     this._pickPorts();
     this._emit('change');
     return this.status;
+  }
+
+  // What hw/midi-check.js needs to explain the last attempt. The page adds
+  // the instrument's name and whether the phone is making sound.
+  midiFacts() {
+    const port = (p) => ({ name: p.name, manufacturer: p.manufacturer, state: p.state });
+    const { inputs, outputs } = this.ports();
+    return {
+      midi: this.supported.midi,
+      app: installedApp(),
+      browser: this.browser,
+      permission: this.midiPermission,
+      attempt: this.midiTry,
+      inputs: inputs.map(port),
+      outputs: outputs.map(port),
+      using: this.output?.name ?? null,
+    };
   }
 
   ports() {

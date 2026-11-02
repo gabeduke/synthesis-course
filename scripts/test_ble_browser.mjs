@@ -865,6 +865,71 @@ await check('jam: an FM-1 plugged in while the SMK-37 is chosen is found, and po
   await ctx.close();
 });
 
+await check('jam: a USB connect that fails says why, and Try again recovers', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=fm1');
+  const box = jam(page).locator('.jam-check');
+  // Chrome's own MIDI failing to start, as on the phone's installed app, then working.
+  await page.evaluate(() => {
+    window.__midiSlowMs = 300;
+    const out = { id: 'o', name: 'FM-1', manufacturer: 'M-VAVE', state: 'connected', type: 'output', send() {} };
+    let calls = 0;
+    navigator.requestMIDIAccess = async () => {
+      if (++calls === 1) throw new DOMException('Platform dependent initialization failed.', 'UnknownError');
+      return { inputs: new Map(), outputs: new Map([['o', out]]), onstatechange: null };
+    };
+  });
+  assert(await box.isHidden(), 'nothing shown before a tap');
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await box.locator('strong', { hasText: 'didn’t start' }).waitFor();
+  assert((await box.locator('pre').textContent()).includes('UnknownError: Platform dependent initialization failed.'), 'details carry the error');
+  await box.getByRole('button', { name: 'Try again' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  assert(await box.isHidden(), 'hidden once connected');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('jam: no ports, then the instrument plugged in; and no answer from Chrome', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=fm1');
+  const box = jam(page).locator('.jam-check');
+  await page.evaluate(() => {
+    const outputs = new Map();
+    const access = { inputs: new Map(), outputs, onstatechange: null };
+    window.__plugIn = () => {
+      outputs.set('o', { id: 'o', name: 'FM-1', state: 'connected', type: 'output', send() {} });
+      access.onstatechange?.({});
+    };
+    navigator.requestMIDIAccess = async () => access;
+  });
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await box.locator('strong', { hasText: 'sees nothing plugged in' }).waitFor();
+  const stamp = await box.locator('.jam-check-stamp').textContent();
+  assert(stamp.startsWith('Try 1'), `first try: ${stamp}`);
+  // Another tap gets the same answer, and shows that it was heard.
+  await box.getByRole('button', { name: 'Try again' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-check-stamp').textContent.startsWith('Try 2'));
+  await page.evaluate(() => window.__plugIn());
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  assert(await box.isHidden(), 'hidden once plugged in');
+  await ctx.close();
+
+  // A request Chrome never answers (no prompt shown).
+  const second = await open('/jam.html?device=fm1');
+  await second.page.evaluate(() => { window.__midiSlowMs = 300; navigator.requestMIDIAccess = () => new Promise(() => {}); });
+  const box2 = jam(second.page).locator('.jam-check');
+  await jam(second.page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await box2.locator('strong', { hasText: 'Asking Chrome' }).waitFor();
+  assert(await box2.getByRole('button', { name: 'Try again' }).isHidden(), 'no Try again while asking');
+  await box2.locator('strong', { hasText: 'hasn’t answered' }).waitFor();
+  if (SCRATCH) {
+    await second.page.setViewportSize({ width: 390, height: 844 });
+    await box2.scrollIntoViewIfNeeded();
+    await second.page.screenshot({ path: `${SCRATCH}/jam-check-phone.png` });
+  }
+  eq([...errors, ...second.errors], [], 'console errors');
+  await second.ctx.close();
+});
+
 await check('jam: key, mode, sevenths and the neck follow the choice', async () => {
   const { page, ctx, errors } = await open('/jam.html');
   await jam(page).locator('.jam-keys').getByRole('button', { name: 'E', exact: true }).click();

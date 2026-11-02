@@ -1,7 +1,9 @@
-// Tests for the Jam page's music theory: node scripts/test_jam.mjs
+// Tests for the Jam page's music theory, modulation and USB connect check:
+// node scripts/test_jam.mjs
 import assert from 'node:assert/strict';
 import * as T from '../site/assets/js/audio/theory.js';
 import * as M from '../site/assets/js/audio/modulation.js';
+import * as C from '../site/assets/js/hw/midi-check.js';
 import { VA_CC, ccValue } from '../site/assets/js/hw/cc.js';
 
 let n = 0;
@@ -230,6 +232,58 @@ test('saved modulators are cleaned up', () => {
   assert.equal(list.length, M.SLOTS);
   assert.deepEqual([list[0].on, list[0].shape, list[0].target, list[0].rate, list[0].depth], [true, 'sine', 'cutoff', 100, 0]);
   assert.ok(!list[1].on && !list[2].on);
+});
+
+// ---------- The USB connect check ----------
+const facts = (attempt, more = {}) => ({
+  midi: true, app: false, browser: 'Chrome 142 · Android 15', permission: 'granted',
+  attempt: attempt && { at: Date.UTC(2026, 10, 1, 14, 3, 21), tries: 1, ...attempt },
+  inputs: [], outputs: [], using: null, device: 'FM-1', sound: false, ...more,
+});
+const fm1Port = { name: 'FM-1', manufacturer: 'M-VAVE', state: 'connected' };
+
+test('connect check: nothing to say before a try, and no MIDI says so', () => {
+  assert.equal(C.explainConnect(facts(null)), null);
+  const c = C.explainConnect(facts(null, { midi: false }));
+  assert.equal(c.level, 'problem');
+  assert.match(c.title, /no Web MIDI/);
+});
+
+test('connect check: waiting, then no answer', () => {
+  assert.equal(C.explainConnect(facts({ state: 'waiting' })).level, 'wait');
+  const c = C.explainConnect(facts({ state: 'waiting', slow: true }));
+  assert.equal(c.level, 'problem');
+  assert.match(c.title, /hasn’t answered/);
+  assert.match(c.steps[1], /address bar/);
+  assert.match(C.explainConnect(facts({ state: 'waiting', slow: true }, { app: true })).steps[1], /Chrome tab/);
+});
+
+test('connect check: Chrome’s init error, blocked, and anything else', () => {
+  const init = C.explainConnect(facts({ state: 'failed', ms: 120, error: { name: 'UnknownError', message: 'Platform dependent initialization failed.' } }, { app: true }));
+  assert.equal(init.level, 'problem');
+  assert.match(init.title, /didn’t start/);
+  assert.ok(init.steps.some((s) => /Unplug the FM-1/.test(s)));
+  assert.match(init.details, /installed app/);
+  assert.match(init.details, /Try 1: failed after 120 ms\n {2}UnknownError: Platform dependent initialization failed\./);
+  const blocked = C.explainConnect(facts({ state: 'failed', error: { name: 'NotAllowedError', message: 'Permission denied' } }, { permission: 'denied' }));
+  assert.match(blocked.title, /blocking MIDI/);
+  assert.match(C.explainConnect(facts({ state: 'failed', error: { name: 'AbortError', message: 'x' } })).title, /AbortError/);
+});
+
+test('connect check: nothing plugged in, a port with another name, and connected', () => {
+  const none = C.explainConnect(facts({ state: 'ok' }));
+  assert.equal(none.level, 'problem');
+  assert.match(none.title, /sees nothing plugged in/);
+  assert.ok(none.steps.some((s) => /carries data/.test(s)));
+  // A port that has gone away doesn't count as one Chrome sees.
+  assert.match(C.explainConnect(facts({ state: 'ok' }, { outputs: [{ ...fm1Port, state: 'disconnected' }] })).title, /sees nothing/);
+  const other = C.explainConnect(facts({ state: 'ok' }, { outputs: [{ name: 'USB MIDI Device', state: 'connected' }] }));
+  assert.match(other.title, /a MIDI port, but none named FM-1/);
+  assert.match(other.details, /Outputs:\n {2}USB MIDI Device\n/);
+  const ok = C.explainConnect(facts({ state: 'ok', tries: 3 }, { outputs: [fm1Port], inputs: [fm1Port], using: 'FM-1' }));
+  assert.equal(ok.level, 'ok');
+  assert.match(ok.stamp, /^Try 3, /);
+  assert.match(ok.details, /FM-1 \(M-VAVE\) ← in use/);
 });
 
 console.log(`\n${n} passed`);

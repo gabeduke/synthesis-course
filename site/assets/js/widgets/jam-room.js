@@ -14,6 +14,7 @@
 import { audio, resume, setLatencyHint } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
 import { fm1, ccValue } from '../hw/fm1.js';
+import { explainConnect } from '../hw/midi-check.js';
 import { aks } from '../hw/aks.js';
 import { device, onDeviceChange, ctl as ctlName } from '../ui/device.js';
 import { VASynth, DEFAULT_VA } from '../audio/va-synth.js';
@@ -758,9 +759,27 @@ class JamRoom extends HTMLElement {
     this.portSel = el('select', { class: 'device-select jam-portsel', 'aria-label': 'MIDI port' });
     this.portSel.addEventListener('change', () => this.choosePort(this.portSel.value));
     this.portRow = el('label', { class: 'ctl jam-wide jam-port' }, [el('span', { class: 'ctl-name', text: 'MIDI port' }), this.portSel]);
+    // When a USB connect doesn't work: what Chrome answered and what to try
+    // (hw/midi-check.js), with the facts to copy.
+    this.checkTitle = el('strong');
+    this.checkStamp = el('span', { class: 'jam-check-stamp' });
+    this.checkSteps = el('ol');
+    this.checkDetails = el('pre');
+    this.retryBtn = el('button', { type: 'button', class: 'btn hw', text: 'Try again' });
+    this.retryBtn.addEventListener('click', () => this.connectUsb());
+    const copyBtn = el('button', { type: 'button', class: 'btn', text: 'Copy details' });
+    copyBtn.addEventListener('click', () => this.copyCheck(copyBtn));
+    this.checkBox = el('div', { class: 'jam-check jam-wide', role: 'status' }, [
+      el('div', { class: 'jam-check-head' }, [this.checkTitle, this.checkStamp]),
+      this.checkSteps,
+      el('div', { class: 'jam-check-btns' }, [this.retryBtn, copyBtn]),
+      el('details', {}, [el('summary', { text: 'What Chrome reports' }), this.checkDetails]),
+    ]);
+    this.checkBox.hidden = true;
     const instSec = this.panel('Your instrument', 'Plug the FM-1, SMK-37 or AKS Mini into the phone (or pair it over Bluetooth) and it makes the sound: the drone, and a part over it.', [
       this.targetCtl,
       el('div', { class: 'jam-wide' }, [this.linkLine]),
+      this.checkBox,
       this.portRow,
       el('div', { class: 'jam-wide' }, [
         this.choice('pattern', 'Part', T.PATTERN_IDS, T.PATTERN_IDS.map((p) => T.PATTERNS[p].name), () => { this.paintFeel(); this.ensurePreview(); this.restart(); }),
@@ -907,10 +926,22 @@ class JamRoom extends HTMLElement {
     try {
       if (this.s.target === 'aks') await aks.connect();
       else await fm1.connectMidi();
-    } catch (e) {
-      this.say(e?.message || 'The browser refused MIDI access.');
-    }
+    } catch (_) { /* the check under the link says what happened (paintCheck) */ }
     this.paintLink();
+  }
+
+  async copyCheck(btn) {
+    const text = this.checkDetails.textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied';
+    } catch (_) {
+      // No clipboard: open the details and select them to copy by hand.
+      this.checkDetails.parentElement.open = true;
+      getSelection().selectAllChildren(this.checkDetails);
+      btn.textContent = 'Selected: copy it';
+    }
+    setTimeout(() => { btn.textContent = 'Copy details'; }, 2500);
   }
 
   async connectBle() {
@@ -1129,6 +1160,7 @@ class JamRoom extends HTMLElement {
     }
     this.linkLine.textContent = line;
     this.linkLine.toggleAttribute('data-on', this.linkReady());
+    this.paintCheck();
     this.paintPorts();
     const midi = fm1.supported.midi;
     this.usbBtn.hidden = !midi || (aksT ? aks.connected : !!fm1.output);
@@ -1153,6 +1185,25 @@ class JamRoom extends HTMLElement {
           ? 'On stock firmware the page sends notes only; set the sound on the instrument. Over USB, a phone needs a USB-C cable or an OTG adapter. Bluetooth needs the instrument’s Bluetooth MIDI switched on, and a tap here each time the page opens.'
           : 'Bluetooth needs the instrument in BT Device mode, and a tap here each time the page opens. Over USB, a phone needs a USB-C cable or an OTG adapter.';
     }
+  }
+
+  // The check under the link line: only after a tap on Connect (not the
+  // quiet reconnect on load), and only while USB isn't working.
+  paintCheck() {
+    const aksT = this.s.target === 'aks';
+    const facts = { ...fm1.midiFacts(), device: aksT ? 'AKS Mini' : device().label, sound: this.phoneOn() };
+    if (aksT) facts.using = aks.connected ? aks.output.name : null;
+    const c = explainConnect(facts);
+    const show = !!c && c.level !== 'ok' && !fm1.midiTry?.quiet && !(fm1.bleActive && !aksT);
+    this.checkBox.hidden = !show;
+    if (!show) return;
+    this.checkBox.dataset.level = c.level;
+    this.checkTitle.textContent = c.title;
+    this.checkStamp.textContent = c.stamp;
+    this.checkSteps.replaceChildren(...c.steps.map((s) => el('li', { text: s })));
+    this.checkSteps.hidden = !c.steps.length;
+    this.checkDetails.textContent = c.details;
+    this.retryBtn.hidden = c.level === 'wait';
   }
 
   // A vertical neck, low E on the left, like a chord chart.
