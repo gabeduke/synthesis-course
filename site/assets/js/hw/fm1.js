@@ -28,7 +28,8 @@
 // disconnects.
 
 import { audio, clamp } from '../audio/core.js';
-import { device, onDeviceChange } from '../ui/device.js';
+import { device, onDeviceChange, setDevice, firmwareId } from '../ui/device.js';
+import { DEVICES } from './devices.js';
 import { BleMidi } from './ble-midi.js';
 
 const portMatch = () => device().portMatch;
@@ -315,6 +316,13 @@ class FM1Link extends EventTarget {
     const rank = (p) => (GENERIC_PORT.test(p.name) ? 2 : 0) + (WIRELESS_PORT.test(p.name) ? 1 : 0);
     const pick = (list, saved) => list.find((p) => p.id === saved && p.state === 'connected')
       || list.filter((p) => portMatch().test(p.name) && p.state === 'connected').sort((a, b) => rank(a) - rank(b))[0] || null;
+    // Nothing for the chosen instrument, but a port named for another one
+    // (an FM-1 plugged in while the SMK-37 is chosen): switch to that one.
+    if (!pick(outputs, savedOut)) {
+      const other = Object.values(DEVICES).find((d) => d.id !== device().id
+        && outputs.some((p) => p.state === 'connected' && !GENERIC_PORT.test(p.name) && d.portMatch.test(p.name)));
+      if (other) { setDevice(other.id, firmwareId()); return; }
+    }
     this.selectInput(pick(inputs, savedIn)?.id ?? null, false);
     const out = pick(outputs, savedOut);
     if (out !== this.output && !this.bleActive) this.releaseAll();

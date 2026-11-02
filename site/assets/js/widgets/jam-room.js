@@ -8,9 +8,9 @@
 // the instrument's notes (as timestamped MIDI, so they land in time) and,
 // if asked, MIDI clock for gear that can follow it.
 
-import { audio, resume } from '../audio/core.js';
+import { audio, resume, setLatencyHint } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
-import { fm1 } from '../hw/fm1.js';
+import { fm1, ccValue } from '../hw/fm1.js';
 import { aks } from '../hw/aks.js';
 import { device, onDeviceChange, ctl as ctlName } from '../ui/device.js';
 import { VASynth, DEFAULT_VA } from '../audio/va-synth.js';
@@ -80,6 +80,7 @@ class JamRoom extends HTMLElement {
   connectedCallback() {
     if (this._built) return;
     this._built = true;
+    setLatencyHint('playback');
     this.s = load();
     if (!T.MODES[this.s.mode]) this.s.mode = DEFAULTS.mode;
     this.s.sound = { ...soundFrom(PATCHES.hold), ...(this.s.sound || {}) };
@@ -145,15 +146,12 @@ class JamRoom extends HTMLElement {
     if (this.running) this.stop();
     const ctx = await resume();
     const { master } = audio();
-    if (!this.drone) {
-      this.drone = new DroneEngine();
-      this.kit = new Kit(this.drone.send);
-    }
-    this.drone.set(this.droneSettings());
-    this.kit.setLevel(this.s.kitLevel);
-    this.ensurePreview(master);
+    // The phone's own sound (drone, kit, synth) is only built once the phone
+    // has to play, so a phone that's just running an instrument does no
+    // audio work that could stutter.
     this.recompute();
-    this.drone.setHarmony(this.harmony(0), true);
+    this.drone?.setHarmony(this.harmony(0), true);
+    if (this.phoneOn()) this.ensurePhone(master);
     this.running = true;
     this.curChord = 0;
     this.phoneDrone = false;
@@ -221,14 +219,21 @@ class JamRoom extends HTMLElement {
 
   // ---------- Notes on the instrument ----------
   // The drone and the part share one preset, so the same note can be held
-  // by both. Each note is counted: a second voice re-strikes it, and it's
-  // only let go when the last voice holding it lets go.
+  // by both. Each note is counted: a second voice joins it without striking
+  // it again (an off and on at the same moment clicks), and it's only let go
+  // when the last voice holding it lets go.
   noteOn(note, vel, at) {
-    const link = this.link();
     const n = this.book.get(note) || 0;
-    if (n > 0) link.noteOff(note, at);
-    link.noteOn(note, vel, at);
+    if (n === 0) this.link().noteOn(note, vel, at);
     this.book.set(note, n + 1);
+  }
+
+  // Notes for the instrument wait in one list, ons and offs together, and
+  // are counted in the order they'll sound as their time comes into the
+  // lookahead. (Counted when planned, a bar of repeated notes would look
+  // like one long one.)
+  queueNote(note, vel, on, off) {
+    this.pending.push({ t: on, kind: 1, note, vel }, { t: off, kind: 0, note });
   }
 
   noteOff(note, at) {
@@ -238,12 +243,24 @@ class JamRoom extends HTMLElement {
     this.link().noteOff(note, at);
   }
 
+  // The phone's drone, kit and synth, built the first time they're needed.
+  ensurePhone(master = audio().master) {
+    if (!this.drone) {
+      this.drone = new DroneEngine();
+      this.kit = new Kit(this.drone.send);
+      this.drone.setHarmony(this.harmony(this.curChord ?? 0), true);
+    }
+    this.drone.set(this.droneSettings());
+    this.kit.setLevel(this.s.kitLevel);
+    this.ensurePreview(master);
+  }
+
   // Start, stop or follow the two drones as the instrument comes and goes.
   syncOutputs(t) {
     const phone = this.s.drone && this.phoneOn();
     if (phone !== this.phoneDrone) {
       this.phoneDrone = phone;
-      phone ? this.drone.start() : this.drone.stop();
+      if (phone) { this.ensurePhone(); this.drone.start(); } else this.drone?.stop();
     }
     const inst = this.s.drone && this.linkReady() && !this.once;
     if (inst && !this.idrone.on) this.instrumentDroneOn(t);
@@ -265,9 +282,8 @@ class JamRoom extends HTMLElement {
     const d = this.idrone;
     if (!d.on) return;
     const want = new Set(T.droneNotes(this.s.key, this.chords[idx], this.s.voicing, this.s.octave));
-    const at = this.midiAt(t);
-    for (const n of d.held) if (!want.has(n)) this.noteOff(n, at);
-    for (const n of want) if (!d.held.has(n)) this.noteOn(n, 0.62, at);
+    for (const n of d.held) if (!want.has(n)) this.pending.push({ t, kind: 0, note: n });
+    for (const n of want) if (!d.held.has(n)) this.pending.push({ t, kind: 1, note: n, vel: 0.62 });
     d.held = want;
   }
 
@@ -275,12 +291,18 @@ class JamRoom extends HTMLElement {
     const d = this.idrone;
     if (!d.on) return;
     d.on = false;
-    for (const n of d.held) this.noteOff(n);
+    // Let go of the drone's notes now, and of any it hasn't started yet.
+    for (const n of d.held) {
+      if (this.book.has(n)) this.noteOff(n);
+    }
+    const held = d.held;
+    this.pending = this.pending.filter((p) => !(held.has(p.note) && p.kind === 1));
     d.held = new Set();
     d.nextBloom = Infinity;
     // Put the cutoff back where the Instrument sound panel says.
     if (d.sentCutoff && this.s.target !== 'aks') fm1.sendParam('cutoff', this.s.sound.cutoff, false);
     d.sentCutoff = 0;
+    d.sentStep = undefined;
   }
 
   instrumentDroneTick(until) {
@@ -295,22 +317,25 @@ class JamRoom extends HTMLElement {
       const p = pool[Math.floor(Math.random() * pool.length)];
       const base = T.baseNote(this.s.key, this.s.octave) + 12;
       const note = base + T.pc(p - this.s.key) + (Math.random() < 0.3 ? 12 : 0);
-      this.noteOn(note, 0.42, this.midiAt(d.nextBloom));
-      this.pending.push({ note, off: d.nextBloom + 3 + Math.random() * 4, sent: false });
+      this.queueNote(note, 0.42, d.nextBloom, d.nextBloom + 3 + Math.random() * 4);
       const c = Math.max(1, this.s.color) / 100;
       d.nextBloom += 14 * Math.pow(2.5 / 14, c) * (0.5 + Math.random());
     }
     // Movement: the cutoff breathes around the panel's value, a cycle every
-    // ~16 seconds, up to about an octave and a half each way. Only on Baud
-    // Girl's firmware (the CC means something else on stock).
+    // ~16 seconds, up to an octave each way. Only on Baud Girl's firmware
+    // (the CC means something else on stock). A CC has 128 steps, so each
+    // change is a small jump; it's sent only when the step actually changes,
+    // and no more than four times a second.
     const m = this.s.movement / 100;
     if (m <= 0 || this.s.target === 'aks' || !fm1.canSetSound) return;
     const now = performance.now();
-    if (now - d.sentAt < 120) return;
+    if (now - d.sentAt < 250) return;
     const base = this.s.sound.cutoff;
-    const v = Math.min(20000, Math.max(40, base * Math.pow(2, 1.5 * m * Math.sin(2 * Math.PI * 0.061 * (ctx.currentTime - d.t0)))));
-    if (Math.abs(Math.log2(v / (d.sentCutoff || 1))) < 0.03) return;
+    const v = Math.min(20000, Math.max(40, base * Math.pow(2, m * Math.sin(2 * Math.PI * 0.061 * (ctx.currentTime - d.t0)))));
+    const step = ccValue('cutoff', v);
+    if (step === d.sentStep) return;
     fm1.sendParam('cutoff', v);
+    d.sentStep = step;
     d.sentCutoff = v;
     d.sentAt = now;
   }
@@ -358,7 +383,7 @@ class JamRoom extends HTMLElement {
       if (bar < 0) {
         // Count-in: clicks on the beats, and clock so the instrument is
         // already following the page's tempo when Start arrives.
-        if (sub % 4 === 0) this.kit.hit('rim', t, sub === 0 ? 1 : 0.65);
+        if (sub % 4 === 0) { this.ensurePhone(); this.kit.hit('rim', t, sub === 0 ? 1 : 0.65); }
         if (ready) clock();
         if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
         return;
@@ -376,13 +401,13 @@ class JamRoom extends HTMLElement {
       const pbar = bar + o.startBar;
       const idx = Math.floor(pbar / per) % this.chords.length;
       if (sub === 0) {
-        if (pbar % per === 0 || bar === 0) { this.curChord = idx; this.drone.setHarmony(this.harmony(idx), bar === 0, t); }
+        if (pbar % per === 0 || bar === 0) { this.curChord = idx; this.drone?.setHarmony(this.harmony(idx), bar === 0, t); }
         // Exactly the notes the downloaded file for this pattern holds.
         const from = bar * T.STEPS_PER_BAR;
         this.playEvents(o.events.filter((e) => e.step >= from && e.step < from + T.STEPS_PER_BAR).map((e) => ({ ...e, step: e.step - from })), t);
         this.queue.push({ t, chord: idx, bar, inChord: pbar % per, per });
       }
-      if (this.phoneOn()) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
+      if (this.phoneOn() && this.kit) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
       if (ready) clock();
       if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
       return;
@@ -394,7 +419,7 @@ class JamRoom extends HTMLElement {
     if (sub === 0) {
       if (inChord === 0) {
         this.curChord = idx;
-        this.drone.setHarmony(this.harmony(idx), false, t);
+        this.drone?.setHarmony(this.harmony(idx), false, t);
         this.instrumentDroneChord(idx, t);
       }
       const events = T.patternBar(this.s.pattern, {
@@ -405,7 +430,7 @@ class JamRoom extends HTMLElement {
       this.playEvents(events, t);
       this.queue.push({ t, chord: idx, bar, inChord, per });
     }
-    if (this.phoneOn()) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
+    if (this.phoneOn() && this.kit) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
     if (this.s.clock && this.linkReady()) clock();
     if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
   }
@@ -426,31 +451,30 @@ class JamRoom extends HTMLElement {
         this.preview.noteOff(e.note, off);
       }
       if (!send) continue;
-      this.noteOn(e.note, e.vel, this.midiAt(on));
-      // The instrument's note-off waits here until its time comes into the
-      // lookahead, rather than going to the port bars in advance, so Stop
-      // always knows what is still sounding (a held chord can last 8 bars).
-      this.pending.push({ note: e.note, off, sent: false });
+      // Held here until its time comes into the lookahead, rather than going
+      // to the port bars in advance, so Stop always knows what's sounding
+      // (a held chord can last 8 bars).
+      this.queueNote(e.note, e.vel, on, off);
     }
   }
 
-  // Send the note-offs due before `until`. Each stays listed until its time
-  // has passed, so Stop can repeat it at once if the port drops it.
+  // Send the notes due before `until`, in time order, offs before ons at the
+  // same moment (so a repeated note is let go and struck again).
   flushOffs(until) {
-    const { ctx } = audio();
-    for (const p of this.pending) {
-      if (p.sent || p.off >= until) continue;
-      p.sent = true;
-      this.noteOff(p.note, this.midiAt(p.off));
+    const due = this.pending.filter((p) => p.t < until).sort((a, b) => a.t - b.t || a.kind - b.kind);
+    if (!due.length) return;
+    this.pending = this.pending.filter((p) => p.t >= until);
+    for (const p of due) {
+      if (p.kind) this.noteOn(p.note, p.vel, this.midiAt(p.t));
+      else this.noteOff(p.note, this.midiAt(p.t));
     }
-    this.pending = this.pending.filter((p) => !p.sent || p.off > ctx.currentTime - 0.05);
   }
 
   // Everything still sounding ends now: the instrument (note by note, then
   // All Notes Off) and the page's synth.
   silence() {
     const link = this.link();
-    for (const p of this.pending) if (!p.sent) link.noteOff(p.note);
+    // Notes not yet sent are simply dropped; those sounding are let go.
     for (const n of this.book.keys()) link.noteOff(n);
     this.pending = [];
     this.book.clear();
@@ -707,9 +731,15 @@ class JamRoom extends HTMLElement {
     this.sendAllBtn.addEventListener('click', () => this.sendSound());
     this.patternFeel = el('p', { class: 'jam-hint' });
     this.linkNote = el('p', { class: 'jam-hint jam-wide' });
+    // Every MIDI port the phone sees, to pick the instrument by hand when
+    // its name isn't one the page knows.
+    this.portSel = el('select', { class: 'device-select jam-portsel', 'aria-label': 'MIDI port' });
+    this.portSel.addEventListener('change', () => this.choosePort(this.portSel.value));
+    this.portRow = el('label', { class: 'ctl jam-wide jam-port' }, [el('span', { class: 'ctl-name', text: 'MIDI port' }), this.portSel]);
     const instSec = this.panel('Your instrument', 'Plug the FM-1, SMK-37 or AKS Mini into the phone (or pair it over Bluetooth) and it makes the sound: the drone, and a part over it.', [
       this.targetCtl,
       el('div', { class: 'jam-wide' }, [this.linkLine]),
+      this.portRow,
       el('div', { class: 'jam-wide' }, [
         this.choice('pattern', 'Part', T.PATTERN_IDS, T.PATTERN_IDS.map((p) => T.PATTERNS[p].name), () => { this.paintFeel(); this.ensurePreview(); this.restart(); }),
         this.patternFeel,
@@ -882,6 +912,31 @@ class JamRoom extends HTMLElement {
     this.soundNote.textContent = text;
   }
 
+  // A port chosen by hand: its output, and the input with the same name.
+  choosePort(id) {
+    if (this.s.target === 'aks') { aks.selectOutput(id || null); this.paintLink(); return; }
+    fm1.selectOutput(id || null);
+    const out = fm1.ports().outputs.find((p) => p.id === id);
+    const inp = out && fm1.ports().inputs.find((p) => p.name === out.name);
+    if (inp) fm1.selectInput(inp.id);
+    this.paintLink();
+    this.paintSource();
+  }
+
+  paintPorts() {
+    const aksT = this.s.target === 'aks';
+    const access = fm1.access;
+    this.portRow.hidden = !access || (!aksT && fm1.bleActive);
+    if (this.portRow.hidden) return;
+    const outs = fm1.ports().outputs.filter((p) => p.state === 'connected');
+    const current = aksT ? aks.output?.id : fm1.output?.id;
+    this.portSel.replaceChildren(
+      el('option', { value: '', text: outs.length ? 'None chosen' : 'No MIDI ports found: check the cable' }),
+      ...outs.map((p) => el('option', { value: p.id, text: p.name || '(no name)' })),
+    );
+    this.portSel.value = current || '';
+  }
+
   // A message under the instrument's controls that stays until the next one.
   say(msg) {
     delete this.linkNote.dataset.auto;
@@ -976,6 +1031,7 @@ class JamRoom extends HTMLElement {
     }
     this.linkLine.textContent = line;
     this.linkLine.toggleAttribute('data-on', this.linkReady());
+    this.paintPorts();
     const midi = fm1.supported.midi;
     this.usbBtn.hidden = !midi || (aksT ? aks.connected : !!fm1.output);
     this.usbBtn.textContent = fm1.access ? `Find the ${name}` : 'Connect USB MIDI';

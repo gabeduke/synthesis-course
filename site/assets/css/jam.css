@@ -96,3 +96,7 @@ jam-room { display: block; }
 .jam-source[data-on]::before { background: var(--hw); }
 .jam-sourcebar .ctl[hidden] { display: none; }
 @media (max-width: 560px) { .jam-sourcebar { padding: 10px 12px 12px; } }
+
+.jam-port { display: grid; gap: 6px; }
+.jam-portsel { width: 100%; max-width: 420px; }
+.jam-port[hidden] { display: none; }

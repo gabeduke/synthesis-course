@@ -845,9 +845,9 @@ await check('jam: with an instrument connected it plays the drone, and the phone
   // The phone makes no sound.
   const level = await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel());
   assert(level < 0.002, `phone silent: ${level}`);
-  // The drone's notes for Am (A, E, A) went to the instrument and are held.
+  // The drone's notes for Am (A1, E2, under the part) went to the instrument.
   const first = await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90).map((m) => m[1]));
-  for (const n of [45, 52, 57]) assert(first.includes(n), `drone note ${n} sent: ${first}`);
+  for (const n of [33, 40]) assert(first.includes(n), `drone note ${n} sent: ${first}`);
   // Movement sweeps the cutoff (CC 74).
   assert(await page.evaluate(() => window.__usbSent.some((m) => m[0] === 0xb0 && m[1] === 74)), 'cutoff sweep');
   // At the change to D, A stays held (no note-off for 45 or 57); D notes start.
@@ -856,7 +856,15 @@ await check('jam: with an instrument connected it plays the drone, and the phone
     ons: window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90).map((m) => m[1]),
     offs: window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x80).map((m) => m[1]),
   }));
-  assert(r.ons.includes(50), `D drone: ${r.ons}`);
+  assert(r.ons.includes(38), `D drone: ${r.ons}`);
+  // No note is struck again while it's still held (that clicks).
+  const sent = await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90 || (m[0] & 0xf0) === 0x80));
+  const on = new Set();
+  for (const m of sent) {
+    if ((m[0] & 0xf0) === 0x90) { assert(!on.has(m[1]), `note ${m[1]} struck while held`); on.add(m[1]); } else on.delete(m[1]);
+  }
+  // The phone built no audio of its own.
+  eq(await page.evaluate(() => !!document.querySelector('jam-room').drone), false, 'no phone drone built');
   // Stop releases everything.
   await jam(page).getByRole('button', { name: 'Stop' }).click();
   const after = await page.evaluate(() => window.__usbSent.slice(-30));
@@ -869,6 +877,27 @@ await check('jam: with an instrument connected it plays the drone, and the phone
   await page.waitForTimeout(2500);
   assert(await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel() > 0.0005), 'phone plays when asked');
   await jam(page).getByRole('button', { name: 'Stop' }).click();
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('jam: an FM-1 plugged in while the SMK-37 is chosen is found, and ports can be picked by hand', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37');
+  await page.evaluate(() => {
+    window.__sent = [];
+    const out1 = { id: 'o-fm1', name: 'FM-1+VA', state: 'connected', type: 'output', send: (d) => window.__sent.push(['fm1', [...d]]) };
+    const out2 = { id: 'o-odd', name: 'Mystery Synth', state: 'connected', type: 'output', send: (d) => window.__sent.push(['odd', [...d]]) };
+    const in1 = { id: 'i-fm1', name: 'FM-1+VA', state: 'connected', type: 'input', onmidimessage: null };
+    navigator.requestMIDIAccess = async () => ({ inputs: new Map([['i-fm1', in1]]), outputs: new Map([['o-fm1', out1], ['o-odd', out2]]), onstatechange: null });
+  });
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  eq(await page.locator('#device-select').inputValue(), 'fm1', 'switched to the FM-1');
+  assert((await jam(page).locator('.jam-link').textContent()).startsWith('FM-1'), 'FM-1 named');
+  // Pick the other port by hand.
+  await jam(page).locator('.jam-portsel').selectOption('o-odd');
+  await page.evaluate(async () => { (await import('/assets/js/hw/fm1.js')).fm1.noteOn(60); });
+  eq(await page.evaluate(() => window.__sent.at(-1)[0]), 'odd', 'chosen port gets the notes');
   eq(errors, [], 'console errors');
   await ctx.close();
 });

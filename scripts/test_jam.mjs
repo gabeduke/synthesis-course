@@ -156,13 +156,18 @@ test('MIDI file round trip', () => {
 
 test('drone notes for an instrument', () => {
   const am = T.chordOn(9, 'dorian', 0);
-  assert.deepEqual(T.droneNotes(9, am, 'fifth'), [45, 52, 57]);
-  assert.deepEqual(T.droneNotes(9, am, 'root'), [45, 57]);
-  assert.deepEqual(T.droneNotes(9, am, 'chord'), [45, 52, 57, 60]);
+  assert.deepEqual(T.droneNotes(9, am, 'fifth'), [33, 40]);
+  assert.deepEqual(T.droneNotes(9, am, 'root'), [33]);
+  assert.deepEqual(T.droneNotes(9, am, 'chord'), [33, 40, 48]);
   const d = T.chordOn(9, 'dorian', 3);
-  assert.deepEqual(T.droneNotes(9, d, 'fifth'), [50, 57, 62]); // A stays common
+  assert.deepEqual(T.droneNotes(9, d, 'fifth'), [38, 45]);
   const e = T.chordOn(9, 'dorian', 4);
-  assert.ok(T.droneNotes(9, e, 'fifth')[0] < 50, 'the v drops an octave');
+  assert.ok(T.droneNotes(9, e, 'fifth')[0] < 38, 'the v drops an octave');
+  // Under the part: a pulse or bass never shares the drone's notes.
+  for (const c of T.progression(9, 'dorian', 'journey')) {
+    const drone = new Set(T.droneNotes(9, c, 'fifth'));
+    for (const id of ['pulse', 'bass', 'hold']) for (const ev of T.patternBar(id, { chord: c, key: 9, mode: 'dorian' })) assert.ok(!drone.has(ev.note), `${id} ${ev.note}`);
+  }
 });
 
 console.log(`\n${n} passed`);

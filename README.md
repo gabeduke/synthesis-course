@@ -202,9 +202,18 @@ Lessons tab returns to the last course page you were on.
   notes and CCs: `droneNotes()` in `audio/theory.js` held per chord, keeping
   common notes held across the change; color notes as soft, held extra notes;
   Movement as a slow sweep of Cutoff (CC 74) around the Instrument sound
-  panel's value, on Baud Girl's firmware only. The drone and the part share
-  one preset, so notes are counted: a second voice re-strikes a held note,
-  and it's released only when the last voice lets go.
+  panel's value, on Baud Girl's firmware only, sent only when the CC step
+  changes and at most four times a second. The drone sits an octave under the
+  part so they rarely share a note; when they do, notes are counted in the
+  order they sound (ons and offs wait in one queue), a second voice joins a
+  held note without striking it again, and it's released only when the last
+  voice lets go. The phone builds no audio of its own until it has to play,
+  and the Jam page asks for larger audio buffers (`setLatencyHint('playback')`
+  in `audio/core.js`).
+- **Finding the instrument**: if no port matches the chosen device but one
+  is named for another (an FM-1 plugged in with the SMK-37 chosen), the
+  picker switches to it. The Jam page lists every MIDI port for choosing by
+  hand.
 - **The phone's drone** (`audio/drone.js`) is generated from the key and the current
   chord: four voices of three detuned oscillators through one slowly moving
   low-pass filter, a sine pedal on the key's root that never moves, and

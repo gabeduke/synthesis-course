@@ -231,16 +231,16 @@ export function grooveBar(id) {
 // Standard tuning, low string first, as MIDI notes.
 export const GUITAR_TUNING = [40, 45, 50, 55, 59, 64];
 
-// The drone's held notes for one chord, for an instrument to play: the
-// chord's root in the part's bottom octave (moved by `octave`), and above it
-// the octave, the fifth or the full chord, by voicing ('root', 'fifth',
-// 'chord'). Chords on the 5th degree and up drop an octave so the bass
+// The drone's held notes for one chord, for an instrument to play. They sit
+// an octave under the part (moved by `octave` with it), so the two rarely
+// share a note: the chord's root, then its fifth, then for 'chord' its third
+// an octave up. Chords on the 5th degree and up drop an octave so the bass
 // stays near the key's root.
 export function droneNotes(key, chord, voicing = 'fifth', octave = 0) {
-  const r = baseNote(key, octave) + chord.offset - (chord.offset >= 7 ? 12 : 0);
+  const r = baseNote(key, octave) - 12 + chord.offset - (chord.offset >= 7 ? 12 : 0);
   const third = chord.intervals[1];
   const fifth = chord.intervals[2];
-  if (voicing === 'root') return [r, r + 12];
-  if (voicing === 'chord') return [r, r + fifth, r + 12, r + 12 + third];
-  return [r, r + fifth, r + 12];
+  if (voicing === 'root') return [r];
+  if (voicing === 'chord') return [r, r + fifth, r + 12 + third];
+  return [r, r + fifth];
 }

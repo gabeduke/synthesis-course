@@ -3,6 +3,11 @@
 // browsers refuse to start audio until someone clicks or presses a key.
 
 let ctx = null;
+// 'interactive' keeps the lessons' keys quick. The Jam page schedules ahead,
+// so it asks for 'playback' instead: bigger buffers, far fewer dropouts on
+// a busy phone. Must be set before the first sound.
+let latencyHint = 'interactive';
+export function setLatencyHint(hint) { if (!ctx) latencyHint = hint; }
 let master = null;
 let noiseBuffer = null;
 let levelMeter = null;
@@ -39,7 +44,7 @@ export function audio() {
   if (!ctx) {
     // iPhones mute web audio with the ring/silent switch unless told otherwise.
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (_) { /* not supported */ }
-    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint });
 
     // Gentle protection so stacked voices and resonance never blast anyone's ears.
     const dcBlock = ctx.createBiquadFilter();
