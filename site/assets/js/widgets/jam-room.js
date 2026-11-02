@@ -23,7 +23,7 @@ const DEFAULTS = {
   key: 9, mode: 'dorian', prog: 'vamp', barsPer: 2, bpm: 84, seventh: false,
   drone: true, texture: 'warm', voicing: 'fifth', level: 60, brightness: 40, movement: 50, color: 40, space: 55,
   groove: 'off', kitLevel: 45,
-  target: 'main', pattern: 'hold', octave: 0, clock: false, preview: false,
+  target: 'main', pattern: 'pulse', octave: 0, clock: false, phone: false,
 };
 
 // The sounds the page's synth uses for a part, and the ones "Send a matching
@@ -83,14 +83,19 @@ class JamRoom extends HTMLElement {
     this.s = load();
     if (!T.MODES[this.s.mode]) this.s.mode = DEFAULTS.mode;
     this.s.sound = { ...soundFrom(PATCHES.hold), ...(this.s.sound || {}) };
+    // Older settings called "also play on this phone" `preview`.
+    if (this.s.preview !== undefined) { this.s.phone = !!this.s.preview; delete this.s.preview; }
     this.running = false;
     this.queue = []; // what the screen should show, and when
     this.pending = []; // note-offs not yet sent
+    this.book = new Map(); // note -> how many voices hold it on the instrument
+    this.idrone = { on: false, held: new Set(), nextBloom: Infinity, sentCutoff: 0, sentAt: 0 };
+    this.phoneDrone = false;
     this.build();
     this.recompute();
     this.paintAll();
-    fm1.addEventListener('change', () => this.paintLink());
-    aks.addEventListener('change', () => this.paintLink());
+    fm1.addEventListener('change', () => { this.paintLink(); this.paintSource(); });
+    aks.addEventListener('change', () => { this.paintLink(); this.paintSource(); });
     fm1.addEventListener('noteon', (e) => this.onInstrumentNote(e.detail.note));
     // Turning a knob on the instrument moves the same slider here.
     fm1.addEventListener('param', (e) => {
@@ -149,8 +154,11 @@ class JamRoom extends HTMLElement {
     this.ensurePreview(master);
     this.recompute();
     this.drone.setHarmony(this.harmony(0), true);
-    if (this.s.drone) this.drone.start();
     this.running = true;
+    this.curChord = 0;
+    this.phoneDrone = false;
+    this.idrone.on = false;
+    this.idrone.held = new Set();
     this.step = 0;
     this.once = once;
     this.origin = once ? 1 : 0; // one bar of count-in before a recording pass
@@ -158,11 +166,13 @@ class JamRoom extends HTMLElement {
     this.nextTime = ctx.currentTime + 0.12;
     this.queue = [];
     this.pending = [];
+    this.book.clear();
     if (this.s.clock && !once) this.link().sendRaw?.([0xfa], this.midiAt(this.nextTime));
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.tick();
     this.wake();
     this.paintPlay();
+    this.paintSource();
     const draw = () => {
       if (!this.running) return;
       this.drawFrame();
@@ -176,6 +186,8 @@ class JamRoom extends HTMLElement {
     this.running = false;
     clearInterval(this.timer);
     this.drone?.stop();
+    this.phoneDrone = false;
+    this.instrumentDroneOff();
     if (this.s.clock || (this.once && !this.once.stopped)) this.link().sendRaw?.([0xfc]);
     this.once = null;
     this.paintPatterns();
@@ -185,6 +197,7 @@ class JamRoom extends HTMLElement {
     this.paintPlay();
     for (const d of this.beatDots) d.removeAttribute('data-on');
     this.paintBars(-1, this.s.barsPer);
+    this.paintSource();
   }
 
   stepDur() { return 60 / this.s.bpm / 4; }
@@ -201,6 +214,107 @@ class JamRoom extends HTMLElement {
   link() { return this.s.target === 'aks' ? aks : fm1; }
   linkReady() { return this.s.target === 'aks' ? aks.connected : fm1.canSend; }
 
+  // Where the sound comes from. With an instrument connected it plays the
+  // drone and the part, and the phone is silent unless "Also play on this
+  // phone" is on. With nothing connected, the phone plays it all.
+  phoneOn() { return this.s.phone || !this.linkReady(); }
+
+  // ---------- Notes on the instrument ----------
+  // The drone and the part share one preset, so the same note can be held
+  // by both. Each note is counted: a second voice re-strikes it, and it's
+  // only let go when the last voice holding it lets go.
+  noteOn(note, vel, at) {
+    const link = this.link();
+    const n = this.book.get(note) || 0;
+    if (n > 0) link.noteOff(note, at);
+    link.noteOn(note, vel, at);
+    this.book.set(note, n + 1);
+  }
+
+  noteOff(note, at) {
+    const n = (this.book.get(note) || 0) - 1;
+    if (n > 0) { this.book.set(note, n); return; }
+    this.book.delete(note);
+    this.link().noteOff(note, at);
+  }
+
+  // Start, stop or follow the two drones as the instrument comes and goes.
+  syncOutputs(t) {
+    const phone = this.s.drone && this.phoneOn();
+    if (phone !== this.phoneDrone) {
+      this.phoneDrone = phone;
+      phone ? this.drone.start() : this.drone.stop();
+    }
+    const inst = this.s.drone && this.linkReady() && !this.once;
+    if (inst && !this.idrone.on) this.instrumentDroneOn(t);
+    else if (!inst && this.idrone.on) this.instrumentDroneOff();
+  }
+
+  // The drone on the instrument: the chord held (gliding on common notes),
+  // now and then a color note, and Movement sweeping its cutoff slowly.
+  instrumentDroneOn(t) {
+    const d = this.idrone;
+    d.on = true;
+    d.held = new Set();
+    d.t0 = t;
+    d.nextBloom = this.s.color > 0 ? t + 3 + Math.random() * 3 : Infinity;
+    this.instrumentDroneChord(this.curChord ?? 0, t);
+  }
+
+  instrumentDroneChord(idx, t) {
+    const d = this.idrone;
+    if (!d.on) return;
+    const want = new Set(T.droneNotes(this.s.key, this.chords[idx], this.s.voicing, this.s.octave));
+    const at = this.midiAt(t);
+    for (const n of d.held) if (!want.has(n)) this.noteOff(n, at);
+    for (const n of want) if (!d.held.has(n)) this.noteOn(n, 0.62, at);
+    d.held = want;
+  }
+
+  instrumentDroneOff() {
+    const d = this.idrone;
+    if (!d.on) return;
+    d.on = false;
+    for (const n of d.held) this.noteOff(n);
+    d.held = new Set();
+    d.nextBloom = Infinity;
+    // Put the cutoff back where the Instrument sound panel says.
+    if (d.sentCutoff && this.s.target !== 'aks') fm1.sendParam('cutoff', this.s.sound.cutoff, false);
+    d.sentCutoff = 0;
+  }
+
+  instrumentDroneTick(until) {
+    const d = this.idrone;
+    if (!d.on) return;
+    const { ctx } = audio();
+    // Color notes: a chord tone or the mode's color note, high and soft,
+    // held for a few seconds. The preset's envelope decides how it swells.
+    while (d.nextBloom < until) {
+      const chord = this.chords[this.curChord ?? 0];
+      const pool = [...chord.pcs, this.colorPc, this.colorPc];
+      const p = pool[Math.floor(Math.random() * pool.length)];
+      const base = T.baseNote(this.s.key, this.s.octave) + 12;
+      const note = base + T.pc(p - this.s.key) + (Math.random() < 0.3 ? 12 : 0);
+      this.noteOn(note, 0.42, this.midiAt(d.nextBloom));
+      this.pending.push({ note, off: d.nextBloom + 3 + Math.random() * 4, sent: false });
+      const c = Math.max(1, this.s.color) / 100;
+      d.nextBloom += 14 * Math.pow(2.5 / 14, c) * (0.5 + Math.random());
+    }
+    // Movement: the cutoff breathes around the panel's value, a cycle every
+    // ~16 seconds, up to about an octave and a half each way. Only on Baud
+    // Girl's firmware (the CC means something else on stock).
+    const m = this.s.movement / 100;
+    if (m <= 0 || this.s.target === 'aks' || !fm1.canSetSound) return;
+    const now = performance.now();
+    if (now - d.sentAt < 120) return;
+    const base = this.s.sound.cutoff;
+    const v = Math.min(20000, Math.max(40, base * Math.pow(2, 1.5 * m * Math.sin(2 * Math.PI * 0.061 * (ctx.currentTime - d.t0)))));
+    if (Math.abs(Math.log2(v / (d.sentCutoff || 1))) < 0.03) return;
+    fm1.sendParam('cutoff', v);
+    d.sentCutoff = v;
+    d.sentAt = now;
+  }
+
   tick() {
     const { ctx } = audio();
     const until = ctx.currentTime + LOOKAHEAD;
@@ -216,8 +330,10 @@ class JamRoom extends HTMLElement {
       this.nextTime += this.stepDur();
       this.step++;
     }
+    this.syncOutputs(ctx.currentTime + 0.05);
     this.flushOffs(until);
-    if (this.s.drone) this.drone.tick(until);
+    if (this.phoneDrone) this.drone.tick(until);
+    this.instrumentDroneTick(until);
   }
 
   scheduleStep(step, t) {
@@ -228,6 +344,7 @@ class JamRoom extends HTMLElement {
       this.dirty = false;
       this.origin = Math.floor(step / T.STEPS_PER_BAR);
       this.silence();
+      this.idrone.held = new Set();
     }
     const bar = Math.floor(step / T.STEPS_PER_BAR) - this.origin;
     const per = this.s.barsPer;
@@ -259,13 +376,13 @@ class JamRoom extends HTMLElement {
       const pbar = bar + o.startBar;
       const idx = Math.floor(pbar / per) % this.chords.length;
       if (sub === 0) {
-        if (pbar % per === 0 || bar === 0) this.drone.setHarmony(this.harmony(idx), bar === 0, t);
+        if (pbar % per === 0 || bar === 0) { this.curChord = idx; this.drone.setHarmony(this.harmony(idx), bar === 0, t); }
         // Exactly the notes the downloaded file for this pattern holds.
         const from = bar * T.STEPS_PER_BAR;
         this.playEvents(o.events.filter((e) => e.step >= from && e.step < from + T.STEPS_PER_BAR).map((e) => ({ ...e, step: e.step - from })), t);
         this.queue.push({ t, chord: idx, bar, inChord: pbar % per, per });
       }
-      for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
+      if (this.phoneOn()) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
       if (ready) clock();
       if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
       return;
@@ -275,7 +392,11 @@ class JamRoom extends HTMLElement {
     const chord = this.chords[idx];
 
     if (sub === 0) {
-      if (inChord === 0) this.drone.setHarmony(this.harmony(idx), false, t);
+      if (inChord === 0) {
+        this.curChord = idx;
+        this.drone.setHarmony(this.harmony(idx), false, t);
+        this.instrumentDroneChord(idx, t);
+      }
       const events = T.patternBar(this.s.pattern, {
         chord, key: this.s.key, mode: this.s.mode, octave: this.s.octave,
         bar: inChord, bars: per, seed: 1 + Math.floor(bar / (per * this.chords.length)) % 3,
@@ -284,7 +405,7 @@ class JamRoom extends HTMLElement {
       this.playEvents(events, t);
       this.queue.push({ t, chord: idx, bar, inChord, per });
     }
-    for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
+    if (this.phoneOn()) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
     if (this.s.clock && this.linkReady()) clock();
     if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
   }
@@ -293,9 +414,8 @@ class JamRoom extends HTMLElement {
   // when there's no instrument (or when asked).
   playEvents(events, t) {
     const dur = this.stepDur();
-    const link = this.link();
     const send = this.linkReady();
-    const hear = this.s.preview || !send;
+    const hear = this.phoneOn();
     for (const e of events) {
       const on = t + e.step * dur;
       const off = on + e.len * dur;
@@ -306,11 +426,11 @@ class JamRoom extends HTMLElement {
         this.preview.noteOff(e.note, off);
       }
       if (!send) continue;
-      link.noteOn(e.note, e.vel, this.midiAt(on));
+      this.noteOn(e.note, e.vel, this.midiAt(on));
       // The instrument's note-off waits here until its time comes into the
       // lookahead, rather than going to the port bars in advance, so Stop
       // always knows what is still sounding (a held chord can last 8 bars).
-      this.pending.push({ note: e.note, off, link, sent: false });
+      this.pending.push({ note: e.note, off, sent: false });
     }
   }
 
@@ -321,7 +441,7 @@ class JamRoom extends HTMLElement {
     for (const p of this.pending) {
       if (p.sent || p.off >= until) continue;
       p.sent = true;
-      p.link.noteOff(p.note, this.midiAt(p.off));
+      this.noteOff(p.note, this.midiAt(p.off));
     }
     this.pending = this.pending.filter((p) => !p.sent || p.off > ctx.currentTime - 0.05);
   }
@@ -329,8 +449,11 @@ class JamRoom extends HTMLElement {
   // Everything still sounding ends now: the instrument (note by note, then
   // All Notes Off) and the page's synth.
   silence() {
-    for (const p of this.pending) p.link.noteOff(p.note);
+    const link = this.link();
+    for (const p of this.pending) if (!p.sent) link.noteOff(p.note);
+    for (const n of this.book.keys()) link.noteOff(n);
     this.pending = [];
+    this.book.clear();
     fm1.releaseAll();
     aks.releaseAll();
     if (this.preview) {
@@ -504,6 +627,8 @@ class JamRoom extends HTMLElement {
     const tap = el('button', { type: 'button', class: 'btn', text: 'Tap' });
     tap.addEventListener('click', () => this.tap());
 
+    this.sourceLine = el('p', { class: 'jam-source' });
+    this.phoneCtl = this.toggle('phone', 'Also play on this phone', () => { this.paintSource(); if (this.running) this.tick(); });
     const now = el('section', { class: 'instrument jam-now', 'aria-label': 'Now playing' }, [
       el('div', { class: 'jam-hero' }, [
         el('div', { class: 'jam-chord', 'aria-live': 'polite' }, [this.numeral, this.chordName]),
@@ -516,6 +641,7 @@ class JamRoom extends HTMLElement {
         this.playBtn,
         el('div', { class: 'jam-tempo' }, [minus, this.bpmOut, plus, tap]),
       ]),
+      el('div', { class: 'jam-sourcebar' }, [this.sourceLine, this.phoneCtl]),
     ]);
 
     // Key and mode.
@@ -547,8 +673,9 @@ class JamRoom extends HTMLElement {
 
     // The drone.
     this.textureFeel = el('p', { class: 'jam-hint' });
-    const droneSec = this.panel('Drone', 'Made on this page from the key and the chord. Use the phone speaker, headphones, or the instrument’s own output.', [
-      this.toggle('drone', 'Drone on', (on) => { if (!this.running) return; on ? this.drone.start() : this.drone.stop(); }),
+    const droneSec = this.panel('Drone', 'With an instrument connected, it plays the drone: the chord held, gliding between chords, color notes now and then, and Movement slowly sweeping its Cutoff. Its sound is the Instrument sound panel. With nothing connected, the phone makes one.', [
+      this.toggle('drone', 'Drone on', () => { if (this.running) this.tick(); }),
+      el('p', { class: 'jam-hint jam-wide', text: 'Texture, Level, Brightness and Space shape the phone’s drone only. Voicing, Movement and Color notes shape both.' }),
       el('div', { class: 'jam-wide' }, [
         this.choice('texture', 'Texture', TEXTURE_IDS, TEXTURE_IDS.map((t) => TEXTURES[t].name), () => { this.applyDrone(); this.paintFeel(); }),
         this.textureFeel,
@@ -562,7 +689,7 @@ class JamRoom extends HTMLElement {
     ]);
 
     // The kit.
-    const kitSec = this.panel('Pulse', 'A quiet kit to keep time, if the drone alone is too free.', [
+    const kitSec = this.panel('Pulse', 'A quiet kit to keep time. It plays on the phone, so it’s silent while an instrument plays unless “Also play on this phone” is on.', [
       this.choice('groove', 'Groove', T.GROOVE_IDS, T.GROOVE_IDS.map((g) => T.GROOVES[g].name), () => this.save()),
       this.slider('kitLevel', 'Kit level', 'time', undefined, (v) => this.kit?.setLevel(v)),
     ]);
@@ -580,7 +707,7 @@ class JamRoom extends HTMLElement {
     this.sendAllBtn.addEventListener('click', () => this.sendSound());
     this.patternFeel = el('p', { class: 'jam-hint' });
     this.linkNote = el('p', { class: 'jam-hint jam-wide' });
-    const instSec = this.panel('Your instrument', 'Plug the FM-1, SMK-37 or AKS Mini into the phone (or pair it over Bluetooth) and it plays a part, one bar at a time.', [
+    const instSec = this.panel('Your instrument', 'Plug the FM-1, SMK-37 or AKS Mini into the phone (or pair it over Bluetooth) and it makes the sound: the drone, and a part over it.', [
       this.targetCtl,
       el('div', { class: 'jam-wide' }, [this.linkLine]),
       el('div', { class: 'jam-wide' }, [
@@ -589,7 +716,6 @@ class JamRoom extends HTMLElement {
       ]),
       this.choice('octave', 'Octave', [-2, -1, 0, 1], ['−2', '−1', '0', '+1'], () => this.restart()),
       this.toggle('clock', 'Send MIDI clock', (on) => { if (this.running) this.link().sendRaw?.([on ? 0xfa : 0xfc]); }),
-      this.toggle('preview', 'Also play the part here', () => { this.save(); }),
       this.linkNote,
     ], [this.usbBtn, this.bleBtn]);
 
@@ -604,7 +730,7 @@ class JamRoom extends HTMLElement {
         return c;
       }),
     ]));
-    this.soundSec = this.panel('Instrument sound', 'Shape the part’s sound without the menus: a long Attack and full Sustain for a swelling drone, a short Release for a tight pulse.', [
+    this.soundSec = this.panel('Instrument sound', 'The instrument’s preset, set from here: it plays both the drone and the part. A long Attack and full Sustain make the drone swell in.', [
       this.soundNote,
       ...groups,
     ], [this.patchBtn, this.sendAllBtn]);
@@ -774,6 +900,21 @@ class JamRoom extends HTMLElement {
     this.paintNeck();
     this.paintLink();
     this.paintPatterns();
+    this.paintSource();
+  }
+
+  // Under the Play button: where the sound is coming from right now.
+  paintSource() {
+    if (!this.sourceLine) return;
+    const name = this.s.target === 'aks' ? 'AKS Mini' : device().label;
+    const inst = this.linkReady();
+    let text;
+    if (inst && this.s.phone) text = `Sound: the ${name} and this phone.`;
+    else if (inst) text = `Sound: the ${name}. The phone is silent.`;
+    else text = `Sound: this phone. Connect the ${name} below and it plays instead.`;
+    this.sourceLine.textContent = text;
+    this.sourceLine.toggleAttribute('data-on', inst);
+    this.phoneCtl.hidden = !inst;
   }
 
   paintPlay() {
@@ -810,10 +951,10 @@ class JamRoom extends HTMLElement {
   paintTargets() {
     const main = device().label;
     const c = makeControl('jam.target', this.s.target, (_, v) => {
+      this.instrumentDroneOff();
+      this.silence();
       this.s.target = v;
       this.save();
-      fm1.releaseAll();
-      aks.releaseAll();
       this.paintLink();
       this.restart();
     }, { def: { label: 'Send the part to', type: 'choice', options: ['main', 'aks'], names: [main, 'AKS Mini'], kind: 'hw' } });

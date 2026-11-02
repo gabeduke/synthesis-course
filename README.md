@@ -195,7 +195,17 @@ phone with an instrument plugged into it. It's the site's second tab
 (Lessons | Jam in the header, from `ui/shell.js`), with no lesson rail; the
 Lessons tab returns to the last course page you were on.
 
-- **The drone** (`audio/drone.js`) is generated from the key and the current
+- **Where the sound comes from**: with an instrument connected (the FM-1,
+  SMK-37 or AKS Mini), it plays everything and the phone is silent, unless
+  "Also play on this phone" is on; with nothing connected, the phone plays
+  it all. The line under Play says which. On the instrument the drone is
+  notes and CCs: `droneNotes()` in `audio/theory.js` held per chord, keeping
+  common notes held across the change; color notes as soft, held extra notes;
+  Movement as a slow sweep of Cutoff (CC 74) around the Instrument sound
+  panel's value, on Baud Girl's firmware only. The drone and the part share
+  one preset, so notes are counted: a second voice re-strikes a held note,
+  and it's released only when the last voice lets go.
+- **The phone's drone** (`audio/drone.js`) is generated from the key and the current
   chord: four voices of three detuned oscillators through one slowly moving
   low-pass filter, a sine pedal on the key's root that never moves, and
   "blooms", high chord tones or the mode's color note that swell in at random

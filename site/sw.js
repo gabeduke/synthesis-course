@@ -19,7 +19,7 @@
  */
 'use strict';
 
-const VERSION = '3fa99145d054';
+const VERSION = 'ea697c40f90d';
 const PRECACHE = [
   "./",
   "assets/css/aks.css",

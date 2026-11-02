@@ -154,4 +154,15 @@ test('MIDI file round trip', () => {
   assert.ok([...open.values()].every((v) => v === 0), 'balanced');
 });
 
+test('drone notes for an instrument', () => {
+  const am = T.chordOn(9, 'dorian', 0);
+  assert.deepEqual(T.droneNotes(9, am, 'fifth'), [45, 52, 57]);
+  assert.deepEqual(T.droneNotes(9, am, 'root'), [45, 57]);
+  assert.deepEqual(T.droneNotes(9, am, 'chord'), [45, 52, 57, 60]);
+  const d = T.chordOn(9, 'dorian', 3);
+  assert.deepEqual(T.droneNotes(9, d, 'fifth'), [50, 57, 62]); // A stays common
+  const e = T.chordOn(9, 'dorian', 4);
+  assert.ok(T.droneNotes(9, e, 'fifth')[0] < 50, 'the v drops an octave');
+});
+
 console.log(`\n${n} passed`);

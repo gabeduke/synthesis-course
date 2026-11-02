@@ -624,6 +624,7 @@ await check('jam: plays a part over USB, timestamped ahead, in the key', async (
   await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
   await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
   await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Pulse' }).click();
+  await jam(page).getByRole('switch', { name: 'Drone on' }).uncheck();
   await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
   await page.waitForFunction(() => window.__usbSent.some((m) => (m[0] & 0xf0) === 0x90));
   await page.waitForTimeout(600);
@@ -662,6 +663,7 @@ await check('jam: patterns download as MIDI files and play once into the sequenc
   await page.waitForFunction(() => customElements.get('jam-room'));
   // A Dorian vamp, two bars a chord: four bars, one pattern.
   eq(await jam(page).locator('.jam-patterns li').count(), 1, 'one pattern');
+  await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Hold' }).click();
   await jam(page).getByRole('button', { name: 'Journey' }).click();
   await jam(page).getByRole('group', { name: 'Bars per chord' }).getByRole('button', { name: '4' }).click();
   eq(await jam(page).locator('.jam-patterns li').count(), 4, 'sixteen bars, four patterns');
@@ -761,9 +763,11 @@ await check('jam: Stop ends long held notes on the instrument and the page', asy
   await page.reload();
   await page.waitForFunction(() => customElements.get('jam-room'));
   await jam(page).getByRole('group', { name: 'Bars per chord' }).getByRole('button', { name: '8' }).click();
-  await jam(page).getByRole('switch', { name: 'Also play the part here' }).check();
+  await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Hold' }).click();
+  await jam(page).getByRole('switch', { name: 'Drone on' }).uncheck();
   await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
   await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  await jam(page).getByRole('switch', { name: 'Also play on this phone' }).check();
   await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
   await page.waitForFunction(() => window.__usbSent.some((m) => (m[0] & 0xf0) === 0x90));
   await page.waitForTimeout(1500);
@@ -813,6 +817,7 @@ await check('jam: Instrument sound sends CCs live, and the instrument’s knobs 
   eq(await page.evaluate(() => window.__usbSent.filter((m) => m[0] === 0xb0 && m[1] === 74).length), 0, 'not sent back');
   // Load a matching sound sends a whole patch.
   await page.evaluate(() => { window.__usbSent.length = 0; });
+  await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Hold' }).click();
   await sound.getByRole('button', { name: 'Load a matching sound' }).click();
   assert(await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0xb0).length) > 10, 'patch sent');
   eq(await sound.locator('.ctl[data-key="sustain"] output').textContent(), '100%', 'pad sustain');
@@ -820,6 +825,50 @@ await check('jam: Instrument sound sends CCs live, and the instrument’s knobs 
   await page.reload();
   await page.waitForFunction(() => customElements.get('jam-room'));
   eq(await sound.locator('.ctl[data-key="sustain"] output').textContent(), '100%', 'kept');
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
+await check('jam: with an instrument connected it plays the drone, and the phone is silent', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37', {}, { midi: true });
+  await page.evaluate(() => localStorage.removeItem('jam.settings'));
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  assert((await jam(page).locator('.jam-source').textContent()).includes('this phone'), 'phone before connecting');
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  assert((await jam(page).locator('.jam-source').textContent()).includes('The phone is silent'), 'instrument after connecting');
+  await jam(page).getByRole('group', { name: 'Bars per chord' }).getByRole('button', { name: '1' }).click();
+  await page.evaluate(() => document.querySelector('jam-room').setBpm(180));
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForTimeout(1500);
+  // The phone makes no sound.
+  const level = await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel());
+  assert(level < 0.002, `phone silent: ${level}`);
+  // The drone's notes for Am (A, E, A) went to the instrument and are held.
+  const first = await page.evaluate(() => window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90).map((m) => m[1]));
+  for (const n of [45, 52, 57]) assert(first.includes(n), `drone note ${n} sent: ${first}`);
+  // Movement sweeps the cutoff (CC 74).
+  assert(await page.evaluate(() => window.__usbSent.some((m) => m[0] === 0xb0 && m[1] === 74)), 'cutoff sweep');
+  // At the change to D, A stays held (no note-off for 45 or 57); D notes start.
+  await page.waitForTimeout(1600);
+  const r = await page.evaluate(() => ({
+    ons: window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90).map((m) => m[1]),
+    offs: window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x80).map((m) => m[1]),
+  }));
+  assert(r.ons.includes(50), `D drone: ${r.ons}`);
+  // Stop releases everything.
+  await jam(page).getByRole('button', { name: 'Stop' }).click();
+  const after = await page.evaluate(() => window.__usbSent.slice(-30));
+  assert(after.some((m) => m[0] === 0xb0 && m[1] === 123), 'all notes off');
+  assert(after.some((m) => m[0] === 0xb0 && m[1] === 74), 'cutoff put back');
+  // Also play on this phone layers the phone's drone.
+  await jam(page).getByRole('switch', { name: 'Also play on this phone' }).check();
+  assert((await jam(page).locator('.jam-source').textContent()).includes('and this phone'), 'both');
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  await page.waitForTimeout(2500);
+  assert(await page.evaluate(async () => (await import('/assets/js/audio/core.js')).playingLevel() > 0.0005), 'phone plays when asked');
+  await jam(page).getByRole('button', { name: 'Stop' }).click();
   eq(errors, [], 'console errors');
   await ctx.close();
 });

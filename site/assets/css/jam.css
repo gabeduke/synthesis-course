@@ -88,3 +88,11 @@ jam-room { display: block; }
 .jam-bars { display: flex; gap: 3px; margin-top: 6px; }
 .jam-bars i { flex: 1; height: 4px; border-radius: 2px; background: var(--rule); transition: background 0.1s; }
 .jam-bars i[data-on] { background: var(--sound); }
+
+/* Where the sound is coming from, under Play. */
+.jam-sourcebar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 18px 12px; border-top: 1px solid var(--rule-2); }
+.jam-source { margin: 0; font-size: 0.9rem; font-weight: 560; display: flex; align-items: center; gap: 8px; }
+.jam-source::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--sound); flex: none; }
+.jam-source[data-on]::before { background: var(--hw); }
+.jam-sourcebar .ctl[hidden] { display: none; }
+@media (max-width: 560px) { .jam-sourcebar { padding: 10px 12px 12px; } }
