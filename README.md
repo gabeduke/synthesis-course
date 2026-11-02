@@ -201,9 +201,7 @@ Lessons tab returns to the last course page you were on.
   it all. The line under Play says which. On the instrument the drone is
   notes and CCs: `droneNotes()` in `audio/theory.js` held per chord, keeping
   common notes held across the change; color notes as soft, held extra notes;
-  Movement as a slow sweep of Cutoff (CC 74) around the Instrument sound
-  panel's value, on Baud Girl's firmware only, sent only when the CC step
-  changes and at most four times a second. The drone sits an octave under the
+  the Modulation panel moves its sound (below). The drone sits an octave under the
   part so they rarely share a note; when they do, notes are counted in the
   order they sound (ons and offs wait in one queue), a second voice joins a
   held note without striking it again, and it's released only when the last
@@ -235,18 +233,6 @@ Lessons tab returns to the last course page you were on.
   waits in a timer instead (cleared by `releaseAll()`). Optional MIDI clock
   (24 per quarter note, Start and Stop). With nothing connected the part plays
   on the page's own synth.
-- **Keep it on the instrument** (`audio/smf.js`, pure functions): one pass
-  through the progression, cut into patterns of up to 64 steps (four bars,
-  the most a Baud Girl pattern holds). A note that crosses a pattern line is
-  cut there and struck again at the start of the next. Each pattern downloads
-  as a format 0 MIDI file (96 ticks a quarter note, tempo, 4/4, notes on the
-  MIDI channel, ending exactly at the pattern's length), for the MIDI Files
-  section of Baud Girl's Device Manager or another sequencer; the whole loop
-  downloads as one file too. **Play into sequencer** plays one pattern once:
-  a bar of clicks with clock, then MIDI Start, the pattern and Stop, for an
-  instrument that follows clock and records notes arriving over MIDI.
-  **Unverified:** whether the Device Manager imports these files as they are,
-  and whether real-time recording takes notes from USB or Bluetooth MIDI.
 - **Instrument sound**: sliders for the part's sound on the FM-1 or SMK-37
   (envelope, waveform, cutoff and resonance, Super/Detune/Drift, reverb and
   delay), each sent as Baud Girl's CC as it moves (`fm1.sendParam` and
@@ -255,6 +241,21 @@ Lessons tab returns to the last course page you were on.
   them to lesson 10's drone (for Hold) or pluck (for the rest) and sends them;
   **Send all** sends the whole panel. Kept in `jam.settings`. On stock firmware
   they shape only the page's synth.
+- **Modulation**: three slots, each `{ on, shape, target, rate, depth, seed }`
+  (`audio/modulation.js`, pure, tested in Node): a sine, triangle, smooth random
+  drift or steps, moving Cutoff, Resonance, Super, Detune, Drift, LFO speed or
+  the reverb or delay mix around the Instrument sound panel's value. Each tick
+  of the page's clock they are resolved and sent as CCs (the preset's, or the
+  FX channel's) only when the CC step changes, at most ~12 a second per
+  parameter, on Baud Girl's firmware only, never to the AKS Mini; the same
+  values move the page's own synth (and the phone drone's filter), so it works
+  with nothing connected. Stop, or switching a slot off, sends the panel's
+  value back. The first slot is the old Movement (a sine on Cutoff) for saved
+  settings; the Movement slider now only shapes the phone's drone. `ui/mod-draw.js`
+  draws each slot (the past, and the coming moments dashed, and where its
+  parameter sits in its range), and the chord notes on the neck glow with the
+  same shapes, rippling across it, while playing. `hw/cc.js` holds the CC
+  tables and `ccValue`, split from `fm1.js` so Node can import them.
 - Settings are kept in localStorage (`jam.settings`). The screen is kept on
   while it plays. "Set key from instrument" takes the key from the next note
   played on the connected keyboard.

@@ -1,7 +1,8 @@
 // Tests for the Jam page's music theory: node scripts/test_jam.mjs
 import assert from 'node:assert/strict';
 import * as T from '../site/assets/js/audio/theory.js';
-import { loopEvents, splitPatterns, writeSmf, readSmf, vlq } from '../site/assets/js/audio/smf.js';
+import * as M from '../site/assets/js/audio/modulation.js';
+import { VA_CC, ccValue } from '../site/assets/js/hw/cc.js';
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -92,68 +93,6 @@ test('grooves', () => {
   assert.equal(T.grooveBar('off').length, 0);
 });
 
-test('variable-length numbers', () => {
-  assert.deepEqual(vlq(0), [0]);
-  assert.deepEqual(vlq(127), [0x7f]);
-  assert.deepEqual(vlq(128), [0x81, 0x00]);
-  assert.deepEqual(vlq(1536), [0x8c, 0x00]);
-});
-
-const loopFor = (prog, barsPer, pattern) => loopEvents({ chords: T.progression(9, 'dorian', prog), barsPer, pattern, key: 9, mode: 'dorian' });
-
-test('a short loop is one pattern', () => {
-  const parts = splitPatterns(loopFor('vamp', 2, 'pulse'));
-  assert.equal(parts.length, 1);
-  assert.equal(parts[0].steps, 64);
-  assert.equal(parts[0].events.length, 32); // 8 eighths x 4 bars
-});
-
-test('a long loop splits into 64-step patterns, re-striking held notes', () => {
-  // Four chords of four bars, held: 16 bars, four patterns.
-  const loop = loopFor('journey', 4, 'hold');
-  assert.equal(loop.steps, 256);
-  const parts = splitPatterns(loop);
-  assert.equal(parts.length, 4);
-  for (const p of parts) {
-    assert.equal(p.steps, 64);
-    assert.ok(p.events.every((e) => e.step + e.len <= 64), 'inside the pattern');
-    assert.ok(p.events.some((e) => e.step === 0), 'something sounds at the start');
-  }
-  // Eight bars a chord: the second pattern re-strikes the first chord.
-  const long = splitPatterns(loopFor('vamp', 8, 'hold'));
-  assert.equal(long.length, 4);
-  assert.deepEqual(long[1].events.map((e) => e.note), long[0].events.map((e) => e.note));
-  const total = (ps) => ps.reduce((n, p) => n + p.events.reduce((m, e) => m + e.len, 0), 0);
-  assert.equal(total(long), loop.events.length ? total(splitPatterns(loopFor('vamp', 8, 'hold'), 1e9)) : 0, 'no length lost');
-});
-
-test('one bar, odd sizes', () => {
-  const parts = splitPatterns(loopFor('pedal', 1, 'arp'));
-  assert.equal(parts.length, 1);
-  assert.equal(parts[0].steps, 16);
-});
-
-test('MIDI file round trip', () => {
-  const [p] = splitPatterns(loopFor('vamp', 2, 'bass'));
-  const bytes = writeSmf({ events: p.events, steps: p.steps, bpm: 84, name: 'A Dorian Bass', channel: 1 });
-  assert.equal(String.fromCharCode(...bytes.slice(0, 4)), 'MThd');
-  assert.equal(bytes[9], 0, 'format 0');
-  const r = readSmf(bytes);
-  assert.equal(r.end, 64 * 24, 'ends at the pattern length');
-  assert.equal(Math.round(60000000 / r.tempo), 84);
-  const ons = r.notes.filter((x) => x.on);
-  assert.equal(ons.length, p.events.length);
-  assert.deepEqual(ons.map((x) => x.tick), p.events.map((e) => e.step * 24));
-  assert.ok(r.notes.every((x) => x.channel === 1));
-  // Every note-on has a later note-off.
-  const open = new Map();
-  for (const x of r.notes) {
-    if (x.on) open.set(x.note, (open.get(x.note) || 0) + 1);
-    else open.set(x.note, open.get(x.note) - 1);
-  }
-  assert.ok([...open.values()].every((v) => v === 0), 'balanced');
-});
-
 test('drone notes for an instrument', () => {
   const am = T.chordOn(9, 'dorian', 0);
   assert.deepEqual(T.droneNotes(9, am, 'fifth'), [33, 40]);
@@ -168,6 +107,129 @@ test('drone notes for an instrument', () => {
     const drone = new Set(T.droneNotes(9, c, 'fifth'));
     for (const id of ['pulse', 'bass', 'hold']) for (const ev of T.patternBar(id, { chord: c, key: 9, mode: 'dorian' })) assert.ok(!drone.has(ev.note), `${id} ${ev.note}`);
   }
+});
+
+const mod = (o = {}) => M.makeMod({ on: true, ...o });
+
+test('every shape stays in -1..1 and is the same every time', () => {
+  for (const shape of M.SHAPE_IDS) for (const rate of [0, 30, 100]) {
+    const m = mod({ shape, rate, seed: 5 });
+    let lo = 2; let hi = -2;
+    for (let t = -30; t < 120; t += 0.07) {
+      const v = M.value(m, t);
+      assert.ok(v >= -1 && v <= 1, `${shape} ${v}`);
+      assert.equal(v, M.value({ ...m }, t), 'deterministic');
+      lo = Math.min(lo, v); hi = Math.max(hi, v);
+    }
+    assert.ok(hi - lo > 1, `${shape} at ${rate} moves (${lo}..${hi})`);
+  }
+});
+
+test('shapes have the shape they are named for', () => {
+  const hz = M.rateHz(30);
+  const sine = mod({ shape: 'sine', seed: 3 });
+  const cycle = 1 / hz;
+  assert.ok(Math.abs(M.value(sine, 2) - M.value(sine, 2 + cycle)) < 1e-9, 'a sine repeats each cycle');
+  const tri = mod({ shape: 'triangle', seed: 3 });
+  assert.ok(Math.abs(M.value(tri, 2) - M.value(tri, 2 + cycle)) < 1e-9, 'so does a triangle');
+  // Steps hold between moves; a walk never jumps.
+  const steps = mod({ shape: 'steps', seed: 4, rate: 50 });
+  let flat = 0; let n = 0;
+  for (let t = 0; t < 200; t += 0.05) { n++; if (M.value(steps, t + 0.01) === M.value(steps, t)) flat++; }
+  assert.ok(flat / n > 0.6, `steps hold their value (${flat}/${n})`);
+  const walk = mod({ shape: 'walk', seed: 4, rate: 100 });
+  for (let t = 0; t < 60; t += 0.01) assert.ok(Math.abs(M.value(walk, t + 0.01) - M.value(walk, t)) < 0.15, 'a walk is smooth');
+});
+
+test('seeds make different walks; the same seed the same walk', () => {
+  const a = mod({ shape: 'walk', seed: 1 }); const b = mod({ shape: 'walk', seed: 2 });
+  let same = 0;
+  for (let t = 0; t < 60; t += 1) if (M.value(a, t) === M.value(b, t)) same++;
+  assert.ok(same < 3);
+});
+
+test('rate runs from a slow drone to one cycle a second', () => {
+  assert.ok(Math.abs(M.rateHz(0) - 0.02) < 1e-12);
+  assert.ok(Math.abs(M.rateHz(100) - 1) < 1e-12);
+  assert.equal(M.rateFor(M.rateHz(37)), 37);
+});
+
+test('a target moves around its resting value by its depth', () => {
+  // Cutoff: depth 50 swings an octave either way, 100 two.
+  assert.ok(Math.abs(M.place('cutoff', 1000, 0.5) - 2000) < 1e-9);
+  assert.ok(Math.abs(M.place('cutoff', 1000, -1) - 250) < 1e-9);
+  assert.equal(M.place('cutoff', 15000, 1), 20000, 'held inside the range');
+  assert.equal(M.place('resonance', 40, 0.5), 65);
+  assert.equal(M.place('resonance', 40, -1), 0);
+  assert.equal(M.place('lfoSpeed', 50, 1), 99);
+  assert.ok(M.norm('cutoff', 20) < 1e-9 && Math.abs(M.norm('cutoff', 20000) - 1) < 1e-9);
+  assert.ok(Math.abs(M.norm('cutoff', Math.sqrt(20 * 20000)) - 0.5) < 1e-9, 'cutoff is on a log scale');
+});
+
+test('targets map onto the FM-1 CCs', () => {
+  for (const id of M.TARGET_IDS) {
+    const d = M.TARGETS[id];
+    const lo = M.ccStep(id, d.min); const hi = M.ccStep(id, d.max);
+    assert.ok(lo >= 0 && hi > lo, `${id} spans ${lo}..${hi}`);
+    if (d.fx) assert.ok(hi === 100, `${id} is raw 0-100 on the effects channel`);
+    else {
+      assert.ok(VA_CC[d.key] !== undefined, `${id} has a CC`);
+      assert.equal(hi, 127);
+    }
+  }
+  assert.equal(M.ccStep('cutoff', 1000), ccValue('cutoff', 1000));
+  assert.equal(M.ccStep('reverb', 55), 55);
+});
+
+test('resolve: only what is on, and modulators on one target add', () => {
+  const base = (k) => ({ cutoff: 1000, resonance: 40, 'fx.reverb.mix': 50 })[k];
+  const off = M.resolve([mod({ on: false }), mod({ depth: 0 })], base, 3);
+  assert.deepEqual(off.entries, []);
+  assert.deepEqual(off.values, {});
+  const one = mod({ shape: 'sine', target: 'cutoff', depth: 50, seed: 1 });
+  const r = M.resolve([one], base, 3);
+  assert.equal(r.entries.length, 1);
+  assert.equal(r.values.cutoff, r.entries[0].value);
+  assert.ok(Math.abs(r.values.cutoff - 1000 * Math.pow(2, M.value(one, 3))) < 1e-6, 'depth 50 is an octave');
+  const both = M.resolve([one, mod({ shape: 'sine', target: 'cutoff', depth: 50, seed: 1 })], base, 3);
+  assert.ok(Math.abs(both.values.cutoff - 1000 * Math.pow(2, Math.max(-1, Math.min(1, 2 * M.value(one, 3) * 0.5)) * 2)) < 1e-6);
+  const fx = M.resolve([mod({ target: 'reverb', depth: 100 })], base, 1);
+  assert.ok(fx.values.reverb >= 0 && fx.values.reverb <= 100);
+});
+
+test('glow is nothing when nothing moves, and swings by depth', () => {
+  assert.equal(M.glow([mod({ on: false })], 1), 0);
+  assert.equal(M.glow([mod({ depth: 0 })], 1), 0);
+  let lo = 2; let hi = -1;
+  for (let t = 0; t < 50; t += 0.5) {
+    const g = M.glow([mod({ depth: 40 })], t);
+    lo = Math.min(lo, g); hi = Math.max(hi, g);
+    assert.ok(g >= 0.3 - 1e-9 && g <= 0.7 + 1e-9, 'a depth of 40 swings 0.2 either way of half');
+  }
+  assert.ok(hi - lo > 0.3, 'and it does swing');
+  const m = mod({ depth: 100, seed: 2 });
+  assert.equal(M.glow([m], 5, 2), 0.5 + 0.5 * M.value(m, 3), 'lag looks back in time');
+});
+
+test('the old Movement setting becomes the first modulator', () => {
+  const [a, b, c] = M.defaultMods(50);
+  assert.deepEqual([a.on, a.shape, a.target, a.depth], [true, 'sine', 'cutoff', 25]);
+  assert.ok(Math.abs(M.rateHz(a.rate) - 0.061) < 0.004);
+  assert.ok(!b.on && !c.on);
+  // At Movement m the cutoff swings m octaves either way, as it did.
+  for (const m of [20, 50, 100]) {
+    const x = M.defaultMods(m)[0];
+    assert.ok(Math.abs(M.place('cutoff', 1000, x.depth / 100) - 1000 * Math.pow(2, m / 100)) < 1);
+  }
+  assert.equal(M.defaultMods(0)[0].on, false);
+});
+
+test('saved modulators are cleaned up', () => {
+  assert.equal(M.cleanMods(undefined, 50).length, M.SLOTS);
+  const list = M.cleanMods([{ on: 1, shape: 'zigzag', target: 'volume', rate: 900, depth: -5 }], 50);
+  assert.equal(list.length, M.SLOTS);
+  assert.deepEqual([list[0].on, list[0].shape, list[0].target, list[0].rate, list[0].depth], [true, 'sine', 'cutoff', 100, 0]);
+  assert.ok(!list[1].on && !list[2].on);
 });
 
 console.log(`\n${n} passed`);

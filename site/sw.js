@@ -19,7 +19,7 @@
  */
 'use strict';
 
-const VERSION = '546374a068bb';
+const VERSION = 'ebb188cd1e36';
 const PRECACHE = [
   "./",
   "assets/css/aks.css",
@@ -31,12 +31,13 @@ const PRECACHE = [
   "assets/js/audio/core.js",
   "assets/js/audio/drone.js",
   "assets/js/audio/fx.js",
-  "assets/js/audio/smf.js",
+  "assets/js/audio/modulation.js",
   "assets/js/audio/supersaw.js",
   "assets/js/audio/theory.js",
   "assets/js/audio/va-synth.js",
   "assets/js/hw/aks.js",
   "assets/js/hw/ble-midi.js",
+  "assets/js/hw/cc.js",
   "assets/js/hw/devices.js",
   "assets/js/hw/fm1.js",
   "assets/js/main.js",
@@ -46,6 +47,7 @@ const PRECACHE = [
   "assets/js/ui/focus.js",
   "assets/js/ui/keyboard.js",
   "assets/js/ui/lessons.js",
+  "assets/js/ui/mod-draw.js",
   "assets/js/ui/params.js",
   "assets/js/ui/pwa.js",
   "assets/js/ui/shell.js",

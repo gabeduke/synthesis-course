@@ -149,6 +149,12 @@ export class DroneEngine {
     this.apply();
   }
 
+  // Move the filter by some octaves (a modulator on the page), on top of
+  // Brightness and the drone's own slow movement.
+  setCutoffMod(octaves) {
+    this.filter.detune.setTargetAtTime(octaves * 1200, this.ctx.currentTime, 0.05);
+  }
+
   apply(immediate = false) {
     const { ctx } = this;
     const t = ctx.currentTime;

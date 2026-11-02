@@ -15,7 +15,7 @@
 
 // The link isn't only for the FM-1: the same firmware family runs on other
 // boards (see devices.js). The selected device profile decides which MIDI
-// port and audio input to pick automatically; the CC maps below are the
+// port and audio input to pick automatically; the CC maps (cc.js) are the
 // FM-1+VA ones, with any per-device overrides from the profile applied when
 // a message is sent. Ports can always be chosen by hand in <fm1-panel>.
 //
@@ -31,31 +31,16 @@ import { audio, clamp } from '../audio/core.js';
 import { device, onDeviceChange, setDevice, firmwareId } from '../ui/device.js';
 import { DEVICES } from './devices.js';
 import { BleMidi } from './ble-midi.js';
+import { VA_CC, FX_CC, REVERB_TYPES, ccValue } from './cc.js';
+
+// The tables and conversions live in cc.js (no browser needed, so they can be
+// tested in Node); they're still exported from here.
+export { VA_CC, FX_CC, ccValue };
 
 const portMatch = () => device().portMatch;
 const audioMatch = () => device().audioMatch;
 const GENERIC_PORT = /usb-midi|usb composite device/i;
 const WIRELESS_PORT = /ble|bluetooth/i;
-
-// Preset settings, sent on the FM-1's MIDI channel. Values 0–127 cover each
-// setting's whole range; lists split 0–127 into equal bands.
-export const VA_CC = {
-  waveform: 24, super: 25, detune: 26, drift: 27, sub: 28, noise: 29, pwm: 30,
-  filterType: 31, cutoff: 74, resonance: 71,
-  filterEnv: 52, filterDecay: 53, filterShape: 54, filterVelocity: 55, keyTrack: 56, lfoToCutoff: 57,
-  attack: 73, decay: 75, sustain: 70, release: 72,
-  lfoSpeed: 76, lfoPitch: 77, lfoDelay: 78,
-};
-
-// Effects, sent on the FX channel (default 2). These take raw values, 0–100,
-// not 0–127.
-export const FX_CC = {
-  reverb: { on: 4, type: 5, decay: 6, mix: 7 },
-  delay: { on: 8, feedback: 9, rate: 10, mix: 11 },
-  distortion: { on: 12, gain: 13, tone: 14, level: 15 },
-  chorus: { on: 16, rate: 17, depth: 18, mix: 19 },
-};
-const REVERB_TYPES = ['room', 'hall', 'plate'];
 
 // The CC for a setting on the selected device: the profile's override if it
 // has one (a number, or null for "not available"), otherwise the map above.
@@ -70,22 +55,6 @@ export function fxCc(effect, field) {
 
 // The FM-1's own panel, also on the MIDI channel.
 export const PANEL_CC = { knob1: 85, knob2: 86, knob3: 87, knob4: 88 };
-
-const band = (index, count) => Math.round((index + 0.5) * (128 / count));
-const pct = (v, max = 100) => Math.round(clamp(v, 0, max) / max * 127);
-
-// Convert one course parameter into the CC value the FM-1 expects.
-export function ccValue(key, value) {
-  switch (key) {
-    case 'waveform': return band(['sine', 'saw', 'tri', 'square'].indexOf(value), 4);
-    case 'filterType': return band(['lp12', 'lp24', 'bp', 'hp'].indexOf(value), 4);
-    // Cutoff spans 20 Hz–20 kHz on the FM-1. The CC curve isn't documented;
-    // a logarithmic spread is the closest match to how cutoff is heard.
-    case 'cutoff': return Math.round(Math.log(clamp(value, 20, 20000) / 20) / Math.log(1000) * 127);
-    case 'lfoSpeed': case 'lfoPitch': case 'lfoDelay': return pct(value, 99);
-    default: return pct(value, 100);
-  }
-}
 
 // The other way: an incoming CC back into a course parameter, so turning a
 // control on the instrument can move the page. Returns { key, value } or null.

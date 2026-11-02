@@ -6,7 +6,10 @@
 // One clock drives everything: a lookahead scheduler on the AudioContext's
 // time. Each sixteenth note it schedules the drone's chord changes, the kit,
 // the instrument's notes (as timestamped MIDI, so they land in time) and,
-// if asked, MIDI clock for gear that can follow it.
+// if asked, MIDI clock for gear that can follow it. The modulators (audio/
+// modulation.js) run on the same clock: each tick they move the instrument's
+// parameters over MIDI CC and the page's own synth, and the drawing (ui/
+// mod-draw.js, and the glow on the neck) reads the same shapes at the same time.
 
 import { audio, resume, setLatencyHint } from '../audio/core.js';
 import { el, makeControl } from '../ui/controls.js';
@@ -14,9 +17,12 @@ import { fm1, ccValue } from '../hw/fm1.js';
 import { aks } from '../hw/aks.js';
 import { device, onDeviceChange, ctl as ctlName } from '../ui/device.js';
 import { VASynth, DEFAULT_VA } from '../audio/va-synth.js';
+import * as MOD from '../audio/modulation.js';
+import { onFrame, fit } from '../ui/draw.js';
+import { drawModulator } from '../ui/mod-draw.js';
+import { formatValue } from '../ui/params.js';
 import { DroneEngine, Kit, TEXTURES, TEXTURE_IDS, VOICINGS, VOICING_IDS } from '../audio/drone.js';
 import * as T from '../audio/theory.js';
-import { loopEvents, splitPatterns, writeSmf, PATTERN_STEPS } from '../audio/smf.js';
 
 const STORE = 'jam.settings';
 const DEFAULTS = {
@@ -24,6 +30,7 @@ const DEFAULTS = {
   drone: true, texture: 'warm', voicing: 'fifth', level: 60, brightness: 40, movement: 50, color: 40, space: 55,
   groove: 'off', kitLevel: 45,
   target: 'main', pattern: 'pulse', octave: 0, clock: false, phone: false,
+  modSel: 0, // `mods` (see MOD.defaultMods) is filled in on load, from Movement if need be
 };
 
 // The sounds the page's synth uses for a part, and the ones "Send a matching
@@ -32,6 +39,16 @@ const DEFAULTS = {
 const PATCHES = {
   hold: { waveform: 'tri', super: 60, detune: 30, drift: 45, noise: 12, filterType: 'lp12', cutoff: 1400, resonance: 38, lfoWave: 'sine', lfoSpeed: 12, lfoToCutoff: 30, attack: 80, decay: 60, sustain: 100, release: 100, fx: { chorus: { on: true, rate: 15, depth: 60, mix: 50 }, delay: { on: true, rate: 15, feedback: 55, mix: 30 }, reverb: { on: true, type: 'hall', decay: 85, mix: 55 } } },
   pluck: { waveform: 'saw', sub: 20, filterType: 'lp24', cutoff: 550, resonance: 28, filterEnv: 75, filterDecay: 24, attack: 0, decay: 35, sustain: 0, release: 30, fx: { delay: { on: true, rate: 45, feedback: 35, mix: 30 }, reverb: { on: true, type: 'room', decay: 35, mix: 20 } } },
+};
+// One-tap sounds for the instrument, over lesson 10's drone pad: only what
+// differs is listed. Each sets the whole Instrument sound panel and sends it.
+const SOUND_PRESETS = {
+  Pad: {},
+  Swell: { waveform: 'saw', attack: 95, cutoff: 900, resonance: 30, super: 70, detune: 40, fx: { reverb: { mix: 65 }, delay: { mix: 25 } } },
+  Glass: { waveform: 'sine', attack: 40, cutoff: 3500, resonance: 20, super: 30, detune: 20, fx: { reverb: { mix: 70 }, delay: { mix: 35 } } },
+  Organ: { waveform: 'square', attack: 5, release: 20, cutoff: 2200, resonance: 10, super: 0, detune: 0, drift: 10, fx: { reverb: { mix: 25 }, delay: { on: false } } },
+  Dark: { waveform: 'saw', attack: 70, cutoff: 500, resonance: 15, super: 50, fx: { reverb: { mix: 60 }, delay: { mix: 20 } } },
+  Pluck: PATCHES.pluck,
 };
 const patchFor = (pattern) => (pattern === 'hold' ? PATCHES.hold : PATCHES.pluck);
 
@@ -90,7 +107,12 @@ class JamRoom extends HTMLElement {
     this.queue = []; // what the screen should show, and when
     this.pending = []; // note-offs not yet sent
     this.book = new Map(); // note -> how many voices hold it on the instrument
-    this.idrone = { on: false, held: new Set(), nextBloom: Infinity, sentCutoff: 0, sentAt: 0 };
+    this.idrone = { on: false, held: new Set(), nextBloom: Infinity };
+    this.s.mods = MOD.cleanMods(this.s.mods, this.s.movement);
+    this.s.modSel = Math.min(MOD.SLOTS - 1, Math.max(0, +this.s.modSel || 0));
+    // The modulators' state on the clock: when they started, what has gone to
+    // the instrument (target -> last CC value and when), what the page's synth has.
+    this.mod = { t0: 0, at: 0, sent: new Map(), heard: new Set(), frame: null };
     this.phoneDrone = false;
     this.build();
     this.recompute();
@@ -103,7 +125,7 @@ class JamRoom extends HTMLElement {
       if (!fm1.followHw || this.s.target === 'aks' || !this.soundCtls.has(e.detail.key)) return;
       this.setSound(e.detail.key, e.detail.value, 'hw');
     });
-    onDeviceChange(() => { this.paintTargets(); this.paintLink(); this.paintPatterns(); });
+    onDeviceChange(() => { this.paintTargets(); this.paintLink(); });
     document.addEventListener('visibilitychange', () => this.wake());
     window.addEventListener('pagehide', () => this.stop());
   }
@@ -130,7 +152,6 @@ class JamRoom extends HTMLElement {
     this.paintChord();
     this.paintStrip();
     this.paintNeck();
-    this.paintPatterns();
     this.save();
   }
 
@@ -139,10 +160,7 @@ class JamRoom extends HTMLElement {
   }
 
   // ---------- Transport ----------
-  // `once`: { index, events, bars, startBar } plays one sequencer pattern a
-  // single time after a bar of count-in, with MIDI Start, clock and Stop
-  // around it, for an instrument recording in time with the page.
-  async start(once = null) {
+  async start() {
     if (this.running) this.stop();
     const ctx = await resume();
     const { master } = audio();
@@ -158,14 +176,17 @@ class JamRoom extends HTMLElement {
     this.idrone.on = false;
     this.idrone.held = new Set();
     this.step = 0;
-    this.once = once;
-    this.origin = once ? 1 : 0; // one bar of count-in before a recording pass
+    this.origin = 0;
     this.dirty = false;
     this.nextTime = ctx.currentTime + 0.12;
+    this.mod.t0 = ctx.currentTime;
+    this.mod.at = 0;
+    this.mod.sent.clear();
+    this.mod.heard.clear();
     this.queue = [];
     this.pending = [];
     this.book.clear();
-    if (this.s.clock && !once) this.link().sendRaw?.([0xfa], this.midiAt(this.nextTime));
+    if (this.s.clock) this.link().sendRaw?.([0xfa], this.midiAt(this.nextTime));
     this.timer = setInterval(() => this.tick(), TICK_MS);
     this.tick();
     this.wake();
@@ -186,9 +207,8 @@ class JamRoom extends HTMLElement {
     this.drone?.stop();
     this.phoneDrone = false;
     this.instrumentDroneOff();
-    if (this.s.clock || (this.once && !this.once.stopped)) this.link().sendRaw?.([0xfc]);
-    this.once = null;
-    this.paintPatterns();
+    this.modApply({}, performance.now());
+    if (this.s.clock) this.link().sendRaw?.([0xfc]);
     this.silence();
     this.queue = [];
     this.wake();
@@ -262,18 +282,17 @@ class JamRoom extends HTMLElement {
       this.phoneDrone = phone;
       if (phone) { this.ensurePhone(); this.drone.start(); } else this.drone?.stop();
     }
-    const inst = this.s.drone && this.linkReady() && !this.once;
+    const inst = this.s.drone && this.linkReady();
     if (inst && !this.idrone.on) this.instrumentDroneOn(t);
     else if (!inst && this.idrone.on) this.instrumentDroneOff();
   }
 
-  // The drone on the instrument: the chord held (gliding on common notes),
-  // now and then a color note, and Movement sweeping its cutoff slowly.
+  // The drone on the instrument: the chord held (gliding on common notes)
+  // and now and then a color note. The modulators move its sound (modulate()).
   instrumentDroneOn(t) {
     const d = this.idrone;
     d.on = true;
     d.held = new Set();
-    d.t0 = t;
     d.nextBloom = this.s.color > 0 ? t + 3 + Math.random() * 3 : Infinity;
     this.instrumentDroneChord(this.curChord ?? 0, t);
   }
@@ -299,16 +318,11 @@ class JamRoom extends HTMLElement {
     this.pending = this.pending.filter((p) => !(held.has(p.note) && p.kind === 1));
     d.held = new Set();
     d.nextBloom = Infinity;
-    // Put the cutoff back where the Instrument sound panel says.
-    if (d.sentCutoff && this.s.target !== 'aks') fm1.sendParam('cutoff', this.s.sound.cutoff, false);
-    d.sentCutoff = 0;
-    d.sentStep = undefined;
   }
 
   instrumentDroneTick(until) {
     const d = this.idrone;
     if (!d.on) return;
-    const { ctx } = audio();
     // Color notes: a chord tone or the mode's color note, high and soft,
     // held for a few seconds. The preset's envelope decides how it swells.
     while (d.nextBloom < until) {
@@ -321,23 +335,137 @@ class JamRoom extends HTMLElement {
       const c = Math.max(1, this.s.color) / 100;
       d.nextBloom += 14 * Math.pow(2.5 / 14, c) * (0.5 + Math.random());
     }
-    // Movement: the cutoff breathes around the panel's value, a cycle every
-    // ~16 seconds, up to an octave each way. Only on Baud Girl's firmware
-    // (the CC means something else on stock). A CC has 128 steps, so each
-    // change is a small jump; it's sent only when the step actually changes,
-    // and no more than four times a second.
-    const m = this.s.movement / 100;
-    if (m <= 0 || this.s.target === 'aks' || !fm1.canSetSound) return;
-    const now = performance.now();
-    if (now - d.sentAt < 250) return;
-    const base = this.s.sound.cutoff;
-    const v = Math.min(20000, Math.max(40, base * Math.pow(2, m * Math.sin(2 * Math.PI * 0.061 * (ctx.currentTime - d.t0)))));
-    const step = ccValue('cutoff', v);
-    if (step === d.sentStep) return;
-    fm1.sendParam('cutoff', v);
-    d.sentStep = step;
-    d.sentCutoff = v;
-    d.sentAt = now;
+  }
+
+  // ---------- Modulation ----------
+  // The resting value of each parameter a modulator can move: the panel's
+  // (or, for ones the panel doesn't have, the part's patch).
+  modBase() {
+    const patch = this.fullPatch();
+    return (key) => getPath(patch, key) ?? getPath(DEFAULT_VA, key);
+  }
+
+  // Whether the modulators can move the instrument's preset right now: it has
+  // to be connected, on Baud Girl's firmware (the CCs mean other things on
+  // stock), and not the AKS Mini, whose sound the page never changes.
+  modSending() { return this.s.target !== 'aks' && this.linkReady() && fm1.canSetSound; }
+
+  // Where the modulators are on the page's clock (seconds since Play), as
+  // heard: the same moment the sound is at, less the output latency.
+  modTime() {
+    if (!this.running) return 0;
+    const { ctx } = audio();
+    return ctx.currentTime - (ctx.outputLatency || 0) - this.mod.t0;
+  }
+
+  // Once a tick: work out every moved parameter and send it. About 25 times a
+  // second at most; the instrument gets a parameter only when its CC value
+  // changes (a CC has 128 steps, so a slow move is a staircase of small jumps)
+  // and no more than ~12 times a second each.
+  modulate() {
+    const wall = performance.now();
+    if (wall - this.mod.at < 40) return;
+    this.mod.at = wall;
+    const { ctx } = audio();
+    const { values } = MOD.resolve(this.s.mods, this.modBase(), ctx.currentTime - this.mod.t0);
+    this.modApply(values, wall);
+  }
+
+  // Set the moved parameters on the instrument and the page's synth, and put
+  // back (to the panel's value) any that were moved a moment ago but no longer are.
+  modApply(values, wall) {
+    const m = this.mod;
+    const base = this.modBase();
+    const send = this.modSending();
+    const put = (target, v, soft) => {
+      const d = MOD.TARGETS[target];
+      if (d.fx) fm1.sendFx(d.fx[0], d.fx[1], v);
+      else fm1.sendParam(d.key, v, soft);
+    };
+    for (const [target, v] of Object.entries(values)) {
+      if (!send) break;
+      const step = MOD.ccStep(target, v);
+      const was = m.sent.get(target);
+      if (was && (was.step === step || wall - was.at < 80)) continue;
+      put(target, v, true);
+      m.sent.set(target, { step, at: wall });
+    }
+    for (const target of [...m.sent.keys()]) {
+      if (send && target in values) continue;
+      if (send) put(target, base(MOD.TARGETS[target].key), false);
+      m.sent.delete(target);
+    }
+    // The page's synth and drone, so it moves with nothing connected too.
+    const now = {};
+    for (const target of Object.keys(values)) now[MOD.TARGETS[target].key] = values[target];
+    const back = [...m.heard].filter((k) => !(k in now));
+    for (const k of back) now[k] = base(k);
+    m.heard = new Set(Object.keys(now).filter((k) => !back.includes(k)));
+    if (this.preview && Object.keys(now).length) this.preview.set(toPatch(now));
+    if (this.phoneDrone) this.drone.setCutoffMod('cutoff' in values ? Math.log2(values.cutoff / base('cutoff')) : 0);
+  }
+
+  // One modulator's setting changed (or its switch was tapped).
+  setMod(i, change) {
+    this.s.mods[i] = MOD.makeMod({ ...this.s.mods[i], ...change }, i + 1);
+    this.save();
+    this.paintMods();
+  }
+
+  selectMod(i) {
+    this.s.modSel = i;
+    this.save();
+    this.paintMods();
+  }
+
+  // The values and time the pictures need, worked out once a frame however
+  // many of them draw.
+  modFrame(now) {
+    const f = this.mod.frame;
+    if (f && f.stamp === now) return f;
+    const t = this.modTime();
+    const base = this.modBase();
+    return (this.mod.frame = { stamp: now, t, base, ...MOD.resolve(this.s.mods, base, t) });
+  }
+
+  drawMod(i, canvas, now) {
+    const { g, w, h } = fit(canvas);
+    const m = this.s.mods[i];
+    const f = this.modFrame(now);
+    const key = MOD.TARGETS[m.target].key;
+    const v = f.values[m.target];
+    drawModulator(g, w, h, {
+      mod: m, t: f.t, base: f.base(key), now: v,
+      label: MOD.TARGETS[m.target].label,
+      readout: v === undefined ? '' : formatValue(key, v),
+      sending: this.running && this.mod.sent.has(m.target),
+      selected: i === this.s.modSel,
+    });
+  }
+
+  // The glow on the neck: each chord note breathes with the modulation, the
+  // same shapes and the same clock, a little behind the one before so it
+  // ripples across the neck rather than flashing. Only while playing.
+  drawNeck(now) {
+    const halos = this.halos;
+    if (!halos?.length) return;
+    const mods = this.s.mods;
+    const live = this.running && mods.some((m) => m.on && m.depth > 0);
+    if (!live && !this.lit) return;
+    this.lit = live;
+    const t = this.modTime();
+    // The ripple takes half a cycle of the deepest modulator to cross the neck.
+    const lead = mods.filter((m) => m.on && m.depth > 0).sort((a, b) => b.depth - a.depth)[0];
+    const half = lead ? 0.5 / MOD.rateHz(lead.rate) : 0;
+    for (const h of halos) {
+      const g = live ? MOD.glow(mods, t, h.pos * half) : 0;
+      const o = (g * 0.8).toFixed(2);
+      if (h.o !== o) {
+        h.o = o;
+        h.el.setAttribute('fill-opacity', o);
+        h.el.setAttribute('r', (h.r + 2 + g * 8).toFixed(1));
+      }
+    }
   }
 
   tick() {
@@ -359,6 +487,7 @@ class JamRoom extends HTMLElement {
     this.flushOffs(until);
     if (this.phoneDrone) this.drone.tick(until);
     this.instrumentDroneTick(until);
+    this.modulate();
   }
 
   scheduleStep(step, t) {
@@ -377,41 +506,6 @@ class JamRoom extends HTMLElement {
       // 24 clocks to a quarter note: six to each sixteenth.
       for (let k = 0; k < 6; k++) this.link().sendRaw([0xf8], this.midiAt(t + (k * dur) / 6));
     };
-    if (this.once) {
-      const o = this.once;
-      const ready = this.linkReady();
-      if (bar < 0) {
-        // Count-in: clicks on the beats, and clock so the instrument is
-        // already following the page's tempo when Start arrives.
-        if (sub % 4 === 0) { this.ensurePhone(); this.kit.hit('rim', t, sub === 0 ? 1 : 0.65); }
-        if (ready) clock();
-        if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
-        return;
-      }
-      if (bar >= o.bars) {
-        if (!o.stopped) {
-          o.stopped = true;
-          if (ready) this.link().sendRaw([0xfc], this.midiAt(t));
-          const { ctx } = audio();
-          setTimeout(() => { if (this.once === o) this.stop(); }, Math.max(0, (t - ctx.currentTime) * 1000) + 80);
-        }
-        return;
-      }
-      if (bar === 0 && sub === 0 && ready) this.link().sendRaw([0xfa], this.midiAt(t));
-      const pbar = bar + o.startBar;
-      const idx = Math.floor(pbar / per) % this.chords.length;
-      if (sub === 0) {
-        if (pbar % per === 0 || bar === 0) { this.curChord = idx; this.drone?.setHarmony(this.harmony(idx), bar === 0, t); }
-        // Exactly the notes the downloaded file for this pattern holds.
-        const from = bar * T.STEPS_PER_BAR;
-        this.playEvents(o.events.filter((e) => e.step >= from && e.step < from + T.STEPS_PER_BAR).map((e) => ({ ...e, step: e.step - from })), t);
-        this.queue.push({ t, chord: idx, bar, inChord: pbar % per, per });
-      }
-      if (this.phoneOn() && this.kit) for (const h of T.grooveBar(this.s.groove)) if (h.step === sub) this.kit.hit(h.drum, t, h.vel);
-      if (ready) clock();
-      if (sub % 4 === 0) this.queue.push({ t, beat: sub / 4 });
-      return;
-    }
     const idx = Math.floor(bar / per) % this.chords.length;
     const inChord = bar % per;
     const chord = this.chords[idx];
@@ -485,78 +579,6 @@ class JamRoom extends HTMLElement {
       this.preview = null;
       if (this.running) this.ensurePreview();
     }
-  }
-
-  // ---------- Patterns for the instrument's sequencer ----------
-  // One pass through the progression, cut into patterns of up to 64 steps.
-  patterns() {
-    return splitPatterns(loopEvents({
-      chords: this.chords, barsPer: this.s.barsPer, pattern: this.s.pattern,
-      key: this.s.key, mode: this.s.mode, octave: this.s.octave,
-      voicing: this.s.voicing === 'chord' ? 'chord' : 'fifth',
-    }), PATTERN_STEPS);
-  }
-
-  fileStem() {
-    const key = T.spell(this.s.key, this.s.key, this.s.mode).replace('♭', 'b').replace('♯', 's');
-    return `jam-${key}-${this.s.mode}-${this.s.prog}-${this.s.pattern}`;
-  }
-
-  download(bytes, name) {
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
-    const a = el('a', { href: url, download: name });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  }
-
-  downloadPattern(p, total) {
-    const name = total > 1 ? `${this.fileStem()}-pattern${p.index + 1}of${total}.mid` : `${this.fileStem()}.mid`;
-    const label = `${T.keyLabel(this.s.key, this.s.mode)} ${T.PATTERNS[this.s.pattern].name}${total > 1 ? ` ${p.index + 1}/${total}` : ''}`;
-    this.download(writeSmf({ events: p.events, steps: p.steps, bpm: this.s.bpm, name: label, channel: this.s.target === 'aks' ? aks.channel : fm1.midiChannel }), name);
-  }
-
-  // The whole loop as one file, for a groovebox or a DAW that has room.
-  downloadLoop() {
-    const loop = loopEvents({
-      chords: this.chords, barsPer: this.s.barsPer, pattern: this.s.pattern,
-      key: this.s.key, mode: this.s.mode, octave: this.s.octave,
-      voicing: this.s.voicing === 'chord' ? 'chord' : 'fifth',
-    });
-    this.download(writeSmf({ ...loop, bpm: this.s.bpm, name: `${T.keyLabel(this.s.key, this.s.mode)} loop`, channel: fm1.midiChannel }), `${this.fileStem()}-loop.mid`);
-  }
-
-  async recordPass(p) {
-    await this.start({ index: p.index, events: p.events, bars: p.steps / T.STEPS_PER_BAR, startBar: p.start / T.STEPS_PER_BAR });
-    this.paintPatterns();
-  }
-
-  paintPatterns() {
-    if (!this.patternList) return;
-    const parts = this.patterns();
-    const bars = (p) => {
-      const a = p.start / T.STEPS_PER_BAR + 1;
-      const b = (p.start + p.steps) / T.STEPS_PER_BAR;
-      return a === b ? `bar ${a}` : `bars ${a}–${b}`;
-    };
-    this.patternList.replaceChildren(...parts.map((p) => {
-      const dl = el('button', { type: 'button', class: 'btn', text: 'Download .mid' });
-      dl.addEventListener('click', () => this.downloadPattern(p, parts.length));
-      const rec = el('button', { type: 'button', class: 'btn hw', text: this.once?.index === p.index ? 'Playing…' : 'Play into sequencer' });
-      rec.disabled = !!this.once;
-      rec.addEventListener('click', () => this.recordPass(p));
-      return el('li', {}, [
-        el('div', {}, [el('strong', { text: parts.length > 1 ? `Pattern ${p.index + 1}` : 'One pattern' }), el('span', { text: ` · ${bars(p)}, ${p.steps} steps, ${p.events.length} notes` })]),
-        el('div', { class: 'jam-pattern-btns' }, [dl, rec]),
-      ]);
-    }));
-    const stockNote = device().stock && this.s.target !== 'aks'
-      ? ' On stock firmware the instrument has its own sequencer, not Baud Girl’s, so the files are for a Bento, MPC or DAW; Play into sequencer still works with anything that follows MIDI clock and records the notes it receives.'
-      : '';
-    this.chainNote.textContent = (parts.length > 1
-      ? `The loop is longer than one pattern holds, so it comes as ${parts.length}. Load them into consecutive patterns, chain each to the next and the last back to the first.`
-      : 'The whole loop fits in one pattern. Set the pattern to repeat and it plays until you stop it.') + stockNote;
   }
 
   // The part also plays on the page when no instrument is connected (or
@@ -697,9 +719,9 @@ class JamRoom extends HTMLElement {
 
     // The drone.
     this.textureFeel = el('p', { class: 'jam-hint' });
-    const droneSec = this.panel('Drone', 'With an instrument connected, it plays the drone: the chord held, gliding between chords, color notes now and then, and Movement slowly sweeping its Cutoff. Its sound is the Instrument sound panel. With nothing connected, the phone makes one.', [
+    const droneSec = this.panel('Drone', 'With an instrument connected, it plays the drone: the chord held, gliding between chords, with color notes now and then. Its sound is the Instrument sound panel, moved by Modulation. With nothing connected, the phone makes one.', [
       this.toggle('drone', 'Drone on', () => { if (this.running) this.tick(); }),
-      el('p', { class: 'jam-hint jam-wide', text: 'Texture, Level, Brightness and Space shape the phone’s drone only. Voicing, Movement and Color notes shape both.' }),
+      el('p', { class: 'jam-hint jam-wide', text: 'Texture, Level, Brightness, Movement and Space shape the phone’s drone only. Voicing and Color notes shape both.' }),
       el('div', { class: 'jam-wide' }, [
         this.choice('texture', 'Texture', TEXTURE_IDS, TEXTURE_IDS.map((t) => TEXTURES[t].name), () => { this.applyDrone(); this.paintFeel(); }),
         this.textureFeel,
@@ -760,22 +782,45 @@ class JamRoom extends HTMLElement {
         return c;
       }),
     ]));
-    this.soundSec = this.panel('Instrument sound', 'The instrument’s preset, set from here: it plays both the drone and the part. A long Attack and full Sustain make the drone swell in.', [
-      this.soundNote,
-      ...groups,
-    ], [this.patchBtn, this.sendAllBtn]);
+    this.presetBtns = Object.keys(SOUND_PRESETS).map((name) => {
+      const b = el('button', { type: 'button', text: name, 'aria-pressed': 'false' });
+      b.addEventListener('click', () => this.loadPreset(name));
+      return b;
+    });
+    const presets = el('div', { class: 'ctl jam-wide' }, [
+      el('div', { class: 'ctl-top' }, [el('span', { class: 'ctl-name', text: 'Sound' })]),
+      el('div', { class: 'seg jam-presets', role: 'group', 'aria-label': 'Instrument sound' }, this.presetBtns),
+    ]);
+    this.presetSec = this.panel('Sound', 'One tap sets the instrument’s whole preset from the page.', [presets, this.soundNote]);
+    this.soundSec = this.panel('Instrument sound', 'The instrument’s preset, set from here: it plays both the drone and the part. A long Attack and full Sustain make the drone swell in.', groups, [this.patchBtn, this.sendAllBtn]);
 
-    // Taking the part away on the instrument.
-    this.patternList = el('ol', { class: 'jam-patterns' });
-    this.chainNote = el('p', { class: 'jam-hint' });
-    const loopBtn = el('button', { type: 'button', class: 'btn', text: 'Whole loop as one .mid' });
-    loopBtn.addEventListener('click', () => this.downloadLoop());
-    const keepSec = this.panel('Keep it on the instrument', 'Save the part so the instrument plays it unplugged. A Baud Girl pattern holds 64 steps (four bars), so a longer loop comes as several patterns to chain.', [
-      el('div', { class: 'jam-wide' }, [this.patternList, this.chainNote]),
-      el('div', { class: 'jam-wide' }, [
-        el('p', { class: 'jam-hint', text: 'Download: a MIDI file per pattern, for the MIDI Files section of Baud Girl’s Device Manager (or a Bento, MPC or DAW). Play into sequencer: one bar of clicks, then MIDI Start, the pattern in time with clock, and Stop, for an instrument following clock and recording. Neither has been tried on the hardware yet; see the notes below the page.' }),
-      ]),
-    ], [loopBtn]);
+    // Modulation: a few slots, each a shape on a parameter. Tap a trace to
+    // edit it; the switch beside it turns it on.
+    this.modStatus = el('p', { class: 'jam-modstatus' });
+    this.modRows = this.s.mods.map((m, i) => {
+      const sw = el('button', { type: 'button', class: 'jam-mod-on', role: 'switch', 'aria-label': `Modulator ${i + 1} on` });
+      sw.addEventListener('click', () => this.setMod(i, { on: !this.s.mods[i].on }));
+      const cv = el('canvas', { 'aria-hidden': 'true' });
+      const pick = el('button', { type: 'button', class: 'jam-mod-pick', 'aria-label': `Edit modulator ${i + 1}` }, [cv]);
+      pick.addEventListener('click', () => this.selectMod(i));
+      onFrame(cv, (now) => this.drawMod(i, cv, now));
+      return { sw, pick, row: el('div', { class: 'jam-mod' }, [sw, pick]) };
+    });
+    const edit = (key) => (_, v) => this.setMod(this.s.modSel, { [key]: v });
+    const hzText = (v) => { const hz = MOD.rateHz(v); return hz < 0.1 ? `${hz.toFixed(3)} Hz` : `${hz.toFixed(2)} Hz`; };
+    const cur = this.s.mods[this.s.modSel];
+    this.modCtls = {
+      shape: makeControl('jam.modShape', cur.shape, edit('shape'), { def: { label: 'Shape', type: 'choice', options: MOD.SHAPE_IDS, names: MOD.SHAPE_IDS.map((k) => MOD.SHAPES[k].name), kind: 'move' } }),
+      target: makeControl('jam.modTarget', cur.target, edit('target'), { def: { label: 'Moves', type: 'choice', options: MOD.TARGET_IDS, names: MOD.TARGET_IDS.map((k) => MOD.TARGETS[k].label), kind: 'move' } }),
+      rate: makeControl('jam.modRate', cur.rate, edit('rate'), { def: { label: 'Rate', min: 0, max: 100, step: 1, kind: 'move', format: hzText } }),
+      depth: makeControl('jam.modDepth', cur.depth, edit('depth'), { def: { label: 'Depth', min: 0, max: 100, step: 1, kind: 'move' } }),
+    };
+    this.modSec = this.panel('Modulation', 'Shapes that move the instrument’s sound by themselves while it plays. Not yet tried on the hardware: how it sounds on the FM-1 or SMK-37 is still to be heard.', [
+      el('div', { class: 'jam-wide' }, [this.modStatus]),
+      el('div', { class: 'jam-wide jam-mods' }, this.modRows.map((r) => r.row)),
+      this.modCtls.shape, this.modCtls.target, this.modCtls.rate, this.modCtls.depth,
+    ]);
+    for (const k of ['shape', 'target']) this.modCtls[k].classList.add('jam-wide', 'jam-modctl');
 
     // The neck.
     this.neck = el('div', { class: 'jam-neck' });
@@ -787,9 +832,24 @@ class JamRoom extends HTMLElement {
     ]);
 
     const side = el('div', { class: 'jam-side' }, [now, neckSec]);
-    const controls = el('div', { class: 'jam-controls' }, [keySec, instSec, this.soundSec, keepSec, droneSec, kitSec]);
-    this.append(el('div', { class: 'jam-grid' }, [side, controls]));
+    // On a phone the order is the order of use: the chord and Play, key and
+    // mode, the sound, what moves it, the neck to watch it on, the
+    // instrument, then the rest (jam.css).
+    now.classList.add('jam-o0'); keySec.classList.add('jam-o1'); this.presetSec.classList.add('jam-o2');
+    this.modSec.classList.add('jam-o3'); neckSec.classList.add('jam-o4'); instSec.classList.add('jam-o5');
+    this.soundSec.classList.add('jam-o6');
+    const controls = el('div', { class: 'jam-controls' }, [keySec, this.presetSec, this.modSec, this.soundSec, instSec, droneSec, kitSec]);
+
+    // A bar pinned to the bottom of a phone screen: the chord and Play stay
+    // in reach however far down the settings you are.
+    this.dockChord = el('strong', { class: 'jam-dock-chord' });
+    this.dockBtn = el('button', { type: 'button', class: 'btn primary jam-dock-play', 'aria-pressed': 'false' });
+    this.dockBtn.addEventListener('click', () => (this.running ? this.stop() : this.start()));
+    this.dock = el('div', { class: 'jam-dock' }, [this.dockChord, this.dockBtn]);
+    this.append(el('div', { class: 'jam-grid' }, [side, controls]), this.dock);
+    onFrame(this.neck, (now) => this.drawNeck(now));
     this.paintTargets();
+    this.paintMods();
   }
 
   panel(title, intro, kids, foot) {
@@ -873,6 +933,9 @@ class JamRoom extends HTMLElement {
   setSound(key, value, source = 'page') {
     this.s.sound[key] = value;
     this.save();
+    // A slider that sets what a modulator moves puts it back at the slider's
+    // value, so the modulator's next step must be sent again.
+    for (const id of MOD.TARGET_IDS) if (MOD.TARGETS[id].key === key) this.mod.sent.delete(id);
     if (source === 'hw') this.soundCtls.get(key)?.update(value);
     else if (this.s.target !== 'aks') {
       if (key.startsWith('fx.')) { const [, fx, field] = key.split('.'); fm1.sendFx(fx, field, value); }
@@ -889,6 +952,16 @@ class JamRoom extends HTMLElement {
     this.save();
     if (this.preview) { this.preview.dispose(); this.preview = null; this.ensurePreview(); }
     this.sendSound(`Loaded the ${this.s.pattern === 'hold' ? 'drone pad' : 'pluck'} from lesson 10`);
+  }
+
+  // A one-tap sound: the whole panel, then sent to the instrument.
+  loadPreset(name) {
+    this.s.sound = soundFrom(mergePatch(PATCHES.hold, SOUND_PRESETS[name]));
+    for (const [k, c] of this.soundCtls) c.update(this.s.sound[k]);
+    this.presetBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.textContent === name)));
+    this.save();
+    if (this.preview) { this.preview.dispose(); this.preview = null; this.ensurePreview(); }
+    this.sendSound(`Loaded ${name}`);
   }
 
   // Send everything on the panel, so the instrument matches it.
@@ -954,7 +1027,6 @@ class JamRoom extends HTMLElement {
     this.paintFeel();
     this.paintNeck();
     this.paintLink();
-    this.paintPatterns();
     this.paintSource();
   }
 
@@ -972,9 +1044,33 @@ class JamRoom extends HTMLElement {
     this.phoneCtl.hidden = !inst;
   }
 
+  // The modulator slots and the editor under them, and the line that says
+  // whether they are going out over MIDI.
+  paintMods() {
+    if (!this.modRows) return;
+    const sel = this.s.modSel;
+    this.s.mods.forEach((m, i) => {
+      const r = this.modRows[i];
+      r.sw.setAttribute('aria-checked', String(m.on));
+      r.pick.setAttribute('aria-pressed', String(i === sel));
+    });
+    const m = this.s.mods[sel];
+    for (const k of ['shape', 'target', 'rate', 'depth']) this.modCtls[k].update(m[k]);
+    const name = this.s.target === 'aks' ? 'AKS Mini' : device().label;
+    let text;
+    if (this.modSending()) text = `Moving the ${name}’s current preset${this.phoneOn() ? ' and this phone’s sound' : ''}.`;
+    else if (this.s.target === 'aks') text = 'The AKS Mini isn’t changed from here. Moves this phone’s sound.';
+    else if (device().stock) text = `Stock firmware takes none of this. Moves this phone’s sound.`;
+    else text = `Moves this phone’s sound. Connect the ${name} to move it too.`;
+    this.modStatus.textContent = text;
+    this.modStatus.toggleAttribute('data-on', this.modSending());
+  }
+
   paintPlay() {
     this.playBtn.setAttribute('aria-pressed', String(this.running));
     this.playBtn.textContent = this.running ? 'Stop' : 'Play';
+    this.dockBtn.setAttribute('aria-pressed', String(this.running));
+    this.dockBtn.textContent = this.running ? 'Stop' : 'Play';
   }
 
   paintKeys() {
@@ -985,6 +1081,7 @@ class JamRoom extends HTMLElement {
     const c = this.chords[this.shown] || this.chords[0];
     const next = this.chords.length > 1 ? this.chords[(this.shown + 1) % this.chords.length] : null;
     this.chordName.textContent = c.name;
+    this.dockChord.textContent = c.name;
     this.numeral.textContent = c.numeral;
     this.keyLine.textContent = `${T.keyLabel(this.s.key, this.s.mode)}${next ? ` · next ${next.name}` : ''}`;
   }
@@ -1007,6 +1104,7 @@ class JamRoom extends HTMLElement {
     const main = device().label;
     const c = makeControl('jam.target', this.s.target, (_, v) => {
       this.instrumentDroneOff();
+      this.modApply({}, performance.now());
       this.silence();
       this.s.target = v;
       this.save();
@@ -1040,9 +1138,11 @@ class JamRoom extends HTMLElement {
     // The sound panel is for the FM-1 and SMK-37 (the AKS Mini has its own
     // lessons); on stock firmware it shapes only the page's synth.
     this.soundSec.hidden = aksT;
+    this.presetSec.hidden = aksT;
     this.sendAllBtn.hidden = !!device().stock;
     this.sendAllBtn.disabled = !fm1.canSetSound;
     this.paintSoundNote();
+    this.paintMods();
     if (!midi && !fm1.supported.bluetooth) {
       this.linkNote.textContent = 'This browser can’t talk to instruments. Chrome on Android (or Chrome or Edge on a computer) can, over USB or Bluetooth.';
     } else if (!this.linkNote.textContent || this.linkNote.dataset.auto) {
@@ -1093,6 +1193,17 @@ class JamRoom extends HTMLElement {
       if (f > 0 && [1, 3, 5, 7, 9, 12].includes(f)) add('text', { class: 'fretno', x: 16, y: nut + row * (f - 0.5) + 4 }, String(f));
     }
     for (let s = 0; s < 6; s++) add('line', { class: 'string', x1: xs(s), x2: xs(s), y1: nut, y2: nut + row * FRETS, 'stroke-width': 2.2 - s * 0.3 });
+    // The glow under the chord notes (drawNeck): soft discs, in the
+    // modulation color, behind the dots.
+    const defs = add('defs', {});
+    const blur = document.createElementNS(ns, 'filter');
+    blur.setAttribute('id', 'jam-glow');
+    blur.setAttribute('x', '-50%'); blur.setAttribute('y', '-50%'); blur.setAttribute('width', '200%'); blur.setAttribute('height', '200%');
+    const sd = document.createElementNS(ns, 'feGaussianBlur');
+    sd.setAttribute('stdDeviation', '4');
+    blur.append(sd); defs.append(blur);
+    const glowLayer = add('g', { class: 'halos', filter: 'url(#jam-glow)' });
+    this.halos = [];
     for (let s = 0; s < 6; s++) {
       for (let f = 0; f <= FRETS; f++) {
         const p = T.pc(T.GUITAR_TUNING[s] + f);
@@ -1100,6 +1211,13 @@ class JamRoom extends HTMLElement {
         const y = f === 0 ? nut / 2 : nut + row * (f - 0.5);
         const inChord = chord.pcs.includes(p);
         const cls = ['dot', inChord ? 'chord' : 'scale', p === chord.root ? 'chordroot' : '', p === key ? 'key' : ''].filter(Boolean).join(' ');
+        if (inChord) {
+          const halo = document.createElementNS(ns, 'circle');
+          for (const [k, v] of Object.entries({ class: 'halo', cx: xs(s), cy: y, r: 16, 'fill-opacity': 0 })) halo.setAttribute(k, v);
+          glowLayer.append(halo);
+          // How far along the neck it is, 0 to 1, for the ripple.
+          this.halos.push({ el: halo, r: 14, pos: (s * (FRETS + 1) + f) / (6 * (FRETS + 1) - 1), o: '0.00' });
+        }
         add('circle', { class: cls, cx: xs(s), cy: y, r: inChord ? 14 : 11 });
         add('text', { class: `dotname${inChord ? ' on' : ''}`, x: xs(s), y: y + 4 }, T.spell(p, key, mode));
       }

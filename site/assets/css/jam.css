@@ -41,8 +41,9 @@ jam-room { display: block; }
 .jam-keys { display: grid; grid-template-columns: repeat(6, 1fr); width: 100%; }
 .jam-keys button { padding: 9px 0; font-size: 0.95rem; }
 .jam-hint { margin: 0; font-size: 0.82rem; color: var(--ink-2); font-family: var(--font-display); }
-.jam-link { margin: 0; font-size: 0.88rem; display: flex; align-items: center; gap: 8px; }
-.jam-link::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rule); flex: none; }
+/* A line with a light: lit when the instrument is connected (or moved). */
+.jam-link, .jam-modstatus { margin: 0; font-size: 0.88rem; display: flex; align-items: center; gap: 8px; }
+.jam-link::before, .jam-modstatus::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--rule); flex: none; }
 .jam-link[data-on]::before { background: var(--hw); }
 .jam-panel .seg button { padding: 7px 11px; }
 
@@ -75,12 +76,6 @@ jam-room { display: block; }
   .jam-tempo { width: 100%; justify-content: space-between; }
 }
 
-/* Patterns for the instrument's sequencer */
-.jam-patterns { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.jam-patterns li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: var(--radius-sm); }
-.jam-patterns li span { color: var(--ink-2); font-size: 0.86rem; }
-.jam-pattern-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-
 /* Where it is in a long chord: a mark a bar. */
 .jam-meter { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 .jam-meter .jam-beats { margin-top: 0; }
@@ -100,3 +95,56 @@ jam-room { display: block; }
 .jam-port { display: grid; gap: 6px; }
 .jam-portsel { width: 100%; max-width: 420px; }
 .jam-port[hidden] { display: none; }
+
+/* Presets are the first thing in the sound panel: big enough to hit on a stage. */
+.jam-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.jam-presets button { padding: 12px 16px; font-size: 1rem; flex: 1 1 28%; }
+
+/* Modulation: a trace for each slot (tap to edit), a switch beside it. */
+.jam-mods { display: grid; gap: 8px; }
+.jam-mod { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 8px; align-items: stretch; }
+.jam-mod-pick {
+  display: block; position: relative; height: 64px; padding: 0; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--rule-2); border-radius: var(--radius); background: var(--surface-2);
+  -webkit-tap-highlight-color: transparent;
+}
+.jam-mod-pick canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.jam-mod-pick[aria-pressed="true"] { border-color: var(--move); box-shadow: 0 0 0 1px var(--move); }
+.jam-mod-on {
+  position: relative; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface);
+  cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent;
+}
+.jam-mod-on::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px;
+  border-radius: 50%; border: 2px solid var(--ink-3); transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.jam-mod-on[aria-checked="true"]::after { background: var(--move); border-color: var(--move); box-shadow: 0 0 0 4px color-mix(in srgb, var(--move) 22%, transparent); }
+.jam-modstatus { font-size: 0.82rem; color: var(--ink-2); }
+.jam-modstatus[data-on]::before { background: var(--hw); }
+.jam-modctl .seg { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); }
+.jam-modctl .seg button { padding: 11px 2px; font-size: 0.86rem; min-width: 0; }
+
+/* The glow under the chord notes while the modulators move. */
+.jam-neck .halo { fill: var(--move); }
+
+/* The bottom bar is for phones only. */
+.jam-dock { display: none; }
+@media (max-width: 1099px) {
+  .jam-grid { display: flex; flex-direction: column; }
+  .jam-side, .jam-controls { display: contents; }
+  .jam-o0 { order: 0; } .jam-o1 { order: 1; } .jam-o2 { order: 2; } .jam-o3 { order: 3; } .jam-o4 { order: 4; } .jam-o5 { order: 5; } .jam-o6 { order: 6; }
+  .jam-controls > :not([class*="jam-o"]) { order: 7; }
+  jam-room { padding-bottom: 84px; }
+  .jam-dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: var(--surface); border-top: 1px solid var(--rule);
+  }
+  .jam-dock-chord { font-size: 1.8rem; font-weight: 720; font-stretch: 112%; }
+  .jam-dock-play { flex: 1; max-width: 220px; font-size: 1.15rem; padding: 14px 0; }
+}
+@media (max-width: 560px) {
+  .jam-page .lede { display: none; }
+  .jam-panel .instrument-head p { display: none; }
+}
