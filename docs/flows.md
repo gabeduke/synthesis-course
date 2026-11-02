@@ -35,10 +35,10 @@ first job (see Next).
 | F1.1 | pick a key and mode, press Play, and hear a drone move through chords in that key; the chord and where I am in it show large on the screen | `f1.1-play-drone` | todo |
 | F1.2 | change key, mode, chords or bars per chord while it plays and have the next bar follow, with no stop | `f1.2-change-while-playing` | todo |
 | F1.3 | choose a sound with one tap (Pad, Swell, Glass, Organ, Dark, Pluck) and hear the instrument change | `f1.3-sound-presets` | todo (sends CCs; the presets are guesses) |
-| F2.1 | plug the FM-1 into the phone over **USB**, tap Connect, and have the synth play the drone with the phone silent | `f2.1-usb-connect` | rig, **failing**: Android Chrome gives no prompt in a tab and "platform dependent initialization failed" in the installed app (2026-11-01) |
+| F2.1 | plug the FM-1 into the phone over **USB**, tap Connect, and have the synth play the drone with the phone silent | `f2.1-usb-connect` | **dropped on Android** (2026-11-01): plugged in, Android makes the FM-1 the phone's sound card and it lags, its own keys and screen too, even with Chrome closed; Android's MIDI service then fails ("platform dependent initialization failed"). The page now offers the FM-1 and SMK-37 Bluetooth only on Android. USB stays for computers. |
 | F2.2 | connect over **Bluetooth** and have the drone, the part and the modulation play for as long as the page stays up | `f2.2-ble-connect` | rig, **works**: tried on the FM-1 from the phone, 2026-11-01 |
 | F2.3 | be told on screen when a connect is blocked or refused, and what to do, with a Try again button | `f2.3-connect-errors` | todo (built 2026-11-01: `hw/midi-check.js` and the box under the link line, with Copy details; checked in `scripts/test_ble_browser.mjs` against fake ports, not yet seen on the phone) |
-| F2.4 | leave the phone and synth running on the arm of a chair for an hour without lag, dropped keys or a drained phone | `f2.4-long-session` | rig, **not met over USB**: lag and dropped keys with the phone routing audio to the FM-1 (2026-11-01) |
+| F2.4 | leave the phone and synth running on the arm of a chair for an hour without lag, dropped keys or a drained phone | `f2.4-long-session` | rig, not yet tried over Bluetooth for an hour. Over USB it can't be met on Android (see F2.1) |
 | F3.1 | assign a shape (sine, triangle, drift, steps) to a parameter, set its rate and depth, and hear it move the sound | `f3.1-modulate` | todo (built; only checked on fake MIDI, not yet by ear) |
 | F3.2 | see each modulator as a live trace with the value going out, in time with what I hear | `f3.2-mod-visual` | todo |
 | F3.3 | stop, or switch a modulator off, and have the instrument return to the panel's values | `f3.3-mod-stop` | todo |
@@ -54,7 +54,6 @@ first job (see Next).
 1. Write the runner and the first flows: F1.1–F1.3, F3.1–F3.4, F4.1, F6.1 can
    run in Chrome at 390×844 against a fake Web MIDI port. They make these
    statuses real. Use Woodshed's harness as the model.
-2. Fix F2.3 first among the connect flows: a blocked or refused connect must
-   say so on screen. It is what turns F2.1 from a mystery into a diagnosis.
-3. Until F2.1 and F2.4 pass over USB, Bluetooth (F2.2) is the way to play. The
-   standalone stage (F5.1) removes the phone from the setup altogether.
+2. On a phone, Bluetooth (F2.2) is the way to play: USB from Android is
+   dropped (F2.1). F2.4 now means an hour over Bluetooth. The standalone
+   stage (F5.1) removes the phone from the setup altogether.

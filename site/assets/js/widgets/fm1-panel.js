@@ -266,11 +266,19 @@ function body(panel) {
   const heading = el('h3');
   const intro = el('p');
   const chNote = el('p');
+  // The USB rows (MIDI and audio), hidden where USB isn't offered (fm1.usbOffered).
+  const usbRows = [
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports, usbNote]),
+    el('hr'),
+    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab, sinkLab, sinkNote]),
+    el('hr'),
+  ];
   const words = () => {
     const d = deviceLabel();
     heading.textContent = `Connect ${device().article || 'a'} ${d}`;
-    intro.textContent = `Plug it in with a ${device().cable || 'USB'} data cable. MIDI lets the page play the ${d} and set its Virtual Analog controls; audio lets the page draw what the ${d} is really doing. Both are optional.`;
-    bleAbout.textContent = `No cable needed: if the ${d} has Bluetooth MIDI, the page can connect to it directly. While Bluetooth is connected the page uses it instead of USB.`;
+    intro.textContent = fm1.usbWhy || `Plug it in with a ${device().cable || 'USB'} data cable. MIDI lets the page play the ${d} and set its Virtual Analog controls; audio lets the page draw what the ${d} is really doing. Both are optional.`;
+    for (const r of usbRows) r.hidden = !fm1.usbOffered;
+    bleAbout.textContent = `No cable needed: if the ${d} has Bluetooth MIDI, the page can connect to it directly.${fm1.usbOffered ? ' While Bluetooth is connected the page uses it instead of USB.' : ''}`;
     chNote.textContent = d === 'FM-1'
       ? 'These match GLO › MIDI on the FM-1. The defaults (All and 2) work without changes.'
       : `These match ${ctl('GLO')} › MIDI on the ${d}. If notes play but settings don’t move, check the channels there.`;
@@ -281,12 +289,12 @@ function body(panel) {
   const node = el('div', { class: 'fm1-body' }, [
     heading,
     intro,
-    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'MIDI' }), midiState]), midiBtn, ports, usbNote]),
-    el('hr'),
+    usbRows[0],
+    usbRows[1],
     el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Bluetooth MIDI' }), bleState]), bleAbout, bleBtn, bleHint, stockBleHint, bleNote, bleLog]),
     el('hr'),
-    el('div', { class: 'fm1-row' }, [el('div', { class: 'row-head' }, [el('strong', { text: 'Audio' }), audioState]), audioBtn, el('label', { class: 'pair', style: 'grid-template-columns:1fr' }, [devSel]), monitorLab, sinkLab, sinkNote]),
-    el('hr'),
+    usbRows[2],
+    usbRows[3],
     el('div', { class: 'fm1-row' }, [
       el('strong', { text: 'Settings' }),
       el('div', { class: 'pair' }, [

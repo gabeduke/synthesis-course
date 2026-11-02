@@ -930,6 +930,39 @@ await check('jam: no ports, then the instrument plugged in; and no answer from C
   await second.ctx.close();
 });
 
+await check('on Android the FM-1 and SMK-37 are offered Bluetooth only; the AKS Mini keeps USB', async () => {
+  const ctx = await browser.newContext({
+    serviceWorkers: 'block', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
+    userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36',
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  // Permission already given: the quiet reconnect on load must not open MIDI here.
+  await page.addInitScript(() => {
+    window.__asked = 0;
+    navigator.permissions.query = async () => ({ state: 'granted' });
+    navigator.requestMIDIAccess = async () => { window.__asked++; return { inputs: new Map(), outputs: new Map(), onstatechange: null }; };
+  });
+  await page.goto(`${BASE}/jam.html?device=fm1`);
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  assert(await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).isHidden(), 'no USB button in Jam');
+  assert(await jam(page).getByRole('button', { name: 'Connect over Bluetooth' }).isVisible(), 'Bluetooth button in Jam');
+  assert((await jam(page).locator('.jam-hint', { hasText: 'On Android' }).textContent()).includes('sound card'), 'Jam says why');
+  const pop = page.locator('fm1-panel[compact] .fm1-popover');
+  assert(await pop.getByRole('button', { name: 'Connect MIDI' }).isHidden(), 'no USB MIDI in the header panel');
+  assert(await pop.getByRole('button', { name: 'Listen to its audio' }).isHidden(), 'no USB audio in the header panel');
+  assert((await pop.locator('h3 + p').textContent()).startsWith('On Android, connect the FM-1 over Bluetooth'), 'header panel says why');
+  await page.locator('#device-select').selectOption('smk37');
+  assert(await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).isHidden(), 'SMK-37 too');
+  await jam(page).getByRole('group', { name: 'Send the part to' }).getByRole('button', { name: 'AKS Mini' }).click();
+  assert(await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).isVisible(), 'AKS Mini keeps USB');
+  eq(await page.evaluate(() => window.__asked), 0, 'MIDI not opened on load');
+  eq(errors, [], 'page errors');
+  await ctx.close();
+});
+
 await check('jam: key, mode, sevenths and the neck follow the choice', async () => {
   const { page, ctx, errors } = await open('/jam.html');
   await jam(page).locator('.jam-keys').getByRole('button', { name: 'E', exact: true }).click();

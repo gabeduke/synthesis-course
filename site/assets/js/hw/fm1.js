@@ -137,6 +137,11 @@ async function midiPermission() {
   try { return (await navigator.permissions.query({ name: 'midi' })).state; } catch (_) { return undefined; }
 }
 
+// Android makes a USB audio interface the phone's sound card as soon as it's
+// plugged in, and the FM-1 then lags (its own keys and screen too, with no
+// browser open) and Android's MIDI service fails. See devices.js usbAudio.
+const ANDROID = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
 const installedApp = () => !!(globalThis.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone);
 
 // The browser and phone, for the details a page can copy ("Chrome 142 ·
@@ -195,6 +200,16 @@ class FM1Link extends EventTarget {
     onDeviceChange(() => { if (this.access && !this.output) { this._pickPorts(); this._emit('change'); } });
   }
 
+  // Whether the page offers USB (MIDI and audio) for the chosen instrument
+  // here: not on Android for one that is a USB audio interface. usbWhy says
+  // so, for the page to show where the USB buttons would be.
+  get usbOffered() { return !(ANDROID && device().usbAudio); }
+  get usbWhy() {
+    if (this.usbOffered) return '';
+    const d = device().label;
+    return `On Android, connect the ${d} over Bluetooth. Plugged in with a cable, Android makes it the phone’s sound card, and the ${d} lags, its own keys and screen too.`;
+  }
+
   // True while a Bluetooth MIDI connection is up (it then outranks USB).
   get bleActive() { return !!this.ble?.connected; }
   // True when there is somewhere to send to: Bluetooth or a USB output port.
@@ -215,14 +230,14 @@ class FM1Link extends EventTarget {
   // Reconnect quietly on page load if permission was already given.
   async autoConnect() {
     try {
-      if (this.supported.midi && navigator.permissions) {
+      if (this.usbOffered && this.supported.midi && navigator.permissions) {
         const s = await navigator.permissions.query({ name: 'midi' });
         if (s.state === 'granted') await this.connectMidi({ quiet: true });
       }
     } catch (_) { /* some browsers can't query MIDI permission */ }
     try {
       // Only reopen audio by itself if it was the FM-1 last time, never a laptop mic.
-      if (this.supported.audio && navigator.permissions && storage('fm1.audioId') && storage('fm1.audioIsFm1') === '1') {
+      if (this.usbOffered && this.supported.audio && navigator.permissions && storage('fm1.audioId') && storage('fm1.audioIsFm1') === '1') {
         const s = await navigator.permissions.query({ name: 'microphone' });
         if (s.state === 'granted') await this.connectAudio(storage('fm1.audioId'));
       }

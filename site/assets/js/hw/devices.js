@@ -20,6 +20,9 @@
 //               "where it lives" paths in ui/params.js.
 //   portMatch   regex for the USB MIDI port name, to pick it automatically
 //   audioMatch  regex for the USB audio input name, to listen to it
+//   usbAudio    true if it is also a USB audio interface. Android then makes
+//               it the phone's sound card as soon as it's plugged in, so on
+//               Android the page offers it Bluetooth only (fm1.usbOffered)
 //   bleName     the name it advertises over Bluetooth MIDI, if known
 //   bendRange   semitones each way the firmware bends by default, so the
 //               page's synth bends as far as the instrument does
@@ -44,10 +47,12 @@ export const DEVICES = {
     controls: {},
     portMatch: /fm-?1|ota-fm|felucca|usb composite device|usb-midi/i,
     audioMatch: /fm-?1/i,
+    usbAudio: true,
     cc: {},
     notes: [
       'The course was written against FM-1+VA version 97; envelope times rechecked against version 102.',
       'Shows up as a USB audio interface named "FM-1 Audio".',
+      'Plugged into an Android phone it becomes the phone’s sound card, and its own keys and screen lag, even with no browser open; Chrome’s Web MIDI then fails with "Platform dependent initialization failed" (2026-11-01). Over Bluetooth it works.',
     ],
   },
 
@@ -93,6 +98,9 @@ export const DEVICES = {
     // the model's name are preferred over generic ones (see fm1.js).
     portMatch: /smk-?37|starrykey|mke-?p37|usb-midi|usb composite device/i,
     audioMatch: /smk-?37|starrykey/i,
+    // Not tried on Android; it's a USB audio interface like the FM-1, so it
+    // gets the same Bluetooth-only treatment there.
+    usbAudio: true,
     // Advertised in Bluetooth Device mode, with the standard BLE MIDI service.
     bleName: 'SMK-37+VA_BLE',
     // GLOBE › Bend Up / Bend Down, 1–24, start at 12.

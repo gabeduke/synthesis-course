@@ -776,7 +776,7 @@ class JamRoom extends HTMLElement {
       el('details', {}, [el('summary', { text: 'What Chrome reports' }), this.checkDetails]),
     ]);
     this.checkBox.hidden = true;
-    const instSec = this.panel('Your instrument', 'Plug the FM-1, SMK-37 or AKS Mini into the phone (or pair it over Bluetooth) and it makes the sound: the drone, and a part over it.', [
+    const instSec = this.panel('Your instrument', 'Connect the FM-1, SMK-37 or AKS Mini and it makes the sound: the drone, and a part over it.', [
       this.targetCtl,
       el('div', { class: 'jam-wide' }, [this.linkLine]),
       this.checkBox,
@@ -1163,7 +1163,9 @@ class JamRoom extends HTMLElement {
     this.paintCheck();
     this.paintPorts();
     const midi = fm1.supported.midi;
-    this.usbBtn.hidden = !midi || (aksT ? aks.connected : !!fm1.output);
+    // On Android an FM-1 or SMK-37 is Bluetooth only (fm1.usbOffered).
+    const usb = aksT || fm1.usbOffered;
+    this.usbBtn.hidden = !midi || !usb || (aksT ? aks.connected : !!fm1.output);
     this.usbBtn.textContent = fm1.access ? `Find the ${name}` : 'Connect USB MIDI';
     this.bleBtn.hidden = aksT || !fm1.supported.bluetooth;
     this.bleBtn.textContent = fm1.bleActive ? 'Disconnect Bluetooth' : fm1.ble?.device ? 'Reconnect Bluetooth' : 'Connect over Bluetooth';
@@ -1179,11 +1181,14 @@ class JamRoom extends HTMLElement {
       this.linkNote.textContent = 'This browser can’t talk to instruments. Chrome on Android (or Chrome or Edge on a computer) can, over USB or Bluetooth.';
     } else if (!this.linkNote.textContent || this.linkNote.dataset.auto) {
       this.linkNote.dataset.auto = '1';
+      const ble = device().stock
+        ? 'Bluetooth needs the instrument’s Bluetooth MIDI switched on, and a tap here each time the page opens.'
+        : 'Bluetooth needs the instrument in BT Device mode, and a tap here each time the page opens.';
+      const cable = 'Over USB, a phone needs a USB-C cable or an OTG adapter.';
+      const how = !usb ? `${fm1.usbWhy} ${ble}` : device().stock ? `${cable} ${ble}` : `${ble} ${cable}`;
       this.linkNote.textContent = aksT
         ? 'The AKS Mini plays over USB only. The page never changes its sound; set it by hand.'
-        : device().stock
-          ? 'On stock firmware the page sends notes only; set the sound on the instrument. Over USB, a phone needs a USB-C cable or an OTG adapter. Bluetooth needs the instrument’s Bluetooth MIDI switched on, and a tap here each time the page opens.'
-          : 'Bluetooth needs the instrument in BT Device mode, and a tap here each time the page opens. Over USB, a phone needs a USB-C cable or an OTG adapter.';
+        : device().stock ? `On stock firmware the page sends notes only; set the sound on the instrument. ${how}` : how;
     }
   }
 
