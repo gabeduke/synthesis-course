@@ -124,6 +124,16 @@ export function describeMidi(data, fxChannel = 2) {
   return Array.from(data, (b) => b.toString(16).padStart(2, '0')).join(' ');
 }
 
+// When a note-off for `key` should go: at `at` (or now), unless its note-on
+// is due later. Chrome can't take back a message already handed to a USB
+// port with a time on it (it has no MIDIOutput.clear()), so a note-off sent
+// now for a note still on its way would land first and leave it hanging.
+// It follows the note-on instead. `sounding` maps keys to note-on times.
+export function offAt(sounding, key, at) {
+  const on = sounding.get(key);
+  return on > (at ?? performance.now()) ? on + 1 : at;
+}
+
 function storage(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);
@@ -190,7 +200,7 @@ class FM1Link extends EventTarget {
     browserLabel().then((s) => { this.browser = s; });
     this._pending = new Map();
     this._timers = new Map();
-    this.sounding = new Set(); // "channel:note" pairs we've sent note-ons for
+    this.sounding = new Map(); // "channel:note" we've sent note-ons for -> when each is due
     this._bleTimers = new Set();
     this.monitoring = false;
     // Leaving the page mid-chord shouldn't leave the FM-1 droning.
@@ -478,26 +488,27 @@ class FM1Link extends EventTarget {
   noteOn(note, velocity = 0.8, at) {
     const ch = this.midiChannel;
     this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)], at);
-    this.sounding.add(`${ch}:${note & 127}`);
+    this.sounding.set(`${ch}:${note & 127}`, at ?? performance.now());
   }
 
   noteOff(note, at) {
     const ch = this.midiChannel;
-    this._send([0x80 | (ch - 1), note & 127, 0], at);
-    this.sounding.delete(`${ch}:${note & 127}`);
+    const key = `${ch}:${note & 127}`;
+    this._send([0x80 | (ch - 1), note & 127, 0], offAt(this.sounding, key, at));
+    this.sounding.delete(key);
   }
 
   // Note-offs for everything we started, then All Notes Off for good measure.
-  // Bluetooth messages still waiting for their time are dropped; USB ones
-  // already handed to the browser are cleared where the browser allows it.
+  // Bluetooth messages still waiting for their time are dropped; a USB
+  // note-on already handed to the browser can't be (see offAt).
   releaseAll() {
     for (const id of this._bleTimers) clearTimeout(id);
     this._bleTimers.clear();
     try { this.output?.clear?.(); } catch (_) { /* not supported */ }
     if (!this.canSend) { this.sounding.clear(); return; }
-    for (const key of this.sounding) {
+    for (const key of this.sounding.keys()) {
       const [ch, note] = key.split(':').map(Number);
-      this._send([0x80 | (ch - 1), note, 0]);
+      this._send([0x80 | (ch - 1), note, 0], offAt(this.sounding, key));
     }
     this.sounding.clear();
     this._send([0xb0 | (this.midiChannel - 1), 123, 0]);

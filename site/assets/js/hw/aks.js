@@ -12,7 +12,7 @@
 // UNVERIFIED: the name the AKS Mini gives its USB MIDI port. The page picks
 // any output with "AKS" in its name; if that misses, choose the port by hand.
 
-import { fm1 } from './fm1.js';
+import { fm1, offAt } from './fm1.js';
 import { AKS_CC, aksCcValue, bendBytes } from '../audio/aks-core.js';
 
 export const AKS_PORT = /aks/i;
@@ -31,7 +31,7 @@ class AksLink extends EventTarget {
     super();
     this.output = null;
     this.channel = clamp(Number(storage('aks.ch')) || 1, 1, 16);
-    this.sounding = new Set();
+    this.sounding = new Map(); // "channel:note" -> when its note-on is due
     this._pending = new Map();
     this._timers = new Map();
     fm1.addEventListener('change', () => this._refresh());
@@ -89,22 +89,23 @@ class AksLink extends EventTarget {
   noteOn(note, velocity = 0.8, at) {
     const ch = this.channel;
     this._send([0x90 | (ch - 1), note & 127, clamp(Math.round(velocity * 127), 1, 127)], at);
-    this.sounding.add(`${ch}:${note & 127}`);
+    this.sounding.set(`${ch}:${note & 127}`, at ?? performance.now());
   }
 
   noteOff(note, at) {
     const ch = this.channel;
-    this._send([0x80 | (ch - 1), note & 127, 0], at);
-    this.sounding.delete(`${ch}:${note & 127}`);
+    const key = `${ch}:${note & 127}`;
+    this._send([0x80 | (ch - 1), note & 127, 0], offAt(this.sounding, key, at));
+    this.sounding.delete(key);
   }
 
   // Note-offs for everything we started, then All Notes Off for good measure.
   releaseAll() {
     try { this.output?.clear?.(); } catch (_) { /* not supported */ }
     if (!this.output) { this.sounding.clear(); return; }
-    for (const key of this.sounding) {
+    for (const key of this.sounding.keys()) {
       const [ch, note] = key.split(':').map(Number);
-      this._send([0x80 | (ch - 1), note, 0]);
+      this._send([0x80 | (ch - 1), note, 0], offAt(this.sounding, key));
     }
     this.sounding.clear();
     this._send([0xb0 | (this.channel - 1), 123, 0]);

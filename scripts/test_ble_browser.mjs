@@ -104,7 +104,10 @@ function fakeMidi() {
   // Timestamps are kept beside the messages (the Jam page schedules ahead).
   const times = [];
   window.__usbTimes = times;
-  const output = { id: 'out1', name: 'SMK-37 MIDI', state: 'connected', type: 'output', send: (d, ts) => { sent.push([...d]); times.push(ts); } };
+  // And when each one reaches the instrument: its timestamp, or straight away.
+  const due = [];
+  window.__usbAt = due;
+  const output = { id: 'out1', name: 'SMK-37 MIDI', state: 'connected', type: 'output', send: (d, ts) => { sent.push([...d]); times.push(ts); due.push(ts ?? performance.now()); } };
   window.__usbIn = (bytes) => input.onmidimessage?.({ data: new Uint8Array(bytes) });
   navigator.requestMIDIAccess = async () => ({ inputs: new Map([['in1', input]]), outputs: new Map([['out1', output]]), onstatechange: null });
 }
@@ -643,6 +646,45 @@ await check('jam: plays a part over USB, timestamped ahead, in the key', async (
   await ctx.close();
 });
 
+// Chrome can't take back a message already handed to a USB port with a time
+// on it (no MIDIOutput.clear()), so a note struck just before Stop sounds
+// after Stop's note-offs unless they follow it.
+await check('jam: Stop leaves no note hanging that was already on its way over USB', async () => {
+  const { page, ctx, errors } = await open('/jam.html?device=smk37', {}, { midi: true });
+  await page.evaluate(() => localStorage.removeItem('jam.settings'));
+  await page.reload();
+  await page.waitForFunction(() => customElements.get('jam-room'));
+  await jam(page).getByRole('button', { name: 'Connect USB MIDI' }).click();
+  await page.waitForFunction(() => document.querySelector('jam-room .jam-link').textContent.includes('connected over USB'));
+  await jam(page).getByRole('group', { name: 'Part' }).getByRole('button', { name: 'Pulse' }).click();
+  await jam(page).getByRole('button', { name: 'Play', exact: true }).click();
+  // Stop the moment a note-on is at the port but not yet due.
+  const ahead = await page.evaluate(() => new Promise((done) => {
+    const id = setInterval(() => {
+      const i = window.__usbSent.findLastIndex((m) => (m[0] & 0xf0) === 0x90);
+      const wait = i < 0 ? 0 : window.__usbAt[i] - performance.now();
+      if (wait > 20) { clearInterval(id); document.querySelector('jam-room').stop(); done(wait); }
+    }, 5);
+  }));
+  assert(ahead > 20, `a note was on its way: ${ahead} ms`);
+  // Play the port back in the order the instrument hears it. All Notes Off
+  // isn't counted: whether the FM-1 honours it hasn't been checked.
+  const r = await page.evaluate(() => {
+    const now = performance.now();
+    const heard = window.__usbSent.map((m, i) => ({ m, at: window.__usbAt[i], i })).sort((a, b) => a.at - b.at || a.i - b.i);
+    const on = new Set();
+    for (const { m } of heard) {
+      if ((m[0] & 0xf0) === 0x90 && m[2] > 0) on.add(m[1]);
+      else if ((m[0] & 0xf0) === 0x80 || (m[0] & 0xf0) === 0x90) on.delete(m[1]);
+    }
+    return { left: [...on], latest: Math.max(...window.__usbAt) - now };
+  });
+  eq(r.left, [], 'notes still sounding after Stop');
+  assert(r.latest < 400, `nothing held back long: the last message is due in ${r.latest} ms`);
+  eq(errors, [], 'console errors');
+  await ctx.close();
+});
+
 await check('jam: plays a part over Bluetooth MIDI', async () => {
   const { page, ctx, errors } = await open('/jam.html?device=smk37');
   await jam(page).getByRole('button', { name: 'Connect over Bluetooth' }).click();
@@ -741,7 +783,8 @@ await check('jam: Stop ends long held notes on the instrument and the page', asy
   const r = await page.evaluate(() => {
     const ons = window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x90).map((m) => m[1]);
     const offs = window.__usbSent.filter((m) => (m[0] & 0xf0) === 0x80).map((m) => m[1]);
-    return { ons, offs, offsNow: window.__usbTimes.filter((t, i) => (window.__usbSent[i][0] & 0xf0) === 0x80).every((t) => t === undefined) };
+    const now = performance.now();
+    return { ons, offs, offsNow: window.__usbTimes.filter((t, i) => (window.__usbSent[i][0] & 0xf0) === 0x80).every((t) => t === undefined || t - now < 400) };
   });
   assert(r.ons.length >= 3, `held notes: ${r.ons}`);
   assert(r.ons.every((n) => r.offs.includes(n)), `every held note released: on ${r.ons}, off ${r.offs}`);
